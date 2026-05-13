@@ -1,0 +1,113 @@
+/* --- Cài đặt chung --- */
+.pdf-body {
+  width: 794px;
+  padding: 32px;
+  background: #fff;
+
+  font-family: "Times New Roman", serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #000;
+}
+/* QUAN TRỌNG */
+.no-break {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* Khi cần xuống trang */
+.page-break {
+  page-break-before: always;
+}
+
+/* Header */
+.pdf-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.pdf-title {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+/* Section */
+.pdf-section {
+  margin-bottom: 18px;
+  page-break-inside: avoid;
+}
+
+/* Grid */
+.pdf-grid {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.pdf-col {
+  width: 50%;
+  padding-right: 10px;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+}
+
+/* Field */
+.pdf-label {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 7px;
+}
+
+.pdf-box {
+  border: 1px solid #000;
+  padding: 6px 8px;
+  min-height: 26px;
+  line-height: 1.4;
+}
+
+/* Thành viên */
+.pdf-member {
+  margin-bottom: 12px;
+}
+
+.pdf-member-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+/* Điều khoản */
+.pdf-section h3{
+  margin-bottom: 10px;
+}
+.pdf-terms {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 8px;
+  line-height: 1.7;
+}
+
+.pdf-terms p {
+  margin-bottom: 10px;
+}
+
+.pdf-terms ul {
+  padding-left: 20px;
+}
+
+/* Signature */
+.pdf-signature {
+  margin-top: 40px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.pdf-sign {
+  text-align: center;
+  width: 45%;
+}
+.pdf-sign b{
+  margin-bottom: 20px;
+}
+
+.pdf-sign img {
+  height: 60px;
+  margin-top: 10px;
+}
