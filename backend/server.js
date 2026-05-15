@@ -19,8 +19,21 @@ const notificationRoutes = require("./routes/notifications");
 const app = express();
 
 // ─── Middleware ───────────────────────────────────────────────
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "https://room-management-pearl.vercel.app" // Tên miền Vercel của bạn
+];
 const corsOptions = {
-  origin: process.env.CLIENT_URL || "http://localhost:5173",
+  origin: function (origin, callback) {
+    // cho phép các request không có origin (như Postman hoặc mobile app) 
+    // hoặc origin nằm trong danh sách cho phép
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("CORS policy: Domain này không được phép truy cập!"));
+    }
+  },
   credentials: true,
 };
 app.use(cors(corsOptions));
