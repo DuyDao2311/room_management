@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 // import { Link } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
-import { FiHome, FiKey, FiUserPlus, FiDollarSign, FiCalendar, FiDownload } from "react-icons/fi";
+import { useAuth } from '../../contexts/AuthContext.tsx'
+import { FiHome, FiKey, FiUserPlus, FiDollarSign, FiCalendar, FiDownload, FiMapPin } from "react-icons/fi";
 
 interface Stats {
   totalRooms: number
@@ -18,9 +19,12 @@ interface Stats {
 }
 
 export default function Dashboard() {
+  const { user } = useAuth()
   const [stats, setStats] = useState<Stats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  const isStaff = user?.role === 'staff'
 
   useEffect(() => {
     api.get('/admin/stats')
@@ -40,18 +44,50 @@ export default function Dashboard() {
   return (
     <div className="page-shell">
       <div className="admin-page">
+        {/* Staff District Banner */}
+        {isStaff && user?.managedDistricts && user.managedDistricts.length > 0 && (
+          <div style={{
+            background: 'linear-gradient(135deg, #e6f4ff, #ecfdf3)',
+            border: '1px solid #b2d8f7',
+            borderRadius: '12px', padding: '14px 20px',
+            marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px',
+          }}>
+            <FiMapPin size={20} color="#003e68" />
+            <div>
+              <span style={{ fontWeight: 700, color: '#003e68', fontSize: '0.9rem' }}>Khu vực quản lý: </span>
+              {user.managedDistricts.map(d => (
+                <span key={d} style={{
+                  background: '#003e68', color: 'white', padding: '3px 10px',
+                  borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600,
+                  marginLeft: '6px', display: 'inline-block', marginTop: '2px',
+                }}>
+                  {d}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="admin-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: 'none', marginBottom: '24px' }}>
           <div>
-            <h1 style={{ color: '#003e68', fontSize: '1.8rem', fontWeight: 800, margin: '0 0 8px 0' }}>Chào buổi sáng, Quản trị viên</h1>
-            <p style={{ color: '#667085', margin: 0, fontSize: '0.95rem' }}>Dưới đây là tóm tắt tình hình kinh doanh của bạn hôm nay.</p>
+            <h1 style={{ color: '#003e68', fontSize: '1.8rem', fontWeight: 800, margin: '0 0 8px 0' }}>
+              Xin chào, {isStaff ? 'Nhân viên' : 'Quản trị viên'}
+            </h1>
+            <p style={{ color: '#667085', margin: 0, fontSize: '0.95rem' }}>
+              {isStaff
+                ? 'Dưới đây là tóm tắt dữ liệu khu vực bạn quản lý hôm nay.'
+                : 'Dưới đây là tóm tắt tình hình kinh doanh của bạn hôm nay.'}
+            </p>
           </div>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '6px' }}>
             <div style={{ background: '#f0f2f5', padding: '10px 16px', borderRadius: '6px', color: '#475467', fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FiCalendar size={18} /> {today}
             </div>
-            <button className="button" style={{ background: '#003e68', color: 'white', display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 600, border: 'none', cursor: 'pointer' }}>
-              <FiDownload size={18} /> Xuất báo cáo
-            </button>
+            {!isStaff && (
+              <button className="button" style={{ background: '#003e68', color: 'white', display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '6px', fontSize: '0.9rem', fontWeight: 600, border: 'none', cursor: 'pointer' }}>
+                <FiDownload size={18} /> Xuất báo cáo
+              </button>
+            )}
           </div>
         </div>
 

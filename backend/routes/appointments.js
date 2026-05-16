@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const Appointment = require("../models/Appointment");
-const { protect, adminOnly } = require("../middleware/auth");
+const Room = require("../models/Room");
+const { protect, adminOnly, verifyRole, injectDistrictFilter } = require("../middleware/auth");
 
 // POST /api/appointments - Tạo lịch hẹn mới (Public / Khách vãng lai)
 router.post("/", async (req, res) => {
@@ -12,6 +13,13 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "Vui lòng cung cấp đủ họ tên, SĐT, ngày, thời gian và phòng." });
     }
 
+    // Tự động lấy district từ room để lưu vào appointment
+    let district = "";
+    const roomDoc = await Room.findById(room).select("district");
+    if (roomDoc) {
+      district = roomDoc.district || "";
+    }
+
     const appointment = new Appointment({
       name,
       phone,
@@ -19,7 +27,8 @@ router.post("/", async (req, res) => {
       time,
       note,
       room,
-      user: user || null
+      user: user || null,
+      district,
     });
 
     await appointment.save();
@@ -30,11 +39,14 @@ router.post("/", async (req, res) => {
   }
 });
 
-// GET /api/appointments - Lấy danh sách lịch hẹn (Chỉ Admin)
-router.get("/", protect, adminOnly, async (req, res) => {
+// GET /api/appointments - Lấy danh sách lịch hẹn (Admin + Staff)
+router.get("/", protect, verifyRole("admin", "staff"), injectDistrictFilter, async (req, res) => {
   try {
-    const appointments = await Appointment.find({})
-      .populate("room", "name address price type images")
+    // Staff: filter theo district (đã được inject vào req.districtFilter)
+    const filter = { ...req.districtFilter };
+
+    const appointments = await Appointment.find(filter)
+      .populate("room", "name address price type images district")
       .populate("user", "name email")
       .sort({ createdAt: -1 });
     res.json(appointments);
@@ -44,21 +56,30 @@ router.get("/", protect, adminOnly, async (req, res) => {
   }
 });
 
-// GET /api/appointments/:id - Chi tiết 1 lịch hẹn
-router.get("/:id", protect, adminOnly, async (req, res) => {
+// GET /api/appointments/:id - Chi tiết 1 lịch hẹn (Admin + Staff)
+router.get("/:id", protect, verifyRole("admin", "staff"), async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id)
-      .populate("room", "name address price type images")
+      .populate("room", "name address price type images district")
       .populate("user", "name email");
     if (!appointment) return res.status(404).json({ message: "Không tìm thấy lịch hẹn" });
+
+    // Staff: kiểm tra lịch hẹn thuộc district
+    if (req.user.role === "staff") {
+      const district = appointment.district || "";
+      if (!req.user.managedDistricts || !req.user.managedDistricts.includes(district)) {
+        return res.status(403).json({ message: "Bạn không có quyền xem lịch hẹn thuộc khu vực này." });
+      }
+    }
+
     res.json(appointment);
   } catch (err) {
     res.status(500).json({ message: "Lỗi server." });
   }
 });
 
-// PUT /api/appointments/:id/status - Cập nhật trạng thái lịch hẹn (Chỉ Admin)
-router.put("/:id/status", protect, adminOnly, async (req, res) => {
+// PUT /api/appointments/:id/status - Cập nhật trạng thái lịch hẹn (Admin + Staff)
+router.put("/:id/status", protect, verifyRole("admin", "staff"), async (req, res) => {
   try {
     const { status } = req.body;
     if (!["pending", "confirmed", "cancelled"].includes(status)) {
@@ -70,12 +91,20 @@ router.put("/:id/status", protect, adminOnly, async (req, res) => {
       return res.status(404).json({ message: "Không tìm thấy lịch hẹn." });
     }
 
+    // Staff: kiểm tra lịch hẹn thuộc district
+    if (req.user.role === "staff") {
+      const district = appointment.district || "";
+      if (!req.user.managedDistricts || !req.user.managedDistricts.includes(district)) {
+        return res.status(403).json({ message: "Bạn không có quyền cập nhật lịch hẹn thuộc khu vực này." });
+      }
+    }
+
     appointment.status = status;
     await appointment.save();
 
     // Lấy lại dữ liệu kèm populate để trả về frontend
     const updatedAppointment = await Appointment.findById(req.params.id)
-      .populate("room", "name address images")
+      .populate("room", "name address images district")
       .populate("user", "name email");
 
     res.json(updatedAppointment);

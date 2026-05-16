@@ -38,6 +38,7 @@ router.post("/register", async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        managedDistricts: user.managedDistricts || [],
       },
     });
   } catch (err) {
@@ -73,6 +74,7 @@ router.post("/login", async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        managedDistricts: user.managedDistricts || [],
       },
     });
   } catch (err) {
@@ -90,6 +92,7 @@ router.get("/me", protect, async (req, res) => {
     email: req.user.email,
     role: req.user.role,
     phone: req.user.phone,
+    managedDistricts: req.user.managedDistricts || [],
   });
 });
 

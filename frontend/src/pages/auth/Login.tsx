@@ -17,7 +17,7 @@ export default function Login() {
     setLoading(true)
     try {
       const loggedInUser = await login(email, password)
-      if (loggedInUser.role === 'admin') {
+      if (loggedInUser.role === 'admin' || loggedInUser.role === 'staff') {
         navigate('/admin')
       } else {
         navigate('/')

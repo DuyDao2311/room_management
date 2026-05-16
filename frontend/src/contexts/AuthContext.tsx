@@ -5,7 +5,8 @@ export interface User {
   _id: string
   name: string
   email: string
-  role: 'admin' | 'tenant'
+  role: 'admin' | 'staff' | 'tenant'
+  managedDistricts?: string[]
 }
 
 interface AuthContextType {

@@ -95,6 +95,7 @@ export default function UserManagement() {
                       title={currentUser?._id === u._id ? 'Không thể tự đổi quyền của bản thân' : 'Đổi vai trò'}
                     >
                       <option value="tenant">Khách thuê</option>
+                      <option value="staff">Nhân viên</option>
                       <option value="admin">Admin</option>
                     </select>
                   </td>

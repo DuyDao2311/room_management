@@ -24,8 +24,12 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ["admin", "tenant"],
+      enum: ["admin", "staff", "tenant"],
       default: "tenant",
+    },
+    managedDistricts: {
+      type: [String],
+      default: [],
     },
     phone: {
       type: String,

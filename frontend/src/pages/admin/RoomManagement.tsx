@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
+import { useAuth } from '../../contexts/AuthContext.tsx'
 // import Badge from '../../components/ui/Badge.tsx'
 import { Building, TrendingUp, Key, Wrench, Pencil, Trash2 } from "lucide-react"
 // import { DoorOpen, Bed, User } from "lucide-react"
@@ -41,6 +42,8 @@ const STATUS_MAP = {
 }
 
 export default function RoomManagement() {
+  const { user } = useAuth()
+  const isStaff = user?.role === 'staff'
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -60,7 +63,9 @@ export default function RoomManagement() {
 
   const fetchRooms = () => {
     setLoading(true)
-    api.get('/rooms')
+    // Staff: dùng endpoint my-district (đã filter sẵn theo district)
+    const endpoint = isStaff ? '/rooms/my-district' : '/rooms'
+    api.get(endpoint)
       .then(r => setRooms(r.data))
       .catch(() => setError('Lỗi tải danh sách phòng.'))
       .finally(() => setLoading(false))
@@ -304,9 +309,11 @@ export default function RoomManagement() {
                     <button onClick={() => openEdit(r)} title="Sửa">
                       <Pencil size={18} />
                     </button>
-                    <button onClick={() => handleDelete(r._id)} title="Xóa">
-                      <Trash2 size={18} color="#d92d20" />
-                    </button>
+                    {!isStaff && (
+                      <button onClick={() => handleDelete(r._id)} title="Xóa">
+                        <Trash2 size={18} color="#d92d20" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );

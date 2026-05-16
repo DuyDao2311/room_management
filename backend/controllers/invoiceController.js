@@ -1,5 +1,6 @@
 const Invoice      = require("../models/Invoice");
 const Contract     = require("../models/Contract");
+const Room         = require("../models/Room");
 const Notification = require("../models/Notification");
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -8,11 +9,13 @@ const Notification = require("../models/Notification");
 
 /**
  * Lấy hợp đồng đã populate room & kiểm tra quyền truy cập.
- * Admin thấy tất cả; tenant chỉ thấy hợp đồng của mình.
+ * - Admin: thấy tất cả
+ * - Staff: chỉ thấy hợp đồng thuộc district được phân công
+ * - Tenant: chỉ thấy hợp đồng của mình
  */
 const getContractOrFail = async (contractId, user) => {
   const contract = await Contract.findById(contractId)
-    .populate("room", "name address price");
+    .populate("room", "name address price district");
 
   if (!contract) {
     const err = new Error("Không tìm thấy hợp đồng.");
@@ -20,10 +23,22 @@ const getContractOrFail = async (contractId, user) => {
     throw err;
   }
 
-  if (
-    user.role !== "admin" &&
-    contract.tenant.toString() !== user._id.toString()
-  ) {
+  // Admin: bypass
+  if (user.role === "admin") return contract;
+
+  // Staff: kiểm tra district
+  if (user.role === "staff") {
+    const roomDistrict = contract.room?.district || "";
+    if (!user.managedDistricts || !user.managedDistricts.includes(roomDistrict)) {
+      const err = new Error("Bạn không có quyền truy cập hợp đồng thuộc khu vực này.");
+      err.status = 403;
+      throw err;
+    }
+    return contract;
+  }
+
+  // Tenant: chỉ thấy hợp đồng của mình
+  if (contract.tenant.toString() !== user._id.toString()) {
     const err = new Error("Không có quyền truy cập hợp đồng này.");
     err.status = 403;
     throw err;
@@ -303,6 +318,16 @@ const getAllInvoices = async (req, res) => {
     if (status) filter.status = status;
     if (type)   filter.type   = type;
 
+    // Staff: chỉ lấy invoices thuộc contracts trong district
+    if (req.user.role === "staff") {
+      const rooms = await Room.find({
+        district: { $in: req.user.managedDistricts || [] },
+      }).select("_id");
+      const roomIds = rooms.map((r) => r._id);
+      const contractIds = await Contract.find({ room: { $in: roomIds } }).distinct("_id");
+      filter.contract = { $in: contractIds };
+    }
+
     const invoices = await Invoice.find(filter)
       .sort({ createdAt: -1 })
       .lean();
@@ -322,9 +347,9 @@ const getAllInvoices = async (req, res) => {
  */
 const sendInvoice = async (req, res) => {
   try {
-    // 1. Kiểm tra quyền
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Chỉ quản trị viên mới có quyền gửi hoá đơn." });
+    // 1. Kiểm tra quyền (admin + staff)
+    if (req.user.role !== "admin" && req.user.role !== "staff") {
+      return res.status(403).json({ message: "Bạn không có quyền gửi hoá đơn." });
     }
 
     // 2. Tìm invoice
@@ -383,8 +408,8 @@ const sendInvoice = async (req, res) => {
  */
 const updateInvoice = async (req, res) => {
   try {
-    if (req.user.role !== "admin") {
-      return res.status(403).json({ message: "Chỉ quản trị viên mới có quyền cập nhật hoá đơn." });
+    if (req.user.role !== "admin" && req.user.role !== "staff") {
+      return res.status(403).json({ message: "Bạn không có quyền cập nhật hoá đơn." });
     }
 
     const invoice = await Invoice.findById(req.params.id);

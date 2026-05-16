@@ -14,16 +14,27 @@ import InvoiceManagement from './pages/admin/InvoiceManagement.tsx'
 import AppointmentManagement from './pages/admin/AppointmentManagement.tsx'
 import AppointmentDetail from './pages/admin/AppointmentDetail.tsx'
 import UserManagement from './pages/admin/UserManagement.tsx'
+import StaffManagement from './pages/admin/StaffManagement.tsx'
 import MyInvoices from './pages/tenant/MyInvoices.tsx'
 import MyRoom from './pages/tenant/MyRoom.tsx'
 import AdminLayout from './components/layout/AdminLayout.tsx'
 import ChatBox from './components/ui/ChatBox.tsx'
 
-function RequireAuth({ children, role }: { children: React.ReactNode; role?: 'admin' | 'tenant' }) {
+/**
+ * RequireAuth — Route protection component
+ * Hỗ trợ kiểm tra 1 hoặc nhiều roles
+ * Ví dụ: role="admin" hoặc role={["admin", "staff"]}
+ */
+function RequireAuth({ children, role }: { children: React.ReactNode; role?: string | string[] }) {
   const { user, loading } = useAuth()
   if (loading) return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#667085' }}>Đang xác thực...</div>
   if (!user) return <Navigate to="/login" replace />
-  if (role && user.role !== role) return <Navigate to="/" replace />
+
+  if (role) {
+    const allowedRoles = Array.isArray(role) ? role : [role]
+    if (!allowedRoles.includes(user.role)) return <Navigate to="/" replace />
+  }
+
   return <>{children}</>
 }
 
@@ -43,15 +54,17 @@ function AppLayout() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* Admin only */}
-        <Route path="/admin" element={<RequireAuth role="admin"><AdminLayout /></RequireAuth>}>
+        {/* Admin + Staff — dùng chung AdminLayout */}
+        <Route path="/admin" element={<RequireAuth role={["admin", "staff"]}><AdminLayout /></RequireAuth>}>
           <Route index element={<Dashboard />} />
           <Route path="rooms" element={<RoomManagement />} />
           <Route path="contracts" element={<ContractManagement />} />
           <Route path="invoices" element={<InvoiceManagement />} />
           <Route path="appointments" element={<AppointmentManagement />} />
           <Route path="appointments/:id" element={<AppointmentDetail />} />
-          <Route path="users" element={<UserManagement />} />
+          {/* Admin only routes */}
+          <Route path="users" element={<RequireAuth role="admin"><UserManagement /></RequireAuth>} />
+          <Route path="staff" element={<RequireAuth role="admin"><StaffManagement /></RequireAuth>} />
         </Route>
 
         {/* Tenant only */}

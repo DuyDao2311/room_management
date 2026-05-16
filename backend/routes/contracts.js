@@ -3,14 +3,31 @@ const router = express.Router();
 const Contract = require("../models/Contract");
 const Room = require("../models/Room");
 const Invoice = require("../models/Invoice");
-const { protect, adminOnly } = require("../middleware/auth");
+const { protect, adminOnly, verifyRole, injectDistrictFilter } = require("../middleware/auth");
 const { signContract, clearSignature } = require("../controllers/contractController");
 
-// GET /api/contracts — tất cả hợp đồng (admin only)
-router.get("/", protect, adminOnly, async (req, res) => {
+// ─── Helper: lấy roomIds thuộc district của staff ────────────────────────────
+const getDistrictRoomIds = async (user) => {
+  if (user.role === "admin") return null; // null = không filter
+  const rooms = await Room.find({
+    district: { $in: user.managedDistricts || [] },
+  }).select("_id");
+  return rooms.map((r) => r._id);
+};
+
+// GET /api/contracts — tất cả hợp đồng (admin + staff)
+router.get("/", protect, verifyRole("admin", "staff"), async (req, res) => {
   try {
-    const contracts = await Contract.find()
-      .populate("room", "name address price area type")
+    const filter = {};
+
+    // Staff: chỉ thấy contracts thuộc rooms trong district
+    if (req.user.role === "staff") {
+      const roomIds = await getDistrictRoomIds(req.user);
+      filter.room = { $in: roomIds };
+    }
+
+    const contracts = await Contract.find(filter)
+      .populate("room", "name address price area type district")
       .populate("tenant", "name email phone")
       .sort({ createdAt: -1 });
     res.json(contracts);
@@ -36,17 +53,25 @@ router.get("/my", protect, async (req, res) => {
 router.get("/:id", protect, async (req, res) => {
   try {
     const contract = await Contract.findById(req.params.id)
-      .populate("room", "name address price")
+      .populate("room", "name address price district")
       .populate("tenant", "name email phone");
 
     if (!contract) return res.status(404).json({ message: "Không tìm thấy hợp đồng." });
 
     // Tenant chỉ xem được hợp đồng của mình
     if (
-      req.user.role !== "admin" &&
+      req.user.role === "tenant" &&
       contract.tenant._id.toString() !== req.user._id.toString()
     ) {
       return res.status(403).json({ message: "Không có quyền truy cập." });
+    }
+
+    // Staff chỉ xem được hợp đồng thuộc district
+    if (req.user.role === "staff") {
+      const roomDistrict = contract.room?.district || "";
+      if (!req.user.managedDistricts || !req.user.managedDistricts.includes(roomDistrict)) {
+        return res.status(403).json({ message: "Bạn không có quyền xem hợp đồng này." });
+      }
     }
 
     res.json(contract);
@@ -55,8 +80,8 @@ router.get("/:id", protect, async (req, res) => {
   }
 });
 
-// POST /api/contracts — tạo hợp đồng mới
-router.post("/", protect, async (req, res) => {
+// POST /api/contracts — tạo hợp đồng mới (admin + staff)
+router.post("/", protect, verifyRole("admin", "staff"), async (req, res) => {
   try {
     const {
       room: roomId, tenant, startDate, endDate, monthlyRent,
@@ -81,6 +106,13 @@ router.post("/", protect, async (req, res) => {
     if (!room) return res.status(404).json({ message: "Không tìm thấy phòng." });
     if (room.status !== "available") {
       return res.status(400).json({ message: "Phòng này hiện không còn trống." });
+    }
+
+    // Staff: kiểm tra phòng thuộc district
+    if (req.user.role === "staff") {
+      if (!req.user.managedDistricts || !req.user.managedDistricts.includes(room.district)) {
+        return res.status(403).json({ message: "Bạn không có quyền tạo hợp đồng cho phòng này." });
+      }
     }
 
     // Tạo hợp đồng — status mặc định "pending", admin sẽ phê duyệt sau
@@ -118,21 +150,29 @@ router.post("/", protect, async (req, res) => {
   }
 });
 
-// PUT /api/contracts/:id — cập nhật hợp đồng (admin only)
-router.put("/:id", protect, adminOnly, async (req, res) => {
+// PUT /api/contracts/:id — cập nhật hợp đồng (admin + staff trong district)
+router.put("/:id", protect, verifyRole("admin", "staff"), async (req, res) => {
   try {
     // Lấy contract trước khi update để kiểm tra trạng thái cũ
-    const prevContract = await Contract.findById(req.params.id);
+    const prevContract = await Contract.findById(req.params.id).populate("room", "district");
     if (!prevContract) return res.status(404).json({ message: "Không tìm thấy hợp đồng." });
+
+    // Staff: kiểm tra hợp đồng thuộc district
+    if (req.user.role === "staff") {
+      const roomDistrict = prevContract.room?.district || "";
+      if (!req.user.managedDistricts || !req.user.managedDistricts.includes(roomDistrict)) {
+        return res.status(403).json({ message: "Bạn không có quyền cập nhật hợp đồng này." });
+      }
+    }
 
     const contract = await Contract.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
     })
-      .populate("room", "name address price")
+      .populate("room", "name address price district")
       .populate("tenant", "name email");
 
-    // ── Khi admin PHÊ DUYỆT hợp đồng (pending → active) ──────────────────────
+    // ── Khi admin/staff PHÊ DUYỆT hợp đồng (pending → active) ──────────────────────
     if (prevContract.status === "pending" && req.body.status === "active") {
       // Cập nhật trạng thái phòng → occupied
       await Room.findByIdAndUpdate(contract.room._id, { status: "occupied" });
@@ -167,7 +207,7 @@ router.put("/:id", protect, adminOnly, async (req, res) => {
   }
 });
 
-// DELETE /api/contracts/:id — xóa hợp đồng (admin only)
+// DELETE /api/contracts/:id — xóa hợp đồng (admin only - staff không được xóa)
 router.delete("/:id", protect, adminOnly, async (req, res) => {
   try {
     const contract = await Contract.findById(req.params.id);

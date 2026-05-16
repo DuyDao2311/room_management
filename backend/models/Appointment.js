@@ -31,6 +31,11 @@ const appointmentSchema = new mongoose.Schema({
     ref: "User",
     default: null, // Có thể null nếu người dùng chưa đăng nhập
   },
+  district: {
+    type: String,
+    trim: true,
+    default: "",
+  },
   status: {
     type: String,
     enum: ["pending", "confirmed", "cancelled"],
