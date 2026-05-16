@@ -30,11 +30,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const savedToken = sessionStorage.getItem('token')
     const savedUser = sessionStorage.getItem('user')
+    
     if (savedToken && savedUser) {
       setToken(savedToken)
-      setUser(JSON.parse(savedUser))
+      setUser(JSON.parse(savedUser)) // Set initial state for fast render
+      
+      // Fetch fresh data from server to ensure roles/districts are up-to-date
+      api.get('/auth/me')
+        .then(res => {
+          setUser(res.data)
+          sessionStorage.setItem('user', JSON.stringify(res.data))
+        })
+        .catch(() => {
+          setToken(null)
+          setUser(null)
+          sessionStorage.removeItem('token')
+          sessionStorage.removeItem('user')
+        })
+        .finally(() => {
+          setLoading(false)
+        })
+    } else {
+      setLoading(false)
     }
-    setLoading(false)
   }, [])
 
   const login = async (email: string, password: string) => {
