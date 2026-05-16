@@ -55,7 +55,11 @@ export default function RoomManagement() {
   const [contractMap, setContractMap] = useState<Record<string, ContractInfo>>({})
 
   // Filters
-  const [filterDistrict, setFilterDistrict] = useState('')
+  const [filterDistrict, setFilterDistrict] = useState(
+    isStaff && user?.managedDistricts && user.managedDistricts.length > 0 
+      ? user.managedDistricts[0] 
+      : ''
+  )
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -86,12 +90,20 @@ export default function RoomManagement() {
         })
         setContractMap(map)
       })
-      .catch(() => {})
+      .catch(() => { })
   }
 
   useEffect(() => { fetchRooms(); fetchContracts() }, [])
 
-  const openCreate = () => { setEditing(null); setForm(EMPTY_FORM); setFormError(''); setShowModal(true) }
+  const openCreate = () => { 
+    setEditing(null); 
+    setForm({
+      ...EMPTY_FORM,
+      district: isStaff && user?.managedDistricts && user.managedDistricts.length > 0 ? user.managedDistricts[0] : ''
+    }); 
+    setFormError(''); 
+    setShowModal(true) 
+  }
   const openEdit = (r: Room) => {
     setEditing(r)
     setFormError('')
@@ -207,10 +219,16 @@ export default function RoomManagement() {
         <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', alignItems: 'center', background: 'white', padding: '12px 16px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)' }}>
           <select value={filterDistrict} onChange={e => { setFilterDistrict(e.target.value); setCurrentPage(1); }} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #eaecf0', background: '#f9fafb', color: '#475467', outline: 'none' }}>
             <option value="">Tất cả Khu vực</option>
-            <option value="Quận Hà Đông">Quận Hà Đông</option>
-            <option value="Quận Nam Từ Liêm">Quận Nam Từ Liêm</option>
-            <option value="Quận Long Biên">Quận Long Biên</option>
-            <option value="Quận Thanh Xuân">Quận Thanh Xuân</option>
+            {isStaff && user?.managedDistricts && user.managedDistricts.length > 0 ? (
+              user.managedDistricts.map(d => <option key={d} value={d}>{d}</option>)
+            ) : (
+              <>
+                <option value="Quận Hà Đông">Quận Hà Đông</option>
+                <option value="Quận Nam Từ Liêm">Quận Nam Từ Liêm</option>
+                <option value="Quận Long Biên">Quận Long Biên</option>
+                <option value="Quận Thanh Xuân">Quận Thanh Xuân</option>
+              </>
+            )}
           </select>
 
           <select value={filterType} onChange={e => { setFilterType(e.target.value); setCurrentPage(1); }} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #eaecf0', background: '#f9fafb', color: '#475467', outline: 'none' }}>
@@ -402,10 +420,16 @@ export default function RoomManagement() {
                     <label htmlFor="f-district">Quận/Huyện</label>
                     <select id="f-district" className="form-input" value={form.district} onChange={e => setForm({ ...form, district: e.target.value })}>
                       <option value="">Chọn quận/huyện</option>
-                      <option value="Quận Hà Đông">Quận Hà Đông</option>
-                      <option value="Quận Nam Từ Liêm">Quận Nam Từ Liêm</option>
-                      <option value="Quận Long Biên">Quận Long Biên</option>
-                      <option value="Quận Thanh Xuân">Quận Thanh Xuân</option>
+                      {isStaff && user?.managedDistricts && user.managedDistricts.length > 0 ? (
+                        user.managedDistricts.map(d => <option key={d} value={d}>{d}</option>)
+                      ) : (
+                        <>
+                          <option value="Quận Hà Đông">Quận Hà Đông</option>
+                          <option value="Quận Nam Từ Liêm">Quận Nam Từ Liêm</option>
+                          <option value="Quận Long Biên">Quận Long Biên</option>
+                          <option value="Quận Thanh Xuân">Quận Thanh Xuân</option>
+                        </>
+                      )}
                     </select>
                   </div>
                   <div className="form-group">
