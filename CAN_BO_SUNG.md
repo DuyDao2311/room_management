@@ -53,6 +53,7 @@
 ## 3. [Thu hồi quyền của nhân viên thì nên xoá tài khoản luôn]
 ## 4. [Báo cáo cho admin]
 ## 5. [Khách thuể phòng cần có khảo sát]
+## 6. [Chức năng phòng yêu thích]
 ###
 Thanh toán VNPay:
 Ngân hàng: NCB
