@@ -54,6 +54,7 @@
 ## 4. [Báo cáo cho admin]
 ## 5. [Khách thuể phòng cần có khảo sát]
 ## 6. [Chức năng phòng yêu thích]
+## 7. []
 ###
 Thanh toán VNPay:
 Ngân hàng: NCB
