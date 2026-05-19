@@ -61,8 +61,21 @@ const invoiceSchema = new mongoose.Schema(
     // ── Trạng thái ────────────────────────────────────────────────────────────
     status: {
       type: String,
-      enum: ["unpaid", "paid", "overdue"],
+      enum: ["unpaid", "pending", "paid", "overdue"],
       default: "unpaid",
+    },
+
+    // ── Phương thức thanh toán ─────────────────────────────────────────────────
+    paymentMethod: {
+      type: String,
+      enum: ["MoMo", "VNPay", "Cash"],
+      default: null,
+    },
+
+    // ── Người xác nhận thu tiền (staff/admin) ─────────────────────────────────
+    confirmedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
     },
     dueDate: { type: Date },   // hạn thanh toán
     paidAt:  { type: Date },   // set tự động khi status = "paid"
@@ -129,6 +142,7 @@ invoiceSchema.pre("save", function () {
   }
 
   // 4. Tự chuyển sang overdue nếu quá hạn mà chưa trả
+  //    (Không chuyển overdue khi đang pending — đang chờ thu tiền mặt)
   if (
     this.status === "unpaid" &&
     this.dueDate &&

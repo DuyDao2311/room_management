@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import { io, type Socket } from 'socket.io-client'
 import api from '../api/axios.ts'
 import { useAuth } from './AuthContext.tsx'
@@ -21,6 +21,7 @@ interface NotificationContextType {
   unreadCount: number
   markAsRead: (id: string) => Promise<void>
   markAllAsRead: () => Promise<void>
+  socket: Socket | null
 }
 
 const NotificationContext = createContext<NotificationContextType | null>(null)
@@ -29,7 +30,7 @@ const NotificationContext = createContext<NotificationContextType | null>(null)
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { user, token } = useAuth()
   const [notifications, setNotifications] = useState<Notification[]>([])
-  const socketRef = useRef<Socket | null>(null)
+  const [socket, setSocket] = useState<Socket | null>(null)
 
   // Tính unreadCount từ danh sách notifications
   const unreadCount = notifications.filter(n => !n.isRead).length
@@ -66,18 +67,33 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     socket.on('connect_error', (err) => {
       console.error('Socket connect_error:', err.message)
       if (err.message.includes('Unauthorized')) {
-        // Token hết hạn → redirect login
         sessionStorage.removeItem('token')
         sessionStorage.removeItem('user')
         window.location.href = '/login'
       }
     })
 
-    socketRef.current = socket
+    // Admin/Staff: nhận thông báo khi tenant yêu cầu thanh toán tiền mặt
+    socket.on('cash_payment_requested', (data: { invoiceId: string; roomName: string; totalAmount: number; representativeName: string }) => {
+      const fakeNotification: Notification = {
+        _id: `cash_${data.invoiceId}_${Date.now()}`,
+        tenantId: '',
+        type: 'INVOICE',
+        title: 'Có hóa đơn mới đang chờ thu tiền mặt',
+        message: `Phòng ${data.roomName} — ${data.representativeName} — ${data.totalAmount?.toLocaleString('vi-VN')}đ`,
+        invoiceId: data.invoiceId,
+        isRead: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      setNotifications(prev => [fakeNotification, ...prev])
+    })
+
+    setSocket(socket)
 
     return () => {
       socket.disconnect()
-      socketRef.current = null
+      setSocket(null)
     }
   }, [user, token])
 
@@ -100,7 +116,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead, markAllAsRead }}>
+    <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead, markAllAsRead, socket }}>
       {children}
     </NotificationContext.Provider>
   )
