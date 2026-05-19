@@ -308,7 +308,7 @@ class PaymentController {
             // Cập nhật trạng thái hóa đơn → paid
             invoice.status = 'paid';
             invoice.paidAt = new Date();
-            invoice.paymentMethod = 'momo';
+            invoice.paymentMethod = 'MoMo';
             await invoice.save();
 
             // Cập nhật Payment record → success
@@ -397,7 +397,7 @@ class PaymentController {
             // Cập nhật trạng thái hóa đơn → paid
             invoice.status = 'paid';
             invoice.paidAt = new Date();
-            invoice.paymentMethod = 'vnpay';
+            invoice.paymentMethod = 'VNPay';
             await invoice.save();
 
             // Cập nhật Payment record → success
@@ -608,7 +608,7 @@ class PaymentController {
             // 1. Cập nhật hóa đơn
             invoice.status = 'paid';
             invoice.paidAt = new Date();
-            invoice.paymentMethod = 'cash'; // Thêm để đồng bộ dù không có sẵn trong schema ban đầu
+            invoice.paymentMethod = 'Cash'; // Đồng bộ với enum Invoice: MoMo, VNPay, Cash
             await invoice.save();
 
             // 2. Tạo bản ghi Payment lưu vết
