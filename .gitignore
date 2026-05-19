@@ -24,3 +24,6 @@ logs/
 .DS_Store
 .vscode/
 .idea/
+
+# ===== Personal notes (không push lên repo) =====
+.notes/
