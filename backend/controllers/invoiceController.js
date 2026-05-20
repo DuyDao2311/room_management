@@ -2,6 +2,8 @@ const Invoice      = require("../models/Invoice");
 const Contract     = require("../models/Contract");
 const Room         = require("../models/Room");
 const Notification = require("../models/Notification");
+const Payment      = require("../models/Payment");
+const { checkUserDistrictPermission } = require("../middleware/auth");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -288,7 +290,7 @@ const payInvoice = async (req, res) => {
 const updateInvoiceStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    if (!["unpaid", "paid", "overdue"].includes(status)) {
+    if (!["unpaid", "pending", "paid", "overdue"].includes(status)) {
       return res.status(400).json({ message: "Trạng thái không hợp lệ." });
     }
 
@@ -444,6 +446,162 @@ const updateInvoice = async (req, res) => {
   }
 };
 
+// ───────────────────────────────────────────────────────────────────────────────
+// 9. Tenant yêu cầu thanh toán tiền mặt
+// ───────────────────────────────────────────────────────────────────────────────
+/**
+ * PUT /api/invoices/:id/request-cash-payment
+ * Quyền: tenant
+ */
+const requestCashPayment = async (req, res) => {
+  try {
+    // 1. Kiểm tra role tenant
+    if (req.user.role !== "tenant") {
+      return res.status(403).json({ message: "Chỉ người thuê mới có quyền yêu cầu thanh toán tiền mặt." });
+    }
+
+    // 2. Tìm invoice
+    const invoice = await Invoice.findById(req.params.id);
+    if (!invoice) {
+      return res.status(404).json({ message: "Không tìm thấy hóa đơn." });
+    }
+
+    // 3. Kiểm tra invoice thuộc tenant này
+    if (invoice.tenantId?.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Bạn không có quyền thao tác hóa đơn này." });
+    }
+
+    // 4. Kiểm tra trạng thái hợp lệ
+    if (invoice.status === "paid") {
+      return res.status(400).json({ message: "Hóa đơn này đã được thanh toán." });
+    }
+    if (invoice.status === "pending") {
+      return res.status(400).json({ message: "Hóa đơn này đang chờ thu tiền mặt." });
+    }
+
+    // 5. Cập nhật trạng thái
+    invoice.status = "pending";
+    invoice.paymentMethod = "Cash";
+    await invoice.save();
+
+    // 6. Emit Socket.IO cho admin/staff
+    const io = req.app.get("io");
+    if (io) {
+      const contract = await Contract.findById(invoice.contract).populate("room", "name district");
+      const eventData = {
+        invoiceId: invoice._id,
+        roomName: invoice.roomName,
+        representativeName: invoice.representativeName,
+        totalAmount: invoice.totalAmount,
+        district: contract?.room?.district || "",
+      };
+
+      // Gửi cho admin
+      io.to("admin_room").emit("cash_payment_requested", eventData);
+
+      // Gửi cho staff quản lý district của phòng này
+      if (contract?.room?.district) {
+        io.to(`district_${contract.room.district}`).emit("cash_payment_requested", eventData);
+      }
+    }
+
+    // 7. Trả response
+    res.json({
+      success: true,
+      message: "Vui lòng liên hệ với quản lý khu vực để thanh toán",
+      invoice,
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message || "Lỗi server." });
+  }
+};
+
+// ───────────────────────────────────────────────────────────────────────────────
+// 10. Staff/Admin xác nhận thu tiền mặt
+// ───────────────────────────────────────────────────────────────────────────────
+/**
+ * PUT /api/invoices/:id/collect-cash
+ * Quyền: admin, staff
+ */
+const collectCash = async (req, res) => {
+  try {
+    // 1. Tìm invoice và populate room để kiểm tra district
+    const invoice = await Invoice.findById(req.params.id).populate({
+      path: "contract",
+      populate: { path: "room", select: "district name" },
+    });
+
+    if (!invoice) {
+      return res.status(404).json({ message: "Không tìm thấy hóa đơn." });
+    }
+
+    // 2. Kiểm tra trạng thái phải là pending
+    if (invoice.status !== "pending") {
+      return res.status(400).json({ message: "Hóa đơn không ở trạng thái chờ thu tiền mặt." });
+    }
+
+    // 3. Staff: kiểm tra district permission
+    const district = invoice.contract?.room?.district;
+    if (req.user.role === "staff") {
+      if (!district || !checkUserDistrictPermission(req.user, district)) {
+        return res.status(403).json({ message: "Khu vực của hóa đơn này không thuộc thẩm quyền quản lý của bạn." });
+      }
+    }
+
+    // 4. Cập nhật hóa đơn
+    invoice.status = "paid";
+    invoice.paidAt = new Date();
+    invoice.confirmedBy = req.user._id;
+    await invoice.save();
+
+    // 5. Tạo Payment record lưu vết
+    await Payment.create({
+      invoice: invoice._id,
+      contract: invoice.contract?._id || invoice.contract,
+      tenant: invoice.tenantId,
+      paymentMethod: "cash",
+      amount: invoice.totalAmount,
+      status: "success",
+      paidAt: new Date(),
+      cash: {
+        receivedBy: req.user._id,
+        note: req.body.note || "Thu tiền mặt trực tiếp",
+      },
+    });
+
+    // 6. Tạo Notification cho tenant
+    const notification = await Notification.create({
+      tenantId: invoice.tenantId,
+      type: "INVOICE",
+      title: "Hóa đơn đã được xác nhận thanh toán",
+      message: `Hóa đơn phòng ${invoice.roomName} đã được xác nhận thanh toán tiền mặt (${invoice.totalAmount?.toLocaleString("vi-VN")}đ)`,
+      invoiceId: invoice._id,
+    });
+
+    // 7. Emit Socket.IO cho tenant
+    const io = req.app.get("io");
+    if (io && invoice.tenantId) {
+      io.to(`tenant_${invoice.tenantId.toString()}`).emit("invoice_paid", {
+        invoiceId: invoice._id,
+        status: "paid",
+        paymentMethod: "Cash",
+        paidAt: invoice.paidAt,
+        message: "Hóa đơn của bạn đã được xác nhận thanh toán",
+      });
+
+      io.to(`tenant_${invoice.tenantId.toString()}`).emit("new_notification", notification);
+    }
+
+    res.json({
+      success: true,
+      message: "Xác nhận thu tiền mặt thành công",
+      invoice,
+    });
+  } catch (err) {
+    res.status(err.status || 500).json({ message: err.message || "Lỗi server." });
+  }
+};
+
 module.exports = {
   createDepositInvoice,
   createServiceInvoice,
@@ -455,4 +613,6 @@ module.exports = {
   getAllInvoices,
   sendInvoice,
   updateInvoice,
+  requestCashPayment,
+  collectCash,
 };

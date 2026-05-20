@@ -16,6 +16,11 @@ interface Stats {
   overdueInvoicesCount: number
   overdueInvoicesAmount: number
   newTenants: number
+  pendingInvoicesCount: number
+  pendingInvoicesAmount: number
+  cashRevenue: number
+  momoRevenue: number
+  vnpayRevenue: number
 }
 
 export default function Dashboard() {
@@ -191,6 +196,18 @@ export default function Dashboard() {
                   <p style={{ margin: 0, color: '#aab4c5', fontSize: '0.8rem' }}>Tổng cộng: {stats?.overdueInvoicesAmount ? (stats.overdueInvoicesAmount / 1_000_000).toFixed(1) + 'M' : '0'} VND</p>
                 </div>
               </div>
+
+              {(stats?.pendingInvoicesCount ?? 0) > 0 && (
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+                  <div style={{ width: '40px', height: '40px', background: 'rgba(255,255,255,0.1)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem' }}>
+                    💵
+                  </div>
+                  <div>
+                    <h3 style={{ margin: '0 0 6px 0', fontSize: '0.95rem', fontWeight: 700 }}>{stats?.pendingInvoicesCount ?? 0} Hóa đơn chờ thu tiền mặt</h3>
+                    <p style={{ margin: 0, color: '#aab4c5', fontSize: '0.8rem' }}>Tổng cộng: {stats?.pendingInvoicesAmount ? (stats.pendingInvoicesAmount / 1_000_000).toFixed(1) + 'M' : '0'} VND</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <button style={{ background: 'white', color: '#003e68', width: '100%', padding: '14px', border: 'none', borderRadius: '8px', fontWeight: 800, fontSize: '0.9rem', marginTop: '32px', cursor: 'pointer' }}>

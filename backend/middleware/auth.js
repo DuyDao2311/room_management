@@ -131,10 +131,25 @@ const checkDistrictPermission = (req, res, next) => {
   next();
 };
 
+// ─── Hàm kiểm tra quyền khu vực (Dùng trong Controller) ─────────────────────
+/**
+ * Hàm kiểm tra xem user có quyền truy cập district này không.
+ * Có thể tái sử dụng cho Invoice, Contract, Appointment...
+ * Trả về true nếu hợp lệ, false nếu không.
+ */
+const checkUserDistrictPermission = (user, district) => {
+  if (user.role === "admin") return true;
+  if (user.role === "staff") {
+    return user.managedDistricts && user.managedDistricts.includes(district);
+  }
+  return false;
+};
+
 module.exports = {
   protect,
   adminOnly,
   verifyRole,
   injectDistrictFilter,
   checkDistrictPermission,
+  checkUserDistrictPermission,
 };

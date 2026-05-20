@@ -172,9 +172,58 @@ const getAvailableDistricts = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. Tạo người dùng mới (admin only)
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * POST /api/admin/users
+ * Body: { name, email, password, role }
+ * Quyền: admin only
+ */
+const createUser = async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Vui lòng nhập đầy đủ thông tin (tên, email, mật khẩu)." });
+    }
+
+    if (role && !["admin", "staff", "tenant"].includes(role)) {
+      return res.status(400).json({ message: "Vai trò không hợp lệ." });
+    }
+
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({ message: "Email này đã được sử dụng." });
+    }
+
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role: role || "tenant",
+    });
+
+    res.status(201).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      managedDistricts: user.managedDistricts,
+      isActive: user.isActive,
+      createdAt: user.createdAt,
+    });
+  } catch (err) {
+    console.error("Create user error:", err);
+    res.status(500).json({ message: "Lỗi server." });
+  }
+};
+
 module.exports = {
   getStaffList,
   updateUserRole,
   updateManagedDistricts,
   getAvailableDistricts,
+  createUser,
 };

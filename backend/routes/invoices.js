@@ -12,6 +12,8 @@ const {
   updateInvoice,
   getMyInvoices,
   payInvoice,
+  requestCashPayment,
+  collectCash,
 } = require("../controllers/invoiceController");
 
 // ─── Xem tất cả hóa đơn (admin + staff) ──────────────────────────────────────
@@ -54,8 +56,16 @@ router.patch("/:id/status", protect, verifyRole("admin", "staff"), updateInvoice
 // POST /api/invoices/:id/pay
 router.post("/:id/pay", protect, payInvoice);
 
-// ─── Cập nhật thông tin hoá đơn (khi chưa gửi) ──────────────────────────────
+// ─── Cập nhật thông tin hoá đơn (khi chưa gửi) ────────────────────────────────
 // PUT /api/invoices/:id
 router.put("/:id", protect, verifyRole("admin", "staff"), updateInvoice);
+
+// ─── Tenant yêu cầu thanh toán tiền mặt ────────────────────────────────────
+// PUT /api/invoices/:id/request-cash-payment
+router.put("/:id/request-cash-payment", protect, requestCashPayment);
+
+// ─── Staff/Admin xác nhận thu tiền mặt ─────────────────────────────────────
+// PUT /api/invoices/:id/collect-cash
+router.put("/:id/collect-cash", protect, verifyRole("admin", "staff"), collectCash);
 
 module.exports = router;
