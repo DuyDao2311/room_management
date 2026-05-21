@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { protect, verifyRole } = require("../middleware/auth");
+const { protect, verifyRole, injectDistrictFilter } = require("../middleware/auth");
 const {
   getFeedbacksByRoom,
   createFeedback,
@@ -36,7 +36,8 @@ router.delete("/:id", protect, deleteFeedback);
 
 // ── Admin | Staff ─────────────────────────────────────────────────────────────
 // GET  /api/feedback              — Tất cả feedback (có filter, phân trang)
-router.get("/", protect, verifyRole("admin", "staff"), getAllFeedbacks);
+// Staff chỉ xem được feedback của khu vực họ quản lý, Admin xem tất cả
+router.get("/", protect, verifyRole("admin", "staff"), injectDistrictFilter, getAllFeedbacks);
 
 // PATCH /api/feedback/:id/status  — Ẩn / Hiện feedback
 router.patch("/:id/status", protect, verifyRole("admin", "staff"), toggleFeedbackStatus);

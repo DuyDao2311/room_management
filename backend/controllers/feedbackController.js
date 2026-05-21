@@ -190,6 +190,7 @@ exports.deleteFeedback = async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/feedback — Admin/Staff: xem tất cả feedback (có filter + phân trang)
+// Staff chỉ xem được feedback của khu vực họ quản lý, Admin xem tất cả
 // ─────────────────────────────────────────────────────────────────────────────
 exports.getAllFeedbacks = async (req, res) => {
   try {
@@ -200,11 +201,39 @@ exports.getAllFeedbacks = async (req, res) => {
     if (roomId) filter.room = roomId;
     if (rating) filter.rating = Number(rating);
 
-    const skip = (Number(page) - 1) * Number(limit);
-    const total = await Feedback.countDocuments(filter);
+    // Áp dụng district filter cho staff (admin có districtFilter = {})
+    // req.districtFilter được set bởi middleware injectDistrictFilter
+    const districtFilter = req.districtFilter || {};
 
-    const feedbacks = await Feedback.find(filter)
-      .populate("room", "name address")
+    // Merge district filter vào filter
+    // Cần tìm các room thuộc district được quản lý, sau đó lọc feedback theo room
+    const skip = (Number(page) - 1) * Number(limit);
+
+    // Nếu có district filter (staff), cần lọc theo room.district
+    // Cách làm: tìm tất cả room thỏa district filter, sau đó lọc feedback theo room
+    let total, feedbacks;
+
+    if (Object.keys(districtFilter).length > 0) {
+      // Staff: chỉ xem feedback của rooms trong khu vực quản lý
+      const roomIds = await Room.find(districtFilter).distinct('_id');
+      
+      // Nếu không có room nào trong khu vực quản lý
+      if (roomIds.length === 0) {
+        return res.json({
+          feedbacks: [],
+          total: 0,
+          page: Number(page),
+          totalPages: 0,
+        });
+      }
+
+      filter.room = { $in: roomIds };
+    }
+
+    total = await Feedback.countDocuments(filter);
+
+    feedbacks = await Feedback.find(filter)
+      .populate("room", "name address district")
       .populate("tenant", "name email")
       .sort({ createdAt: -1 })
       .skip(skip)
