@@ -11,6 +11,7 @@ const authRoutes = require("./routes/auth");
 const roomRoutes = require("./routes/rooms");
 const contractRoutes = require("./routes/contracts");
 const invoiceRoutes = require("./routes/invoices");
+const paymentRoutes = require("./routes/payment");
 const adminRoutes = require("./routes/admin");
 const appointmentRoutes = require("./routes/appointments");
 const chatRoutes = require("./routes/chat");
@@ -57,7 +58,22 @@ io.on("connection", (socket) => {
   const userId = socket.user._id.toString();
   // Mỗi user join vào room riêng để nhận thông báo cá nhân
   socket.join(`tenant_${userId}`);
-  console.log(`🔌 Socket connected: ${socket.user.name} (${userId})`);
+
+  // Admin/Staff join room theo role để nhận thông báo cash payment
+  if (socket.user.role === "admin") {
+    socket.join("admin_room");
+  }
+  if (socket.user.role === "staff") {
+    socket.join("staff_room");
+    // Join room cho từng district được phân công
+    if (socket.user.managedDistricts && socket.user.managedDistricts.length > 0) {
+      socket.user.managedDistricts.forEach((d) => {
+        socket.join(`district_${d}`);
+      });
+    }
+  }
+
+  console.log(`🔌 Socket connected: ${socket.user.name} (${userId}) [${socket.user.role}]`);
 
   socket.on("disconnect", () => {
     console.log(`❌ Socket disconnected: ${socket.user.name} (${userId})`);
@@ -72,6 +88,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/contracts", contractRoutes);
 app.use("/api/invoices", invoiceRoutes);
+app.use("/api/payment", paymentRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/appointments", appointmentRoutes);
 app.use("/api/chat", chatRoutes);

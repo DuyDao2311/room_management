@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import Badge from '../../components/ui/Badge.tsx'
-import { FiInfo, FiZap, FiTrash2, FiPlus } from 'react-icons/fi'
+import { FiInfo, FiZap, FiTrash2, FiPlus, FiCheck } from 'react-icons/fi'
 import { MdOutlineWaterDrop, MdReceiptLong, MdHouse } from 'react-icons/md'
 import SendInvoiceButton from '../../components/ui/SendInvoiceButton.tsx'
+import { collectCashPayment } from '../../api/payment.ts'
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 interface Invoice {
@@ -17,10 +18,11 @@ interface Invoice {
   totalAmount: number
   month?: number
   year?: number
-  status: 'unpaid' | 'paid' | 'overdue'
+  status: 'unpaid' | 'pending' | 'paid' | 'overdue'
   dueDate?: string
   sentAt?: string
   createdAt: string
+  paymentMethod?: string
   electricity?: { oldReading: number, newReading: number, rate: number, usage: number, total: number }
   water?: { oldReading: number, newReading: number, rate: number, usage: number, total: number }
   extraFees?: { name: string, amount: number }[]
@@ -43,10 +45,11 @@ interface ExtraFee {
 }
 
 // ─── Maps ─────────────────────────────────────────────────────────────────────
-const STATUS_MAP = {
-  paid: { label: 'Đã thanh toán', variant: 'success' as const },
-  unpaid: { label: 'Chưa thanh toán', variant: 'warning' as const },
-  overdue: { label: 'Quá hạn', variant: 'danger' as const },
+const STATUS_MAP: Record<string, { label: string; variant: 'success' | 'warning' | 'danger' | 'info' | 'neutral' }> = {
+  paid: { label: 'Đã thanh toán', variant: 'success' },
+  unpaid: { label: 'Chưa thanh toán', variant: 'warning' },
+  pending: { label: 'Chờ thu tiền', variant: 'info' },
+  overdue: { label: 'Quá hạn', variant: 'danger' },
 }
 
 const TYPE_MAP = {
@@ -76,6 +79,7 @@ export default function InvoiceManagement() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [formError, setFormError] = useState('')
 
   const [form, setForm] = useState(getDefaultForm())
@@ -96,15 +100,21 @@ export default function InvoiceManagement() {
       .catch(() => { })
   }, [])
 
-  // ─── Actions ────────────────────────────────────────────────────────────────
-  // const handleMarkPaid = async (id: string) => {
-  //   try {
-  //     await api.patch(`/invoices/${id}/status`, { status: 'paid' })
-  //     setInvoices(prev => prev.map(inv => inv._id === id ? { ...inv, status: 'paid' } : inv))
-  //   } catch {
-  //     alert('Không thể cập nhật hóa đơn.')
-  //   }
-  // }
+  const handleCashPayment = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!window.confirm('Xác nhận đã thu tiền mặt cho hóa đơn này?')) return
+
+    setConfirmingId(id)
+    try {
+      await collectCashPayment(id, 'Thu tiền mặt trực tiếp')
+      setInvoices(prev => prev.map(inv => inv._id === id ? { ...inv, status: 'paid' } : inv))
+      alert('Đã xác nhận thu tiền mặt thành công.')
+    } catch (err: any) {
+      alert(err.message || 'Lỗi: Không thể xác nhận thanh toán.')
+    } finally {
+      setConfirmingId(null)
+    }
+  }
 
   const selectedContract = contracts.find(c => c._id === form.contractId)
 
@@ -320,11 +330,17 @@ export default function InvoiceManagement() {
                           {inv.sentAt && (
                             <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>Đã gửi ✓</span>
                           )}
-                          {/* {(inv.status === 'unpaid' || inv.status === 'overdue') && (
-                            <button className="action-btn edit-btn" onClick={() => handleMarkPaid(inv._id)}>
-                              Xác nhận thu
+                          {inv.status === 'pending' && (
+                            <button 
+                              className="action-btn" 
+                              style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#088373', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, cursor: confirmingId === inv._id ? 'not-allowed' : 'pointer', opacity: confirmingId === inv._id ? 0.7 : 1 }}
+                              onClick={(e) => handleCashPayment(inv._id, e)}
+                              disabled={confirmingId === inv._id}
+                            >
+                              {confirmingId === inv._id ? <Spinner size="sm" /> : <FiCheck />}
+                              Thu tiền
                             </button>
-                          )} */}
+                          )}
                         </div>
                       </td>
                     </tr>

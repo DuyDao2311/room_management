@@ -80,8 +80,8 @@ router.get("/:id", protect, async (req, res) => {
   }
 });
 
-// POST /api/contracts — tạo hợp đồng mới (admin + staff)
-router.post("/", protect, verifyRole("admin", "staff"), async (req, res) => {
+// POST /api/contracts — tạo hợp đồng mới (admin + staff + tenant đăng ký thuê)
+router.post("/", protect, verifyRole("admin", "staff", "tenant"), async (req, res) => {
   try {
     const {
       room: roomId, tenant, startDate, endDate, monthlyRent,
@@ -180,6 +180,10 @@ router.put("/:id", protect, verifyRole("admin", "staff"), async (req, res) => {
       // Tự động tạo hóa đơn deposit nếu chưa có
       const hasDeposit = await Invoice.findOne({ contract: contract._id, type: "deposit" });
       if (!hasDeposit) {
+        // Hạn thanh toán = ngày phê duyệt + 1 ngày
+        const depositDueDate = new Date();
+        depositDueDate.setDate(depositDueDate.getDate() + 1);
+
         await Invoice.create({
           contract:            contract._id,
           type:                "deposit",
@@ -188,7 +192,7 @@ router.put("/:id", protect, verifyRole("admin", "staff"), async (req, res) => {
           roomName:            contract.room.name,
           rentAmount:          contract.monthlyRent,
           depositAmount:       contract.depositAmount || contract.monthlyRent,
-          dueDate:             contract.startDate,
+          dueDate:             depositDueDate,
           notes:               "Hóa đơn đặt cọc tự động khi phê duyệt hợp đồng.",
           createdBy:           req.user._id,
         });

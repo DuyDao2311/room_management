@@ -10,6 +10,7 @@ const {
   updateUserRole,
   updateManagedDistricts,
   getAvailableDistricts,
+  createUser,
 } = require("../controllers/staffController");
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -81,6 +82,27 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
     ]);
     const monthlyRevenue = revenueResult[0]?.total ?? 0;
 
+    // Doanh thu theo phương thức thanh toán (tháng hiện tại)
+    const revenueByMethodResult = await Invoice.aggregate([
+      { $match: revenueMatchFilter },
+      { $group: { _id: "$paymentMethod", total: { $sum: "$totalAmount" }, count: { $sum: 1 } } },
+    ]);
+    const cashRevenue = revenueByMethodResult.find(r => r._id === "Cash")?.total ?? 0;
+    const momoRevenue = revenueByMethodResult.find(r => r._id === "MoMo")?.total ?? 0;
+    const vnpayRevenue = revenueByMethodResult.find(r => r._id === "VNPay")?.total ?? 0;
+
+    // Hóa đơn chờ thu tiền mặt (pending)
+    const pendingMatchFilter = { status: "pending" };
+    if (isStaff) {
+      pendingMatchFilter.contract = revenueMatchFilter.contract;
+    }
+    const pendingResult = await Invoice.aggregate([
+      { $match: pendingMatchFilter },
+      { $group: { _id: null, count: { $sum: 1 }, total: { $sum: "$totalAmount" } } },
+    ]);
+    const pendingInvoicesCount = pendingResult[0]?.count ?? 0;
+    const pendingInvoicesAmount = pendingResult[0]?.total ?? 0;
+
     // Hóa đơn quá hạn
     const overdueMatchFilter = {
       status: "unpaid",
@@ -105,6 +127,11 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
       activeContracts,
       totalTenants,
       monthlyRevenue,
+      cashRevenue,
+      momoRevenue,
+      vnpayRevenue,
+      pendingInvoicesCount,
+      pendingInvoicesAmount,
       expiringContracts,
       overdueInvoicesCount,
       overdueInvoicesAmount,
@@ -139,6 +166,9 @@ router.get("/users", protect, adminOnly, async (req, res) => {
     res.status(500).json({ message: "Lỗi server." });
   }
 });
+
+// POST /api/admin/users — tạo tài khoản mới
+router.post("/users", protect, adminOnly, createUser);
 
 // ═════════════════════════════════════════════════════════════════════════════
 // STAFF MANAGEMENT (admin only)

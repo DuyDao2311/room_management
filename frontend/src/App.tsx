@@ -5,6 +5,7 @@ import Footer from './components/layout/Footer.tsx'
 import Home from './pages/public/Home.tsx'
 import RoomList from './pages/public/RoomList.tsx'
 import RoomDetail from './pages/public/RoomDetail.tsx'
+import PaymentCallback from './pages/public/PaymentCallback.tsx'
 import Login from './pages/auth/Login.tsx'
 import Register from './pages/auth/Register.tsx'
 import ForgotPassword from './pages/auth/ForgotPassword.tsx'
@@ -61,6 +62,12 @@ function AppLayout() {
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
+
+        {/* Payment callbacks */}
+        <Route path="/payment/momo-callback" element={<PaymentCallback />} />
+        <Route path="/payment/vnpay-callback" element={<PaymentCallback />} />
+        <Route path="/payment/success/:invoiceId" element={<PaymentCallback />} />
+        <Route path="/payment/failed" element={<PaymentCallback />} />
 
         {/* Admin + Staff — dùng chung AdminLayout */}
         <Route path="/admin" element={<RequireAuth role={["admin", "staff"]}><AdminLayout /></RequireAuth>}>
