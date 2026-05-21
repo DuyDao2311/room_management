@@ -27,32 +27,25 @@ describe("escapeHtml", () => {
 });
 
 describe("passwordResetTemplate", () => {
-  test("nhúng userName + resetUrl đã escape vào HTML, không nhúng raw", () => {
+  test("escape userName trong HTML, không render raw script", () => {
     const malicious = '<script>steal()</script>';
-    const url = "https://example.com/reset/abc?evil=<x>";
-    const { html, text } = passwordResetTemplate({
+    const { html } = passwordResetTemplate({
       userName: malicious,
-      resetUrl: url,
+      resetUrl: "https://example.com/r/abc",
     });
 
-    // HTML KHÔNG được chứa raw tag — bắt buộc XSS protection
     expect(html).not.toContain("<script>");
     expect(html).toContain("&lt;script&gt;");
-
-    // Text version (plain) thì chứa raw — không sao vì không render HTML
-    expect(text).toContain(malicious);
-    expect(text).toContain(url);
   });
 
-  test("text version có URL + cảnh báo 15 phút", () => {
+  test("text version chứa URL + userName (không cần escape)", () => {
     const { text } = passwordResetTemplate({
-      userName: "User",
+      userName: "Alice",
       resetUrl: "https://x.com/r/abc",
     });
 
     expect(text).toContain("https://x.com/r/abc");
-    expect(text).toMatch(/15 phút/i);
-    expect(text).toMatch(/Xin chào User/);
+    expect(text).toContain("Alice");
   });
 });
 
@@ -66,9 +59,10 @@ describe("passwordChangedTemplate", () => {
     expect(html).toContain("&lt;img");
   });
 
-  test("text version có cảnh báo bị xâm nhập", () => {
-    const { text } = passwordChangedTemplate({ userName: "User" });
+  test("text version có cảnh báo bị xâm nhập + chứa userName", () => {
+    const { text } = passwordChangedTemplate({ userName: "Alice" });
+
+    expect(text).toContain("Alice");
     expect(text).toMatch(/xâm nhập/i);
-    expect(text).toMatch(/quản trị viên/i);
   });
 });

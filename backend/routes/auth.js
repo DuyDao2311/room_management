@@ -54,20 +54,21 @@ router.post("/register", async (req, res) => {
         .json({ message: "Vui lòng nhập đầy đủ thông tin." });
     }
 
-    const emailErr = validateEmail(email);
+    const { error: emailErr, normalized: normalizedEmail } =
+      validateEmail(email);
     if (emailErr) return res.status(400).json({ message: emailErr });
 
     const passErr = validatePassword(password);
     if (passErr) return res.status(400).json({ message: passErr });
 
-    const existing = await User.findOne({ email });
+    const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(400).json({ message: "Email đã được sử dụng." });
     }
 
     const user = await User.create({
       name,
-      email,
+      email: normalizedEmail,
       password,
       role: role === "admin" ? "admin" : "tenant",
     });
@@ -137,13 +138,13 @@ router.post(
   sensitiveAuthLimiter,
   async (req, res) => {
     try {
-      const { email } = req.body;
-      const emailErr = validateEmail(email);
+      const { error: emailErr, normalized: normalizedEmail } = validateEmail(
+        req.body.email,
+      );
       if (emailErr) return res.status(400).json({ message: emailErr });
 
-      // Normalize trước khi query: User schema có trim + lowercase ở SAVE,
-      // nhưng query không tự áp → "  TEST@x.com  " sẽ không match nếu skip.
-      const normalizedEmail = email.trim().toLowerCase();
+      // Schema trim + lowercase chỉ chạy lúc save, không lúc query →
+      // dùng normalized từ validateEmail để match user trong DB.
       const user = await User.findOne({ email: normalizedEmail });
 
       // DEVIATION (2026-05-20): không dùng same-message pattern — báo trực

@@ -8,9 +8,7 @@ process.env.CLIENT_URL = "http://localhost:5173";
 process.env.EMAIL_USER = "test@example.com";
 process.env.EMAIL_PASS = "test-password";
 
-// Mock sendEmail TRƯỚC khi require route → route sẽ dùng bản mock.
 jest.mock("../utils/sendEmail", () => jest.fn().mockResolvedValue());
-
 // Mock rate limiter pass-through để test business logic không bị throttle.
 // Rate limit chưa có test riêng — TODO nếu sau này cần.
 jest.mock("express-rate-limit", () => () => (req, res, next) => next());
@@ -24,6 +22,9 @@ const { MongoMemoryServer } = require("mongodb-memory-server");
 const sendEmail = require("../utils/sendEmail");
 const User = require("../models/User");
 const authRoutes = require("../routes/auth");
+
+const TEST_EMAIL = "test@example.com";
+const VALID_PASSWORD = "newpass123";
 
 let mongoServer;
 let app;
@@ -45,15 +46,14 @@ afterAll(async () => {
 beforeEach(async () => {
   await User.deleteMany({});
   sendEmail.mockClear();
-  sendEmail.mockResolvedValue(); // reset implementation sau mỗi test (vd test
-  // rollback dùng mockRejectedValueOnce có thể leak qua test sau nếu không reset)
+  // Reset implementation (rollback test dùng mockRejectedValueOnce có thể leak).
+  sendEmail.mockResolvedValue();
 });
 
-// Helper: tạo user test có sẵn trong DB.
 async function createTestUser(overrides = {}) {
   return User.create({
     name: "Test User",
-    email: "test@example.com",
+    email: TEST_EMAIL,
     password: "oldpass123",
     role: "tenant",
     isActive: true,
@@ -61,30 +61,34 @@ async function createTestUser(overrides = {}) {
   });
 }
 
-// Helper: flush pending microtasks. Cần khi route có fire-and-forget promise
-// (vd email cảnh báo sau reset-password) — phải đợi promise đó settle trước
-// khi assert mock được gọi, tránh race condition giữa các tests.
-const flushMicrotasks = () => new Promise((r) => setImmediate(r));
+// HTTP helpers — giảm boilerplate request(app).post(...).send(...).
+const postForgot = (body) =>
+  request(app).post("/api/auth/forgot-password").send(body);
+const postReset = (body) =>
+  request(app).post("/api/auth/reset-password").send(body);
+
+// Đợi tick I/O kế tiếp — cần khi route fire-and-forget (vd email cảnh báo
+// sau reset). `setImmediate` queue chạy SAU mọi microtask hiện tại,
+// đủ để await `sendEmail(...)` của fire-and-forget settle.
+const flushPendingIO = () => new Promise((r) => setImmediate(r));
 
 describe("POST /api/auth/forgot-password", () => {
   test("email tồn tại + active → 200, lưu token, gửi email", async () => {
     await createTestUser();
 
-    const res = await request(app)
-      .post("/api/auth/forgot-password")
-      .send({ email: "test@example.com" });
+    const res = await postForgot({ email: TEST_EMAIL });
 
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/kiểm tra email/i);
     expect(sendEmail).toHaveBeenCalledTimes(1);
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
-        to: "test@example.com",
+        to: TEST_EMAIL,
         subject: expect.stringMatching(/đặt lại mật khẩu/i),
       }),
     );
 
-    const user = await User.findOne({ email: "test@example.com" }).select(
+    const user = await User.findOne({ email: TEST_EMAIL }).select(
       "+resetPasswordToken +resetPasswordExpires",
     );
     expect(user.resetPasswordToken).toBeTruthy();
@@ -93,9 +97,7 @@ describe("POST /api/auth/forgot-password", () => {
   });
 
   test("email không tồn tại → 404, response chứa email (DEVIATION leak)", async () => {
-    const res = await request(app)
-      .post("/api/auth/forgot-password")
-      .send({ email: "unknown@example.com" });
+    const res = await postForgot({ email: "unknown@example.com" });
 
     expect(res.status).toBe(404);
     expect(res.body.message).toMatch(/chưa được đăng ký/i);
@@ -103,50 +105,22 @@ describe("POST /api/auth/forgot-password", () => {
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  test("email format sai → 400 với message 'định dạng'", async () => {
-    const res = await request(app)
-      .post("/api/auth/forgot-password")
-      .send({ email: "khong-co-cham" });
-
+  test.each([
+    ["format sai", { email: "khong-co-cham" }, /định dạng/i],
+    ["chuỗi rỗng", { email: "" }, /vui lòng nhập/i],
+    ["field thiếu", {}, /không hợp lệ/i],
+    ["NoSQL injection", { email: { $ne: null } }, /không hợp lệ/i],
+  ])("validation: %s → 400", async (_label, body, msgRe) => {
+    const res = await postForgot(body);
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/định dạng/i);
-    expect(sendEmail).not.toHaveBeenCalled();
-  });
-
-  test("email là chuỗi rỗng → 400 với message 'vui lòng nhập'", async () => {
-    const res = await request(app)
-      .post("/api/auth/forgot-password")
-      .send({ email: "" });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/vui lòng nhập/i);
-  });
-
-  test("field email không có trong body → 400 với message 'không hợp lệ'", async () => {
-    const res = await request(app)
-      .post("/api/auth/forgot-password")
-      .send({});
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/không hợp lệ/i);
-  });
-
-  test("email không phải string (NoSQL injection) → 400", async () => {
-    const res = await request(app)
-      .post("/api/auth/forgot-password")
-      .send({ email: { $ne: null } });
-
-    expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/không hợp lệ/i);
+    expect(res.body.message).toMatch(msgRe);
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
   test("email có khoảng trắng + hoa thường lẫn lộn → normalize và match đúng", async () => {
-    await createTestUser({ email: "test@example.com" });
+    await createTestUser({ email: TEST_EMAIL });
 
-    const res = await request(app)
-      .post("/api/auth/forgot-password")
-      .send({ email: "  TEST@example.com  " });
+    const res = await postForgot({ email: "  TEST@example.com  " });
 
     expect(res.status).toBe(200);
     expect(sendEmail).toHaveBeenCalledTimes(1);
@@ -155,21 +129,19 @@ describe("POST /api/auth/forgot-password", () => {
   test("user bị isActive: false → 404 (treat như không tồn tại)", async () => {
     await createTestUser({ isActive: false });
 
-    const res = await request(app)
-      .post("/api/auth/forgot-password")
-      .send({ email: "test@example.com" });
+    const res = await postForgot({ email: TEST_EMAIL });
 
     expect(res.status).toBe(404);
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
   test("multi-user trong DB: gửi đúng email cho user request", async () => {
-    await createTestUser({ name: "Alice", email: "alice@example.com" });
-    await createTestUser({ name: "Bob", email: "bob@example.com" });
+    await Promise.all([
+      createTestUser({ name: "Alice", email: "alice@example.com" }),
+      createTestUser({ name: "Bob", email: "bob@example.com" }),
+    ]);
 
-    await request(app)
-      .post("/api/auth/forgot-password")
-      .send({ email: "bob@example.com" });
+    await postForgot({ email: "bob@example.com" });
 
     expect(sendEmail).toHaveBeenCalledTimes(1);
     expect(sendEmail).toHaveBeenCalledWith(
@@ -181,13 +153,11 @@ describe("POST /api/auth/forgot-password", () => {
     await createTestUser();
     sendEmail.mockRejectedValueOnce(new Error("SMTP down"));
 
-    const res = await request(app)
-      .post("/api/auth/forgot-password")
-      .send({ email: "test@example.com" });
+    const res = await postForgot({ email: TEST_EMAIL });
 
     expect(res.status).toBe(500);
 
-    const user = await User.findOne({ email: "test@example.com" }).select(
+    const user = await User.findOne({ email: TEST_EMAIL }).select(
       "+resetPasswordToken +resetPasswordExpires",
     );
     expect(user.resetPasswordToken).toBeUndefined();
@@ -196,7 +166,6 @@ describe("POST /api/auth/forgot-password", () => {
 });
 
 describe("POST /api/auth/reset-password", () => {
-  // Helper: setup user với token reset hợp lệ. Trả về { rawToken, user }.
   async function setupValidResetToken(overrides = {}) {
     const user = await createTestUser(overrides);
     const rawToken = crypto.randomBytes(32).toString("hex");
@@ -210,12 +179,13 @@ describe("POST /api/auth/reset-password", () => {
     return { rawToken, user };
   }
 
-  test("token đúng + password ≥ 6 ký tự → 200, đổi password, xóa token, gửi email cảnh báo", async () => {
+  test("token đúng + password đủ → 200, đổi password, xóa token, gửi email cảnh báo", async () => {
     const { rawToken, user } = await setupValidResetToken();
 
-    const res = await request(app)
-      .post("/api/auth/reset-password")
-      .send({ token: rawToken, newPassword: "newpass123" });
+    const res = await postReset({
+      token: rawToken,
+      newPassword: VALID_PASSWORD,
+    });
 
     expect(res.status).toBe(200);
     expect(res.body.message).toMatch(/thành công/i);
@@ -225,14 +195,13 @@ describe("POST /api/auth/reset-password", () => {
     );
     expect(updated.resetPasswordToken).toBeUndefined();
     expect(updated.resetPasswordExpires).toBeUndefined();
-    const isMatch = await updated.comparePassword("newpass123");
-    expect(isMatch).toBe(true);
+    expect(await updated.comparePassword(VALID_PASSWORD)).toBe(true);
 
-    // Email "password đã đổi" gửi fire-and-forget → đợi microtask flush.
-    await flushMicrotasks();
+    // Email cảnh báo fire-and-forget → đợi I/O tick trước khi assert.
+    await flushPendingIO();
     expect(sendEmail).toHaveBeenCalledWith(
       expect.objectContaining({
-        to: "test@example.com",
+        to: TEST_EMAIL,
         subject: expect.stringMatching(/vừa được đổi/i),
       }),
     );
@@ -241,20 +210,19 @@ describe("POST /api/auth/reset-password", () => {
   test("password đúng 6 ký tự (boundary) → 200", async () => {
     const { rawToken } = await setupValidResetToken();
 
-    const res = await request(app)
-      .post("/api/auth/reset-password")
-      .send({ token: rawToken, newPassword: "abcdef" });
+    const res = await postReset({ token: rawToken, newPassword: "abcdef" });
 
     expect(res.status).toBe(200);
-    await flushMicrotasks();
+    await flushPendingIO();
   });
 
   test("token sai → 400", async () => {
     await setupValidResetToken();
 
-    const res = await request(app)
-      .post("/api/auth/reset-password")
-      .send({ token: "x".repeat(64), newPassword: "newpass123" });
+    const res = await postReset({
+      token: "x".repeat(64),
+      newPassword: VALID_PASSWORD,
+    });
 
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/không hợp lệ/i);
@@ -267,9 +235,10 @@ describe("POST /api/auth/reset-password", () => {
       { $set: { resetPasswordExpires: new Date(Date.now() - 1000) } },
     );
 
-    const res = await request(app)
-      .post("/api/auth/reset-password")
-      .send({ token: rawToken, newPassword: "newpass123" });
+    const res = await postReset({
+      token: rawToken,
+      newPassword: VALID_PASSWORD,
+    });
 
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/hết hạn/i);
@@ -278,42 +247,40 @@ describe("POST /api/auth/reset-password", () => {
   test("token đã dùng 1 lần → lần 2 fail (single-use)", async () => {
     const { rawToken } = await setupValidResetToken();
 
-    const first = await request(app)
-      .post("/api/auth/reset-password")
-      .send({ token: rawToken, newPassword: "newpass123" });
+    const first = await postReset({
+      token: rawToken,
+      newPassword: VALID_PASSWORD,
+    });
     expect(first.status).toBe(200);
-    await flushMicrotasks(); // đợi notification email gửi xong
 
-    const second = await request(app)
-      .post("/api/auth/reset-password")
-      .send({ token: rawToken, newPassword: "anothernewpass" });
+    const second = await postReset({
+      token: rawToken,
+      newPassword: "anothernewpass",
+    });
     expect(second.status).toBe(400);
   });
 
   test("password < 6 ký tự → 400", async () => {
     const { rawToken } = await setupValidResetToken();
 
-    const res = await request(app)
-      .post("/api/auth/reset-password")
-      .send({ token: rawToken, newPassword: "abc" });
+    const res = await postReset({ token: rawToken, newPassword: "abc" });
 
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/6 ký tự/i);
   });
 
   test("token là object (NoSQL injection) → 400", async () => {
-    const res = await request(app)
-      .post("/api/auth/reset-password")
-      .send({ token: { $ne: null }, newPassword: "newpass123" });
+    const res = await postReset({
+      token: { $ne: null },
+      newPassword: VALID_PASSWORD,
+    });
 
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/thiếu token/i);
   });
 
   test("token rỗng → 400", async () => {
-    const res = await request(app)
-      .post("/api/auth/reset-password")
-      .send({ newPassword: "newpass123" });
+    const res = await postReset({ newPassword: VALID_PASSWORD });
 
     expect(res.status).toBe(400);
     expect(res.body.message).toMatch(/thiếu token/i);
@@ -322,9 +289,7 @@ describe("POST /api/auth/reset-password", () => {
   test("newPassword rỗng → 400", async () => {
     const { rawToken } = await setupValidResetToken();
 
-    const res = await request(app)
-      .post("/api/auth/reset-password")
-      .send({ token: rawToken });
+    const res = await postReset({ token: rawToken });
 
     expect(res.status).toBe(400);
   });

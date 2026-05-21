@@ -8,12 +8,16 @@ function validatePassword(plain) {
   return null;
 }
 
+// Trả về cả lỗi (nếu có) lẫn dạng đã chuẩn hóa (trim + lowercase). Caller
+// dùng `normalized` cho query/save → tránh phải tự normalize ở mỗi route.
 function validateEmail(email) {
-  if (typeof email !== "string") return "Email không hợp lệ.";
-  const trimmed = email.trim();
-  if (!trimmed) return "Vui lòng nhập email.";
-  if (!/^\S+@\S+\.\S+$/.test(trimmed)) return "Email không đúng định dạng.";
-  return null;
+  if (typeof email !== "string") return { error: "Email không hợp lệ." };
+  const normalized = email.trim().toLowerCase();
+  if (!normalized) return { error: "Vui lòng nhập email." };
+  if (!/^\S+@\S+\.\S+$/.test(normalized)) {
+    return { error: "Email không đúng định dạng." };
+  }
+  return { error: null, normalized };
 }
 
 module.exports = { validatePassword, validateEmail, MIN_PASSWORD_LENGTH };
