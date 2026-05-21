@@ -48,21 +48,19 @@ function passwordResetTemplate({ userName, resetUrl }) {
       </div>
     `;
 
-  const text = `
-  Đặt lại mật khẩu
+  const text = `Đặt lại mật khẩu
 
-  Xin chào ${userName},
+Xin chào ${userName},
 
-  Bạn vừa yêu cầu đặt lại mật khẩu cho tài khoản.
-  Click link sau để đặt mật khẩu mới (có hiệu lực 15 phút):
+Bạn vừa yêu cầu đặt lại mật khẩu cho tài khoản.
+Click link sau để đặt mật khẩu mới (có hiệu lực 15 phút):
 
-  ${resetUrl}
+${resetUrl}
 
-  Nếu bạn KHÔNG yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
+Nếu bạn KHÔNG yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
 
-  ---
-  Email tự động, vui lòng không trả lời.
-    `.trim();
+---
+Email tự động, vui lòng không trả lời.`;
 
   return { html, text };
 }
@@ -101,19 +99,17 @@ function passwordChangedTemplate({ userName }) {
       </div>
     `;
 
-  const text = `
-  Mật khẩu vừa được đổi
+  const text = `Mật khẩu vừa được đổi
 
-  Xin chào ${userName},
+Xin chào ${userName},
 
-  Mật khẩu tài khoản của bạn vừa được đổi thành công lúc ${now}.
+Mật khẩu tài khoản của bạn vừa được đổi thành công lúc ${now}.
 
-  ⚠️ Nếu bạn KHÔNG phải là người vừa đổi mật khẩu, tài khoản có thể đã bị xâm nhập.
-  Vui lòng liên hệ quản trị viên hệ thống ngay.
+⚠️ Nếu bạn KHÔNG phải là người vừa đổi mật khẩu, tài khoản có thể đã bị xâm nhập.
+Vui lòng liên hệ quản trị viên hệ thống ngay.
 
-  ---
-  Email tự động, vui lòng không trả lời.
-    `.trim();
+---
+Email tự động, vui lòng không trả lời.`;
 
   return { html, text };
 }
