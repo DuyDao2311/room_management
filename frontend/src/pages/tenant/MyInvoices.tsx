@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import api from '../../api/axios.ts'
+import { createPayment, redirectToPayment, requestCashPayment } from '../../api/payment.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import Badge from '../../components/ui/Badge.tsx'
 import { useAuth } from '../../contexts/AuthContext.tsx'
+import { useNotifications } from '../../contexts/NotificationContext.tsx'
 
-import { MdOutlineReceipt, MdHouse, MdOutlineWaterDrop, MdDownload } from 'react-icons/md'
-import { FiZap, FiInfo } from 'react-icons/fi'
+import { MdOutlineReceipt, MdHouse, MdOutlineWaterDrop, MdDownload, MdCheckCircle } from 'react-icons/md'
+import { FiZap, FiInfo, FiClock } from 'react-icons/fi'
 
 interface Invoice {
   _id: string
@@ -14,7 +16,10 @@ interface Invoice {
   month?: number
   year?: number
   totalAmount: number
-  status: 'unpaid' | 'paid' | 'overdue'
+  status: 'unpaid' | 'pending' | 'paid' | 'overdue'
+  paymentMethod?: string
+  paidAt?: string
+  confirmedBy?: string
   dueDate?: string
   createdAt: string
   representativeName?: string
@@ -26,10 +31,11 @@ interface Invoice {
   extraFees?: Array<{ name: string; amount: number }>
 }
 
-const STATUS_MAP = {
-  paid: { label: 'Đã thanh toán', variant: 'success' as const },
-  unpaid: { label: 'Chờ thanh toán', variant: 'warning' as const },
-  overdue: { label: 'Quá hạn', variant: 'danger' as const },
+const STATUS_MAP: Record<string, { label: string; variant: 'success' | 'warning' | 'danger' | 'info' | 'neutral' }> = {
+  paid: { label: 'Đã thanh toán', variant: 'success' },
+  unpaid: { label: 'Chờ thanh toán', variant: 'warning' },
+  pending: { label: 'Đang chờ thu tiền mặt', variant: 'info' },
+  overdue: { label: 'Quá hạn', variant: 'danger' },
 }
 
 export default function MyInvoices() {
@@ -39,7 +45,30 @@ export default function MyInvoices() {
   const [error, setError] = useState('')
   const [payingId, setPayingId] = useState<string | null>(null)
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
-  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'vnpay'>('momo')
+  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'vnpay' | 'cash'>('momo')
+  const [cashModal, setCashModal] = useState(false)
+  const { socket } = useNotifications()
+
+  // ─── Real-time: Lắng nghe sự kiện thanh toán thành công ─────────────────────
+  useEffect(() => {
+    if (!socket) return
+
+    const handleInvoicePaid = (data: { invoiceId: string, status: string, paymentMethod: string }) => {
+      setInvoices(prev => prev.map(inv => inv._id === data.invoiceId ? { ...inv, status: data.status as any } : inv))
+      setSelectedInvoice(prev => prev && prev._id === data.invoiceId ? { ...prev, status: data.status as any } : prev)
+      alert(`Hóa đơn của bạn đã được xác nhận thanh toán qua ${data.paymentMethod === 'cash' ? 'tiền mặt' : data.paymentMethod}.`)
+      // Ẩn modal sau khi thanh toán thành công nếu đang mở
+      setTimeout(() => {
+        setSelectedInvoice(null)
+      }, 3000)
+    }
+
+    socket.on('invoice_paid', handleInvoicePaid)
+
+    return () => {
+      socket.off('invoice_paid', handleInvoicePaid)
+    }
+  }, [socket])
 
   useEffect(() => {
     api.get('/invoices/my')
@@ -49,18 +78,50 @@ export default function MyInvoices() {
   }, [])
 
   const handlePay = async (id: string) => {
+    if (!paymentMethod) {
+      alert('Vui lòng chọn phương thức thanh toán')
+      return
+    }
+
+    if (paymentMethod === 'cash') {
+      setPayingId(id)
+      try {
+        await requestCashPayment(id)
+        setInvoices(prev => prev.map(inv => inv._id === id ? { ...inv, status: 'pending', paymentMethod: 'Cash' } : inv))
+        setSelectedInvoice(prev => prev ? { ...prev, status: 'pending', paymentMethod: 'Cash' } : null)
+        setCashModal(true)
+      } catch (err: any) {
+        alert(err.message || 'Có lỗi xảy ra')
+      } finally {
+        setPayingId(null)
+      }
+      return
+    }
+
     setPayingId(id)
     try {
-      await api.post(`/invoices/${id}/pay`)
-      setInvoices(prev => prev.map(inv => inv._id === id ? { ...inv, status: 'paid' } : inv))
-      if (selectedInvoice && selectedInvoice._id === id) {
-        setSelectedInvoice(prev => prev ? { ...prev, status: 'paid' } : null)
-        setTimeout(() => {
-          setSelectedInvoice(null)
-        }, 1500)
+      const response = await createPayment(id, paymentMethod)
+
+      // Nếu có paymentUrl (Momo/VNPay), redirect sang gateway
+      if (response.metadata.paymentUrl) {
+        // Lưu invoiceId vào localStorage để verify sau callback
+        localStorage.setItem('pendingPaymentInvoiceId', id)
+        localStorage.setItem('pendingPaymentMethod', paymentMethod)
+
+        // Redirect sang payment gateway
+        redirectToPayment(response.metadata.paymentUrl)
+      } else {
+        // Fallback: cập nhật UI trực tiếp nếu không có URL
+        setInvoices(prev => prev.map(inv => inv._id === id ? { ...inv, status: 'paid' } : inv))
+        if (selectedInvoice && selectedInvoice._id === id) {
+          setSelectedInvoice(prev => prev ? { ...prev, status: 'paid' } : null)
+          setTimeout(() => {
+            setSelectedInvoice(null)
+          }, 1500)
+        }
       }
-    } catch (err) {
-      alert('Có lỗi xảy ra khi thanh toán. Vui lòng thử lại sau.')
+    } catch (err: any) {
+      alert(err.message || 'Có lỗi xảy ra khi thanh toán. Vui lòng thử lại sau.')
     } finally {
       setPayingId(null)
     }
@@ -142,20 +203,26 @@ export default function MyInvoices() {
                       <Badge label={STATUS_MAP[inv.status]?.label || inv.status} variant={STATUS_MAP[inv.status]?.variant || 'neutral'} />
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <button
-                        onClick={() => setSelectedInvoice(inv)}
-                        style={{
-                          background: (inv.status === 'unpaid' || inv.status === 'overdue') ? '#003e68' : 'transparent',
-                          color: (inv.status === 'unpaid' || inv.status === 'overdue') ? '#fff' : '#4b5563',
-                          border: 'none',
-                          padding: (inv.status === 'unpaid' || inv.status === 'overdue') ? '6px 16px' : '0',
-                          borderRadius: '4px',
-                          fontWeight: 700,
-                          fontSize: '0.8rem',
-                          cursor: 'pointer'
-                        }}>
-                        {(inv.status === 'unpaid' || inv.status === 'overdue') ? 'THANH TOÁN' : 'CHI TIẾT'}
-                      </button>
+                      {inv.status === 'pending' ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#0369a1', fontWeight: 700, fontSize: '0.78rem' }}>
+                          <FiClock size={14} /> Đang chờ
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setSelectedInvoice(inv)}
+                          style={{
+                            background: (inv.status === 'unpaid' || inv.status === 'overdue') ? '#003e68' : 'transparent',
+                            color: (inv.status === 'unpaid' || inv.status === 'overdue') ? '#fff' : '#4b5563',
+                            border: 'none',
+                            padding: (inv.status === 'unpaid' || inv.status === 'overdue') ? '6px 16px' : '0',
+                            borderRadius: '4px',
+                            fontWeight: 700,
+                            fontSize: '0.8rem',
+                            cursor: 'pointer'
+                          }}>
+                          {(inv.status === 'unpaid' || inv.status === 'overdue') ? 'THANH TOÁN' : 'CHI TIẾT'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -167,7 +234,7 @@ export default function MyInvoices() {
         {selectedInvoice && (
           <div className="rent-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSelectedInvoice(null) }}>
             <div className="rent-modal" style={{ maxWidth: '1000px', borderRadius: '12px', padding: 0, overflow: 'hidden', background: '#f3f4f6' }}>
-              
+
               {/* Header */}
               <div style={{ background: '#fff', padding: '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb' }}>
                 <div>
@@ -186,10 +253,10 @@ export default function MyInvoices() {
 
               {/* Body */}
               <div style={{ padding: '32px', display: 'flex', gap: '32px', alignItems: 'flex-start', maxHeight: '80vh', overflowY: 'auto' }}>
-                
+
                 {/* Left Column */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                  
+
                   {/* Info Row */}
                   <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', display: 'flex', gap: '32px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                     {/* Invoice Info */}
@@ -215,10 +282,10 @@ export default function MyInvoices() {
                         </span>
                       </div>
                     </div>
-                    
+
                     {/* Divider */}
                     <div style={{ width: '1px', background: '#e5e7eb' }} />
-                    
+
                     {/* Tenant Info */}
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4b5563', fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px' }}>
@@ -344,19 +411,57 @@ export default function MyInvoices() {
                   <div style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '16px', display: 'flex', gap: '12px', marginBottom: '32px' }}>
                     <FiInfo size={20} color="#93c5fd" style={{ flexShrink: 0, marginTop: '2px' }} />
                     <span style={{ fontSize: '0.9rem', color: '#dbeafe', lineHeight: 1.5 }}>
-                      Vui lòng thanh toán trước<br/>
+                      Vui lòng thanh toán trước<br />
                       <strong>{selectedInvoice.dueDate ? new Date(selectedInvoice.dueDate).toLocaleDateString('vi-VN') : '—'}</strong>
                     </span>
                   </div>
 
-                  {selectedInvoice.status !== 'paid' && (
+                  {/* ── PENDING: Đang chờ thu tiền mặt ── */}
+                  {selectedInvoice.status === 'pending' && (
+                    <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                      <div style={{ width: '64px', height: '64px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                        <FiClock size={32} color="#fbbf24" />
+                      </div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#fbbf24', marginBottom: '8px' }}>
+                        Đang chờ thanh toán tiền mặt
+                      </div>
+                      <div style={{ fontSize: '0.85rem', color: '#dbeafe', lineHeight: 1.6 }}>
+                        Vui lòng liên hệ quản lý khu vực để nộp tiền. Hóa đơn sẽ tự động cập nhật khi được xác nhận.
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── PAID: Thanh toán thành công ── */}
+                  {selectedInvoice.status === 'paid' && (
+                    <div style={{ textAlign: 'center', padding: '24px 0' }}>
+                      <div style={{ width: '64px', height: '64px', background: 'rgba(16,185,129,0.2)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                        <MdCheckCircle size={36} color="#10b981" />
+                      </div>
+                      <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#10b981', marginBottom: '12px' }}>
+                        Thanh toán thành công
+                      </div>
+                      {selectedInvoice.paidAt && (
+                        <div style={{ fontSize: '0.85rem', color: '#dbeafe', marginBottom: '4px' }}>
+                          Ngày thanh toán: <strong>{new Date(selectedInvoice.paidAt).toLocaleDateString('vi-VN')}</strong>
+                        </div>
+                      )}
+                      {selectedInvoice.paymentMethod && (
+                        <div style={{ fontSize: '0.85rem', color: '#dbeafe' }}>
+                          Phương thức: <strong>{selectedInvoice.paymentMethod}</strong>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── UNPAID/OVERDUE: Chọn phương thức thanh toán ── */}
+                  {(selectedInvoice.status === 'unpaid' || selectedInvoice.status === 'overdue') && (
                     <>
                       <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px' }}>
                         PHƯƠNG THỨC THANH TOÁN
                       </div>
 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '32px' }}>
-                        <div 
+                        <div
                           onClick={() => setPaymentMethod('momo')}
                           style={{ background: 'rgba(255,255,255,0.1)', border: paymentMethod === 'momo' ? '1px solid #60a5fa' : '1px solid transparent', borderRadius: '8px', padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s' }}
                         >
@@ -369,7 +474,7 @@ export default function MyInvoices() {
                           <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: paymentMethod === 'momo' ? '4px solid #fff' : '2px solid rgba(255,255,255,0.3)', background: paymentMethod === 'momo' ? '#60a5fa' : 'transparent' }} />
                         </div>
 
-                        <div 
+                        <div
                           onClick={() => setPaymentMethod('vnpay')}
                           style={{ background: 'rgba(255,255,255,0.1)', border: paymentMethod === 'vnpay' ? '1px solid #60a5fa' : '1px solid transparent', borderRadius: '8px', padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s' }}
                         >
@@ -381,9 +486,28 @@ export default function MyInvoices() {
                           </div>
                           <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: paymentMethod === 'vnpay' ? '4px solid #fff' : '2px solid rgba(255,255,255,0.3)', background: paymentMethod === 'vnpay' ? '#60a5fa' : 'transparent' }} />
                         </div>
+
+                        <div
+                          onClick={() => setPaymentMethod('cash')}
+                          style={{ background: 'rgba(255,255,255,0.1)', border: paymentMethod === 'cash' ? '1px solid #60a5fa' : '1px solid transparent', borderRadius: '8px', padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s' }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{ width: '32px', height: '32px', background: '#fff', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', color: '#10b981' }}>
+                              <MdOutlineReceipt size={20} />
+                            </div>
+                            <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>TIỀN MẶT</span>
+                          </div>
+                          <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: paymentMethod === 'cash' ? '4px solid #fff' : '2px solid rgba(255,255,255,0.3)', background: paymentMethod === 'cash' ? '#60a5fa' : 'transparent' }} />
+                        </div>
                       </div>
 
-                      <button 
+                      {paymentMethod === 'cash' && (
+                        <div style={{ background: 'rgba(255,255,255,0.1)', border: '1px dashed #60a5fa', borderRadius: '8px', padding: '12px', fontSize: '0.85rem', color: '#dbeafe', marginBottom: '16px', lineHeight: 1.5 }}>
+                          Vui lòng nộp tiền mặt trực tiếp cho nhân viên quản lý khu vực. Hóa đơn sẽ được cập nhật trạng thái sau khi nhân viên xác nhận.
+                        </div>
+                      )}
+
+                      <button
                         onClick={() => handlePay(selectedInvoice._id)}
                         disabled={payingId === selectedInvoice._id}
                         style={{ width: '100%', background: '#fff', color: '#003e68', border: 'none', borderRadius: '8px', padding: '16px', fontWeight: 800, fontSize: '1rem', cursor: payingId === selectedInvoice._id ? 'not-allowed' : 'pointer', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s', opacity: payingId === selectedInvoice._id ? 0.7 : 1 }}
@@ -394,16 +518,53 @@ export default function MyInvoices() {
                     </>
                   )}
 
-                  <button 
-                    onClick={() => setSelectedInvoice(null)}
-                    style={{ width: '100%', background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '16px', fontWeight: 700, fontSize: '1rem', cursor: 'pointer', transition: 'all 0.2s' }}
-                  >
-                    X Huỷ
-                  </button>
-
                 </div>
 
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── MODAL: Thông báo thanh toán tiền mặt ── */}
+        {cashModal && (
+          <div
+            onClick={(e) => { if (e.target === e.currentTarget) setCashModal(false) }}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 9999,
+              background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              animation: 'fadeIn 0.3s ease',
+            }}
+          >
+            <div style={{
+              background: '#fff', borderRadius: '16px', padding: '40px',
+              maxWidth: '420px', width: '90%', textAlign: 'center',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+              animation: 'slideUp 0.3s ease',
+            }}>
+              <div style={{
+                width: '72px', height: '72px', background: '#e0f2fe',
+                borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 20px',
+              }}>
+                <FiInfo size={36} color="#0369a1" />
+              </div>
+              <h3 style={{ margin: '0 0 12px', fontSize: '1.3rem', fontWeight: 800, color: '#111827' }}>
+                Thông báo
+              </h3>
+              <p style={{ margin: '0 0 24px', color: '#4b5563', fontSize: '1rem', lineHeight: 1.6 }}>
+                Vui lòng liên hệ với quản lý khu vực để thanh toán
+              </p>
+              <button
+                onClick={() => { setCashModal(false); setSelectedInvoice(null) }}
+                style={{
+                  background: '#003e68', color: '#fff', border: 'none',
+                  borderRadius: '8px', padding: '12px 32px', fontWeight: 700,
+                  fontSize: '1rem', cursor: 'pointer', transition: 'all 0.2s',
+                }}
+              >
+                Đã hiểu
+              </button>
             </div>
           </div>
         )}

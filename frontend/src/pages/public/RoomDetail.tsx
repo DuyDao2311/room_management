@@ -734,7 +734,7 @@ export default function RoomDetail() {
                   </button>
                   <button type="submit" className="btn-confirm" disabled={rentLoading}>
                     <MdCheckCircleOutline size={18} />
-                    {rentLoading ? 'ĐANG XỬ LÝ...' : 'XÁC NHẬN'}
+                    {rentLoading ? 'ĐANG GỬI...' : 'XÁC NHẬN'}
                   </button>
                 </div>
               </form>
