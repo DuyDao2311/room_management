@@ -1,5 +1,5 @@
 const nodemailer = require("nodemailer");
-// 1. Tạo transporter (1 lần, dùng nhiều lần)
+
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -8,7 +8,6 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-//2. Hàm gửi email (async vì gửi mạng cần đợi)
 async function sendEmail({ to, subject, html, text }) {
   await transporter.sendMail({
     from: process.env.EMAIL_USER,

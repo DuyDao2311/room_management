@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import api from '../../api/axios.ts'
+import api, { getApiErrorMessage } from '../../api/axios.ts'
+import { MIN_PASSWORD_LENGTH } from '../../constants/auth.ts'
 
 export default function ResetPassword() {
   const { token } = useParams<{ token: string }>()
@@ -14,8 +15,8 @@ export default function ResetPassword() {
     e.preventDefault()
     setError('')
 
-    if (password.length < 6) {
-      setError('Mật khẩu phải có ít nhất 6 ký tự.')
+    if (password.length < MIN_PASSWORD_LENGTH) {
+      setError(`Mật khẩu phải có ít nhất ${MIN_PASSWORD_LENGTH} ký tự.`)
       return
     }
     if (password !== confirmPassword) {
@@ -33,11 +34,8 @@ export default function ResetPassword() {
       navigate('/login', {
         state: { message: 'Đổi mật khẩu thành công, vui lòng đăng nhập.' },
       })
-    } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        'Có lỗi xảy ra. Vui lòng thử lại.'
-      setError(msg)
+    } catch (err) {
+      setError(getApiErrorMessage(err).message)
     } finally {
       setLoading(false)
     }

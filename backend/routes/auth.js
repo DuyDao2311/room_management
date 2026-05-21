@@ -12,10 +12,7 @@ const {
 } = require("../utils/emailTemplates");
 const { validateEmail, validatePassword } = require("../utils/validators");
 
-// Rate limit theo IP: 5 request / 15 phút / IP cho các endpoint nhạy cảm.
-// Chặn được attacker đơn lẻ brute force token hoặc enumeration.
-// Hạn chế: chỉ chặn khi cùng IP. Botnet / residential proxy vẫn bypass dễ.
-// Chấp nhận trade-off này cho phạm vi dự án (nội bộ, nhỏ, user value thấp).
+// 5 req / 15 phút / IP — chặn attacker đơn lẻ. Bypass được nếu dùng botnet.
 const sensitiveAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
@@ -26,9 +23,7 @@ const sensitiveAuthLimiter = rateLimit({
   },
 });
 
-// Rate limit toàn cục: 200 request / 15 phút cộng dồn mọi IP.
-// Lớp belt-and-suspenders: nếu attacker dùng nhiều IP để né per-IP limiter,
-// global counter vẫn dừng được khi tổng request bất thường cao.
+// 200 req / 15 phút cộng dồn — phòng khi attacker xoay IP để né limiter trên.
 const globalAuthLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
@@ -45,7 +40,6 @@ const signToken = (id) =>
     expiresIn: process.env.JWT_EXPIRES_IN || "7d",
   });
 
-// Log lỗi gọn gàng, không leak full stack với data nhạy cảm.
 const logError = (label, err) =>
   console.error(label, { message: err?.message, code: err?.code });
 
@@ -149,11 +143,9 @@ router.post(
 
       const user = await User.findOne({ email });
 
-      // DEVIATION (2026-05-20): theo yêu cầu owner, KHÔNG dùng same-message pattern.
-      // Báo trực tiếp "email chưa đăng ký" để UX rõ ràng hơn.
-      // Trade-off: lộ user enumeration. Chấp nhận vì dự án nội bộ nhỏ,
-      // không phải mục tiêu cao giá trị. Per-IP rate limit chỉ chặn được
-      // attacker đơn lẻ — botnet / proxy pool vẫn bypass được nếu nhắm vào.
+      // DEVIATION (2026-05-20): không dùng same-message pattern — báo trực
+      // tiếp email tồn tại hay không. Trade-off: lộ user enumeration. Chấp
+      // nhận vì dự án nội bộ nhỏ; rate limit chỉ chặn được attacker 1 IP.
       if (!user || !user.isActive) {
         return res
           .status(404)
@@ -167,7 +159,7 @@ router.post(
         .digest("hex");
 
       user.resetPasswordToken = hashedToken;
-      user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 phút
+      user.resetPasswordExpires = Date.now() + 15 * 60 * 1000;
       await user.save({ validateBeforeSave: false });
 
       const resetUrl = `${process.env.CLIENT_URL}/reset-password/${rawToken}`;
@@ -184,9 +176,11 @@ router.post(
           text,
         });
       } catch (mailErr) {
-        user.resetPasswordToken = undefined;
-        user.resetPasswordExpires = undefined;
-        await user.save({ validateBeforeSave: false });
+        // Rollback bằng updateOne để bỏ qua pre-save hook + validation.
+        await User.updateOne(
+          { _id: user._id },
+          { $unset: { resetPasswordToken: "", resetPasswordExpires: "" } },
+        );
         logError("Send email error:", mailErr);
         return res
           .status(500)
@@ -227,7 +221,7 @@ router.post(
       const user = await User.findOne({
         resetPasswordToken: hashedToken,
         resetPasswordExpires: { $gt: Date.now() },
-      }).select("+password +resetPasswordToken +resetPasswordExpires");
+      }).select("+resetPasswordToken +resetPasswordExpires");
 
       if (!user) {
         return res
@@ -235,24 +229,19 @@ router.post(
           .json({ message: "Token không hợp lệ hoặc đã hết hạn." });
       }
 
-      user.password = newPassword; // pre-save hook tự bcrypt hash
+      user.password = newPassword;
       user.resetPasswordToken = undefined;
       user.resetPasswordExpires = undefined;
       await user.save();
 
-      // Gửi email thông báo "password đã đổi" (defense in depth).
-      // Nếu gửi fail thì chỉ log, KHÔNG fail cả request — password đã đổi rồi.
-      try {
-        const { html, text } = passwordChangedTemplate({ userName: user.name });
-        await sendEmail({
-          to: user.email,
-          subject: "Mật khẩu vừa được đổi - Room Management",
-          html,
-          text,
-        });
-      } catch (mailErr) {
-        logError("Send password-changed email error:", mailErr);
-      }
+      // Email cảnh báo best-effort — không block response, không rollback được.
+      sendEmail({
+        to: user.email,
+        subject: "Mật khẩu vừa được đổi - Room Management",
+        ...passwordChangedTemplate({ userName: user.name }),
+      }).catch((mailErr) =>
+        logError("Send password-changed email error:", mailErr),
+      );
 
       res.json({ message: "Đổi mật khẩu thành công." });
     } catch (err) {

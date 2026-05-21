@@ -1,12 +1,37 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import api from '../../api/axios.ts'
+import api, { getApiErrorMessage } from '../../api/axios.ts'
 
 type ResultState =
   | { kind: 'idle' }
   | { kind: 'success' }
   | { kind: 'not_found'; email: string }
   | { kind: 'error'; message: string }
+
+type View = { title: string; subtitle: string }
+
+function viewFor(result: ResultState): View {
+  switch (result.kind) {
+    case 'idle':
+      return {
+        title: 'Quên mật khẩu',
+        subtitle: 'Nhập email đã đăng ký để nhận link đặt lại mật khẩu.',
+      }
+    case 'success':
+      return {
+        title: 'Kiểm tra email của bạn',
+        subtitle:
+          'Hãy kiểm tra email để đặt lại mật khẩu. Link có hiệu lực 15 phút.',
+      }
+    case 'not_found':
+      return {
+        title: 'Email chưa đăng ký',
+        subtitle: `Email ${result.email} chưa được đăng ký trong hệ thống.`,
+      }
+    case 'error':
+      return { title: 'Có lỗi xảy ra', subtitle: result.message }
+  }
+}
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -20,45 +45,20 @@ export default function ForgotPassword() {
     try {
       await api.post('/auth/forgot-password', { email })
       setResult({ kind: 'success' })
-    } catch (err: unknown) {
-      const errObj = err as {
-        response?: { status?: number; data?: { message?: string } }
-      }
-      const status = errObj?.response?.status
-      const msg = errObj?.response?.data?.message
-
+    } catch (err) {
+      const { status, message } = getApiErrorMessage(err)
       if (status === 404) {
         setResult({ kind: 'not_found', email })
-      } else if (status === 429) {
-        setResult({
-          kind: 'error',
-          message: msg || 'Bạn đã thử quá nhiều lần. Vui lòng đợi.',
-        })
       } else {
-        setResult({
-          kind: 'error',
-          message: msg || 'Có lỗi xảy ra. Vui lòng thử lại.',
-        })
+        setResult({ kind: 'error', message })
       }
     } finally {
       setLoading(false)
     }
   }
 
+  const { title, subtitle } = viewFor(result)
   const isSubmitted = result.kind !== 'idle'
-
-  let title = 'Quên mật khẩu'
-  let subtitle = 'Nhập email đã đăng ký để nhận link đặt lại mật khẩu.'
-  if (result.kind === 'success') {
-    title = 'Kiểm tra email của bạn'
-    subtitle = 'Hãy kiểm tra email để đặt lại mật khẩu. Link có hiệu lực 15 phút.'
-  } else if (result.kind === 'not_found') {
-    title = 'Email chưa đăng ký'
-    subtitle = `Email ${result.email} chưa được đăng ký trong hệ thống.`
-  } else if (result.kind === 'error') {
-    title = 'Có lỗi xảy ra'
-    subtitle = result.message
-  }
 
   return (
     <div className="auth-page">
