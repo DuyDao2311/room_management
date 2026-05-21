@@ -1,0 +1,6 @@
+Chức năng đánh giá sao và feedback.
+Chức năng phòng yêu thích cho user.
+Chức năng phản hồi feedback cho role staff/admin.
+Bỏ đánh giá 5 sao trang /my-room.
+Phân quyền quản lý đánh giá theo khu vực cho staff. Admin quản lý tất cả đánh giá
+

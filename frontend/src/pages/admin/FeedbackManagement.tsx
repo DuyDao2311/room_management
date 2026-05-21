@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
 import { getAllFeedbacks, toggleFeedbackStatus, deleteFeedback, type Feedback } from '../../api/feedback'
 import StarRating from '../../components/ui/StarRating'
 
@@ -14,6 +15,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
 
 export default function FeedbackManagement() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([])
   const [total, setTotal] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
@@ -80,6 +82,11 @@ export default function FeedbackManagement() {
         <p style={{ color: '#6b7280', marginTop: 6, fontSize: 14 }}>
           Xem, ẩn hoặc xóa các đánh giá phòng từ người thuê.
         </p>
+        {user?.role === 'staff' && user?.managedDistricts && user.managedDistricts.length > 0 && (
+          <div style={{ marginTop: 8, padding: '8px 12px', background: '#eff6ff', borderRadius: 8, fontSize: 13, color: '#1e40af' }}>
+            📍 Bạn chỉ có thể quản lý đánh giá của các phòng thuộc khu vực: <strong>{user.managedDistricts.join(', ')}</strong>
+          </div>
+        )}
       </div>
 
       {/* Stats bar */}
@@ -133,7 +140,7 @@ export default function FeedbackManagement() {
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
             <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-              {['Phòng', 'Người thuê', 'Sao', 'Nhận xét', 'Trạng thái', 'Ngày', 'Thao tác'].map(h => (
+              {['Phòng', 'Khu vực', 'Người thuê', 'Sao', 'Nhận xét', 'Trạng thái', 'Ngày', 'Thao tác'].map(h => (
                 <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontWeight: 700, color: '#374151', whiteSpace: 'nowrap' }}>
                   {h}
                 </th>
@@ -143,13 +150,13 @@ export default function FeedbackManagement() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} style={{ padding: 32, textAlign: 'center', color: '#9ca3af' }}>
+                <td colSpan={8} style={{ padding: 32, textAlign: 'center', color: '#9ca3af' }}>
                   Đang tải...
                 </td>
               </tr>
             ) : feedbacks.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ padding: 32, textAlign: 'center', color: '#9ca3af' }}>
+                <td colSpan={8} style={{ padding: 32, textAlign: 'center', color: '#9ca3af' }}>
                   Không có đánh giá nào.
                 </td>
               </tr>
@@ -164,10 +171,14 @@ export default function FeedbackManagement() {
                     <div style={{ fontSize: 12, color: '#9ca3af', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{room?.address}</div>
                   </td>
                   <td style={{ padding: '14px 16px' }}>
+                    <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 500, background: '#e0e7ff', color: '#4338ca' }}>
+                      {room?.district || '—'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '14px 16px' }}>
                     <div style={{ fontWeight: 500, color: '#374151' }}>
                       {fb.isAnonymous ? <em style={{ color: '#9ca3af' }}>Ẩn danh</em> : (tenant?.name || '—')}
                     </div>
-                    {/* <div style={{ fontSize: 12, color: '#9ca3af' }}>{tenant?.email}</div> */}
                   </td>
                   <td style={{ padding: '14px 16px' }}>
                     <StarRating value={fb.rating} size="sm" />
