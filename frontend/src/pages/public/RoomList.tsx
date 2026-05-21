@@ -130,11 +130,14 @@ export default function RoomList() {
                 const bgStyle = { backgroundImage: `url("${imageUrl}")` };
 
                 return (
-                  <article className="design-room-card" key={room._id}>
+                  <Link to={`/rooms/${room._id}`} className="design-room-card" key={room._id}>
                     <div
                       className="design-room-image"
                       style={{ ...bgStyle, cursor: 'pointer' }}
-                      onClick={() => setPreviewImage(imageUrl)}
+                      onClick={(e) => {
+                        e.preventDefault(); // chặn Link navigate, chỉ preview ảnh
+                        setPreviewImage(imageUrl);
+                      }}
                       title="Click để xem ảnh lớn"
                     >
                       <div className={`design-room-badge ${room.status === 'available' ? 'badge-available' : 'badge-full'}`}>
@@ -151,12 +154,12 @@ export default function RoomList() {
                         <div className="design-room-price">
                           <strong>{formatPrice(room.price)}</strong><span>/tháng</span>
                         </div>
-                        <Link to={`/rooms/${room._id}`} className="design-room-link" id={`room-link-${room._id}`}>
-                          Chi tiết
-                        </Link>
+                        <span className="design-room-link" id={`room-link-${room._id}`}>
+                          Chi tiết →
+                        </span>
                       </div>
                     </div>
-                  </article>
+                  </Link>
                 )
               })}
             </div>

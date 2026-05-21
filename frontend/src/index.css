@@ -558,13 +558,16 @@ button, a.button { font: inherit; border: 0; cursor: pointer; }
 .design-room-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; }
 
 /* The room card */
-.design-room-card { 
-  background: white; 
-  border-radius: 12px; 
-  overflow: hidden; 
-  display: flex; flex-direction: column; 
+.design-room-card {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
   box-shadow: 0 10px 30px rgba(0,0,0,0.05);
   transition: transform 0.2s, box-shadow 0.2s;
+  /* Card render từ <Link> → bỏ a-tag default style */
+  text-decoration: none;
+  color: inherit;
 }
 .design-room-card:hover { transform: translateY(-4px); box-shadow: 0 16px 40px rgba(0,0,0,0.1); }
 .design-room-image { 
