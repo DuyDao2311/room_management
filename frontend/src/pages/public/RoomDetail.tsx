@@ -789,7 +789,7 @@ export default function RoomDetail() {
                     existingFeedback={null}
                     onSuccess={() => {
                       setFeedbackRefresh(v => v + 1)
-                      getMyFeedback(room._id).then(f => setMyFeedback(f)).catch(() => {})
+                      getMyFeedback(room._id).then(f => setMyFeedback(f)).catch(() => { })
                       setShowFeedbackForm(false)
                     }}
                     onCancel={() => setShowFeedbackForm(false)}
