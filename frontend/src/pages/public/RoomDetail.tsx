@@ -57,6 +57,34 @@ interface CoResident {
 
 const MAX_CO_RESIDENTS = 3
 
+// Component custom để hiển thị date dạng dd/mm/yyyy
+const CustomDateInput = ({ value, onChange, readOnly = false, required = false, className = "", style = {}, placeholder = "dd/mm/yyyy" }: any) => {
+  const displayValue = value ? value.split('-').reverse().join('/') : placeholder;
+  return (
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
+      <input
+        type="date"
+        value={value}
+        onChange={onChange}
+        readOnly={readOnly}
+        required={required}
+        className={className}
+        style={{ ...style, color: 'transparent', width: '100%' }}
+      />
+      <span style={{
+        position: 'absolute',
+        left: '12px',
+        pointerEvents: 'none',
+        color: value ? 'inherit' : '#9ca3af',
+        fontSize: 'inherit',
+        fontFamily: 'inherit'
+      }}>
+        {displayValue}
+      </span>
+    </div>
+  )
+}
+
 export default function RoomDetail() {
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
@@ -98,6 +126,7 @@ export default function RoomDetail() {
   const [mainIdCard, setMainIdCard] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [leaseTerm, setLeaseTerm] = useState<number>(12)
 
   // Co-residents
   const [coResidents, setCoResidents] = useState<CoResident[]>([])
@@ -126,6 +155,7 @@ export default function RoomDetail() {
     setMainIdCard('')
     setStartDate('')
     setEndDate('')
+    setLeaseTerm(12)
     setCoResidents([])
     setSigB('')          // reset chữ ký khi mở modal mới
     setRentError('')
@@ -171,9 +201,23 @@ export default function RoomDetail() {
   // Kiểm tra eligibility và lấy feedback của tenant hiện tại
   useEffect(() => {
     if (!id || !user || user.role !== 'tenant') return
-    checkEligibility(id).then(r => setIsEligible(r.eligible)).catch(() => {})
-    getMyFeedback(id).then(f => setMyFeedback(f)).catch(() => {})
+    checkEligibility(id).then(r => setIsEligible(r.eligible)).catch(() => { })
+    getMyFeedback(id).then(f => setMyFeedback(f)).catch(() => { })
   }, [id, user])
+
+  // Tự động tính ngày kết thúc khi ngày bắt đầu hoặc thời hạn thuê thay đổi
+  useEffect(() => {
+    if (startDate) {
+      const date = new Date(startDate)
+      date.setMonth(date.getMonth() + leaseTerm)
+      const yyyy = date.getFullYear()
+      const mm = String(date.getMonth() + 1).padStart(2, '0')
+      const dd = String(date.getDate()).padStart(2, '0')
+      setEndDate(`${yyyy}-${mm}-${dd}`)
+    } else {
+      setEndDate('')
+    }
+  }, [startDate, leaseTerm])
 
 
 
@@ -375,10 +419,9 @@ export default function RoomDetail() {
                   <label>Ngày muốn xem</label>
                   <div className="rd-input-wrap">
                     <span className="rd-input-icon" style={{ paddingTop: "8px" }}><LuCalendarDays size={20} color="#647885ff" /></span>
-                    <input
-                      type="date"
+                    <CustomDateInput
                       value={bookDate}
-                      onChange={e => setBookDate(e.target.value)}
+                      onChange={(e: any) => setBookDate(e.target.value)}
                       required
                     />
                   </div>
@@ -556,7 +599,7 @@ export default function RoomDetail() {
                         </div>
                         <div className="contract-field">
                           <label>Ngày sinh</label>
-                          <input className="contract-input" type="date" value={mainDob} onChange={e => setMainDob(e.target.value)} required />
+                          <CustomDateInput className="contract-input" value={mainDob} onChange={(e: any) => setMainDob(e.target.value)} required />
                         </div>
                         <div className="contract-field">
                           <label>Số CCCD/CMND</label>
@@ -602,7 +645,7 @@ export default function RoomDetail() {
                             </div>
                             <div className="contract-field">
                               <label>Ngày sinh</label>
-                              <input className="contract-input" type="date" value={r.dob} onChange={e => updateCoResident(idx, 'dob', e.target.value)} />
+                              <CustomDateInput className="contract-input" value={r.dob} onChange={(e: any) => updateCoResident(idx, 'dob', e.target.value)} />
                             </div>
                             <div className="contract-field">
                               <label>Số CCCD/CMND</label>
@@ -653,12 +696,19 @@ export default function RoomDetail() {
                     </div>
                     <div style={{ background: '#fff', borderRadius: '8px', padding: '20px', border: '1px solid #d1d5db', display: 'flex', gap: '20px' }}>
                       <div className="contract-field" style={{ flex: 1 }}>
+                        <label>Thời hạn thuê</label>
+                        <select className="contract-input" value={leaseTerm} onChange={e => setLeaseTerm(Number(e.target.value))}>
+                          <option value={6}>6 tháng</option>
+                          <option value={12}>12 tháng</option>
+                        </select>
+                      </div>
+                      <div className="contract-field" style={{ flex: 1 }}>
                         <label>Ngày bắt đầu</label>
-                        <input className="contract-input" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} required />
+                        <CustomDateInput className="contract-input" value={startDate} onChange={(e: any) => setStartDate(e.target.value)} required />
                       </div>
                       <div className="contract-field" style={{ flex: 1 }}>
                         <label>Ngày kết thúc</label>
-                        <input className="contract-input" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} required />
+                        <CustomDateInput className="contract-input" value={endDate} readOnly style={{ backgroundColor: '#f3f4f6', cursor: 'not-allowed' }} required />
                       </div>
                     </div>
                   </div>
@@ -671,7 +721,7 @@ export default function RoomDetail() {
                     </div>
                     <div className="contract-text-box">
                       <p style={{ margin: '0 0 12px' }}><strong>1. Mục đích thuê:</strong> Bên B thuê phòng để ở, không sử dụng vào mục đích kinh doanh, sản xuất hay các mục đích trái pháp luật.</p>
-                      <p style={{ margin: '0 0 12px' }}><strong>2. Thời hạn thuê:</strong> Hợp đồng có giá trị trong vòng 12 tháng kể từ ngày ký. Sau khi hết hạn, nếu hai bên có nhu cầu tiếp tục, sẽ tiến hành gia hạn hợp đồng mới.</p>
+                      <p style={{ margin: '0 0 12px' }}><strong>2. Thời hạn thuê:</strong> Hợp đồng có giá trị trong vòng {leaseTerm} tháng kể từ ngày ký. Sau khi hết hạn, nếu hai bên có nhu cầu tiếp tục, sẽ tiến hành gia hạn hợp đồng mới.</p>
                       <p style={{ margin: '0 0 8px' }}><strong>3. Giá thuê và phương thức thanh toán:</strong></p>
                       <ul style={{ margin: '0 0 12px', paddingLeft: '20px' }}>
                         <li>Giá thuê phòng: 5.500.000 VNĐ/tháng.</li>
@@ -789,7 +839,7 @@ export default function RoomDetail() {
                     existingFeedback={null}
                     onSuccess={() => {
                       setFeedbackRefresh(v => v + 1)
-                      getMyFeedback(room._id).then(f => setMyFeedback(f)).catch(() => {})
+                      getMyFeedback(room._id).then(f => setMyFeedback(f)).catch(() => { })
                       setShowFeedbackForm(false)
                     }}
                     onCancel={() => setShowFeedbackForm(false)}
