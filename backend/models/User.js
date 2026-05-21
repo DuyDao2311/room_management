@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const { MIN_PASSWORD_LENGTH } = require("../utils/validators");
 
 const userSchema = new mongoose.Schema(
   {
@@ -19,7 +20,10 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: [true, "Mật khẩu không được để trống"],
-      minlength: [6, "Mật khẩu phải có ít nhất 6 ký tự"],
+      minlength: [
+        MIN_PASSWORD_LENGTH,
+        `Mật khẩu phải có ít nhất ${MIN_PASSWORD_LENGTH} ký tự`,
+      ],
       select: false, // không trả về password khi query
     },
     role: {
@@ -35,12 +39,20 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    resetPasswordToken: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      select: false,
+    },
     isActive: {
       type: Boolean,
       default: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Hash password trước khi lưu

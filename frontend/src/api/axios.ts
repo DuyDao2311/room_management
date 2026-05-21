@@ -27,4 +27,19 @@ api.interceptors.response.use(
   },
 )
 
+// Trích `{ status, message }` từ AxiosError. Dùng cho UI hiển thị lỗi
+// thân thiện thay vì đoán shape `err.response.data.message` mỗi nơi.
+export function getApiErrorMessage(
+  err: unknown,
+  fallback = 'Có lỗi xảy ra. Vui lòng thử lại.',
+): { status?: number; message: string } {
+  const e = err as {
+    response?: { status?: number; data?: { message?: string } }
+  }
+  return {
+    status: e?.response?.status,
+    message: e?.response?.data?.message || fallback,
+  }
+}
+
 export default api

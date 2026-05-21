@@ -19,6 +19,11 @@ const notificationRoutes = require("./routes/notifications");
 
 const app = express();
 
+// Tin tưởng 1 layer proxy phía trước (vd: nginx, Vercel, Render).
+// Bắt buộc để express-rate-limit lấy đúng client IP qua header X-Forwarded-For.
+// KHÔNG đặt = true (any proxy) vì sẽ cho phép spoof IP qua header.
+app.set("trust proxy", 1);
+
 // ─── Middleware ───────────────────────────────────────────────
 const allowedOrigins = [
   "http://localhost:5173",
