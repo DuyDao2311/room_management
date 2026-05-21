@@ -22,6 +22,8 @@ import MyInvoices from './pages/tenant/MyInvoices.tsx'
 import MyRoom from './pages/tenant/MyRoom.tsx'
 import AdminLayout from './components/layout/AdminLayout.tsx'
 import ChatBox from './components/ui/ChatBox.tsx'
+import FeedbackManagement from './pages/admin/FeedbackManagement.tsx'
+import FavoritesPage from './pages/public/FavoritesPage.tsx'
 
 /**
  * RequireAuth — Route protection component
@@ -58,6 +60,7 @@ function AppLayout() {
         <Route path="/" element={<Home />} />
         <Route path="/rooms" element={<RoomList />} />
         <Route path="/rooms/:id" element={<RoomDetail />} />
+        <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -80,6 +83,7 @@ function AppLayout() {
           {/* Admin only routes */}
           <Route path="users" element={<RequireAuth role="admin"><UserManagement /></RequireAuth>} />
           <Route path="staff" element={<RequireAuth role="admin"><StaffManagement /></RequireAuth>} />
+          <Route path="feedback" element={<FeedbackManagement />} />
         </Route>
 
         {/* Tenant only */}

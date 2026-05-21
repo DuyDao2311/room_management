@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
+import FavoriteHeartButton from '../../components/ui/FavoriteHeartButton.tsx'
 import { RiMapPin2Line } from "react-icons/ri";
 interface Room {
   _id: string
@@ -143,6 +144,7 @@ export default function RoomList() {
                       <div className={`design-room-badge ${room.status === 'available' ? 'badge-available' : 'badge-full'}`}>
                         {room.status === 'available' ? 'CÒN PHÒNG' : STATUS_MAP[room.status].label.toUpperCase()}
                       </div>
+                      <FavoriteHeartButton room={room} />
                     </div>
                     <div className="design-room-body">
                       <h3 className="design-room-title">{room.name}</h3>

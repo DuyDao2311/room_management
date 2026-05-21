@@ -80,7 +80,7 @@ router.get("/:id", protect, async (req, res) => {
   }
 });
 
-// POST /api/contracts — tạo hợp đồng mới (admin + staff + tenant đăng ký thuê)
+// POST /api/contracts — tạo hợp đồng mới (admin + staff)
 router.post("/", protect, verifyRole("admin", "staff", "tenant"), async (req, res) => {
   try {
     const {

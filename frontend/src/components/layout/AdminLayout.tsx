@@ -7,7 +7,8 @@ import {
   FiFileText,    // Hợp đồng
   FiFile,        // Hóa đơn
   FiCalendar,
-  FiUserCheck    // Quản lý nhân viên
+  FiUserCheck,   // Quản lý nhân viên
+  FiStar         // Đánh giá
 } from "react-icons/fi";
 
 export default function AdminLayout() {
@@ -29,6 +30,7 @@ export default function AdminLayout() {
     { name: 'Hợp đồng', path: '/admin/contracts', exact: false, icon: <FiFileText />, roles: ['admin', 'staff'] },
     { name: 'Hóa đơn', path: '/admin/invoices', exact: false, icon: <FiFile />, roles: ['admin', 'staff'] },
     { name: 'Lịch hẹn', path: '/admin/appointments', exact: false, icon: <FiCalendar />, roles: ['admin', 'staff'] },
+    { name: 'Đánh giá phòng', path: '/admin/feedback', exact: false, icon: <FiStar />, roles: ['admin', 'staff'] },
     { name: 'Người dùng', path: '/admin/users', exact: false, icon: <FiUsers />, roles: ['admin'] },
     { name: 'Quản lý nhân viên', path: '/admin/staff', exact: false, icon: <FiUserCheck />, roles: ['admin'] },
   ]

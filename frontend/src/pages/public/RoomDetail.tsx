@@ -4,12 +4,16 @@ import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 import { RiMapPin2Line } from "react-icons/ri";
+import FavoriteHeartButton from '../../components/ui/FavoriteHeartButton.tsx'
 import { LiaRulerHorizontalSolid } from "react-icons/lia";
 import { MdOutlineBedroomParent, MdSecurity, MdOutlinePerson, MdOutlinePhone, MdOutlineMoreTime } from "react-icons/md";
 import { FaWifi } from "react-icons/fa";
 import { LuCalendarDays } from "react-icons/lu";
 import { MdOutlinePeopleAlt, MdDeleteOutline, MdCheckCircleOutline, MdOutlineBusiness, MdOutlineGavel, MdOutlineMeetingRoom, MdPictureAsPdf } from "react-icons/md";
 import SignaturePad from '../../components/ui/SignaturePad.tsx'
+import FeedbackList from '../../components/ui/FeedbackList.tsx'
+import FeedbackForm from '../../components/ui/FeedbackForm.tsx'
+import { checkEligibility, getMyFeedback, type Feedback } from '../../api/feedback.ts'
 
 interface Room {
   _id: string
@@ -61,6 +65,14 @@ export default function RoomDetail() {
   const [error, setError] = useState('')
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [activeImg, setActiveImg] = useState(0)
+
+  // Feedback state
+  const [feedbackRefresh, setFeedbackRefresh] = useState(0)
+  const [myFeedback, setMyFeedback] = useState<Feedback | null>(null)
+  const [isEligible, setIsEligible] = useState(false)
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false)
+
+
 
   // Booking form state
   const [bookName, setBookName] = useState('')
@@ -156,6 +168,15 @@ export default function RoomDetail() {
       .finally(() => setLoading(false))
   }, [id])
 
+  // Kiểm tra eligibility và lấy feedback của tenant hiện tại
+  useEffect(() => {
+    if (!id || !user || user.role !== 'tenant') return
+    checkEligibility(id).then(r => setIsEligible(r.eligible)).catch(() => {})
+    getMyFeedback(id).then(f => setMyFeedback(f)).catch(() => {})
+  }, [id, user])
+
+
+
   if (loading) return <div className="page-shell"><Spinner /></div>
   if (error || !room) return (
     <div className="page-shell">
@@ -218,6 +239,8 @@ export default function RoomDetail() {
           <button className="rd-view-all-btn" onClick={e => { e.stopPropagation(); setPreviewImage(mainImg) }}>
             🖼️ Xem tất cả {imgs.length} ảnh
           </button>
+          {/* Heart button — same style as /rooms cards */}
+          <FavoriteHeartButton room={room} />
         </div>
 
         {/* Thumbnails */}
@@ -247,6 +270,7 @@ export default function RoomDetail() {
                 {s.label}
               </span>
               <span className="rd-views">👁 {Math.floor(Math.random() * 200) + 50} lượt xem</span>
+
             </div>
             <div className="rd-price">
               <span className="rd-price-num">{(room.price / 1_000_000).toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}tr</span>
@@ -718,6 +742,107 @@ export default function RoomDetail() {
           </div>
         </div>
       )}
+
+      {/* ── Feedback & Đánh giá ── */}
+      {room && (
+        <section className="rd-feedback-section">
+          {/* Section header */}
+          <div className="rd-feedback-header">
+            <div>
+              <h2 className="rd-feedback-title">⭐ Đánh giá & Nhận xét</h2>
+              <p className="rd-feedback-subtitle">
+                Nhận xét từ người đã và đang thuê phòng này
+              </p>
+            </div>
+          </div>
+
+          {/* FeedbackList full width: summary trái | cards phải */}
+          <FeedbackList
+            roomId={room._id}
+            currentUserId={user?._id}
+            ownFeedbackId={myFeedback?._id}
+            onRefreshTrigger={feedbackRefresh}
+            summaryLayout="side"
+            onEditSuccess={(fb) => {
+              setMyFeedback(fb)
+              setFeedbackRefresh(v => v + 1)
+            }}
+          />
+
+          {/* Action row bên dưới — chỉ hiện khi cần */}
+          {user?.role === 'tenant' ? (
+            isEligible && !myFeedback ? (
+              /* Tenant đủ điều kiện, chưa đánh giá → hiển thị button hoặc form */
+              showFeedbackForm ? (
+                <div className="rd-write-review-card">
+                  <div className="rd-write-review-header">
+                    <span className="rd-write-review-icon">📝</span>
+                    <div>
+                      <div className="rd-write-review-title">Chia sẻ trải nghiệm</div>
+                      <div className="rd-write-review-sub">
+                        Đánh giá của bạn giúp những người thuê khác có quyết định tốt hơn
+                      </div>
+                    </div>
+                  </div>
+                  <FeedbackForm
+                    roomId={room._id}
+                    existingFeedback={null}
+                    onSuccess={() => {
+                      setFeedbackRefresh(v => v + 1)
+                      getMyFeedback(room._id).then(f => setMyFeedback(f)).catch(() => {})
+                      setShowFeedbackForm(false)
+                    }}
+                    onCancel={() => setShowFeedbackForm(false)}
+                  />
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowFeedbackForm(true)}
+                  className="rd-write-review-button"
+                >
+                  ✍️ Viết đánh giá phòng này
+                </button>
+              )
+            ) : !isEligible ? (
+              /* Không đủ điều kiện */
+              <div className="rd-review-locked rd-review-locked--row">
+                <div className="rd-review-locked-icon">🔒</div>
+                <div>
+                  <div className="rd-review-locked-title">Chưa thể đánh giá</div>
+                  <p className="rd-review-locked-desc">
+                    Bạn cần đang thuê hoặc đã thuê phòng này trong vòng 7 ngày gần đây.
+                  </p>
+                </div>
+              </div>
+            ) : null /* Đã đánh giá — dùng ⋮ để sửa */
+          ) : !user ? (
+            /* Chưa đăng nhập */
+            <div className="rd-review-locked rd-review-locked--row">
+              <div className="rd-review-locked-icon">👤</div>
+              <div>
+                <div className="rd-review-locked-title">Đăng nhập để đánh giá</div>
+                <p className="rd-review-locked-desc">
+                  Đăng nhập với tài khoản người thuê để gửi đánh giá.
+                </p>
+              </div>
+              <Link to="/login" className="rd-review-login-btn">Đăng nhập</Link>
+            </div>
+          ) : (
+            /* Admin / Staff */
+            <div className="rd-review-locked rd-review-locked--row">
+              <div className="rd-review-locked-icon">👁️</div>
+              <div>
+                <div className="rd-review-locked-title">Chế độ xem quản trị</div>
+                <p className="rd-review-locked-desc">
+                  Truy cập <Link to="/admin/feedback" style={{ color: '#6366f1', fontWeight: 600 }}>Quản lý đánh giá</Link> để kiểm duyệt.
+                </p>
+              </div>
+            </div>
+          )}
+
+        </section>
+      )}
     </div>
   )
 }
+
