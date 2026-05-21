@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 import NotificationBell from '../ui/NotificationBell.tsx'
+import FavoritesDropdown from '../ui/FavoritesDropdown.tsx'
 
 export default function Header() {
   const { user, logout } = useAuth()
@@ -44,6 +45,7 @@ export default function Header() {
       </nav>
 
       <div className="header-right">
+        <FavoritesDropdown />
         {user?.role === 'tenant' && <NotificationBell />}
         {user ? (
           <div className="user-menu">

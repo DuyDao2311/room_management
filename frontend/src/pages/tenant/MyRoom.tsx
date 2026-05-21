@@ -2,11 +2,15 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
-import { MdOutlineLocationOn, MdInfoOutline, MdHistory, MdOutlineConstruction, MdOutlineCheckCircleOutline } from 'react-icons/md'
+import { MdOutlineLocationOn, MdInfoOutline, MdHistory, MdOutlineConstruction, MdOutlineCheckCircleOutline, MdStarRate } from 'react-icons/md'
 import { FaBed, FaWifi } from 'react-icons/fa'
 import { CgSmartHomeRefrigerator } from 'react-icons/cg'
 import { BiCloset } from 'react-icons/bi'
 import { TbAirConditioning } from 'react-icons/tb'
+import FeedbackList from '../../components/ui/FeedbackList.tsx'
+import FeedbackForm from '../../components/ui/FeedbackForm.tsx'
+import { getMyFeedback, checkEligibility, type Feedback } from '../../api/feedback.ts'
+import { useAuth } from '../../contexts/AuthContext.tsx'
 
 interface Room {
   _id: string
@@ -43,10 +47,17 @@ interface Invoice {
 }
 
 export default function MyRoom() {
+  const { user } = useAuth()
   const [contracts, setContracts] = useState<Contract[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  // Feedback state
+  const [myFeedback, setMyFeedback] = useState<Feedback | null>(null)
+  const [isEligible, setIsEligible] = useState(false)
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false)
+  const [feedbackRefresh, setFeedbackRefresh] = useState(0)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,10 +66,20 @@ export default function MyRoom() {
           api.get('/contracts/my'),
           api.get('/invoices/my')
         ])
-        // Lấy hợp đồng đang active hoặc pending
         const activeContracts = resContracts.data.filter((c: Contract) => c.status === 'active' || c.status === 'pending')
         setContracts(activeContracts)
         setInvoices(resInvoices.data)
+
+        // Load feedback sau khi biết roomId
+        if (activeContracts.length > 0) {
+          const roomId = activeContracts[0].room._id
+          const [eligible, fb] = await Promise.allSettled([
+            checkEligibility(roomId),
+            getMyFeedback(roomId)
+          ])
+          if (eligible.status === 'fulfilled') setIsEligible(eligible.value.eligible)
+          if (fb.status === 'fulfilled') setMyFeedback(fb.value)
+        }
       } catch (err) {
         setError('Không thể tải dữ liệu phòng.')
       } finally {
@@ -270,10 +291,77 @@ export default function MyRoom() {
 
             </div>
 
-          </div>
+            {/* ── Đánh giá phòng ── */}
+            <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e5e7eb', padding: '32px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#111827', fontWeight: 700, fontSize: '1.2rem', marginBottom: '24px' }}>
+                <MdStarRate size={22} color="#f59e0b" /> Đánh giá phòng
+              </div>
 
-        </div>
+              <FeedbackList
+                roomId={room._id}
+                currentUserId={user?._id}
+                ownFeedbackId={myFeedback?._id}
+                onRefreshTrigger={feedbackRefresh}
+                hideSummary={true}
+                onEditSuccess={(fb) => setMyFeedback(fb)}
+              />
+
+              {/* Form viết / sửa đánh giá */}
+              <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid #f3f4f6' }}>
+                {isEligible ? (
+                  showFeedbackForm ? (
+                    <div className="rd-write-review-card">
+                      <div className="rd-write-review-header">
+                        <span className="rd-write-review-icon">📝</span>
+                        <div>
+                          <div className="rd-write-review-title">Chia sẻ trải nghiệm</div>
+                          <div className="rd-write-review-sub">
+                            Đánh giá của bạn giúp những người thuê khác có quyết định tốt hơn
+                          </div>
+                        </div>
+                      </div>
+                      <FeedbackForm
+                        roomId={room._id}
+                        existingFeedback={myFeedback}
+                        onSuccess={() => {
+                          getMyFeedback(room._id).then(f => setMyFeedback(f)).catch(() => {})
+                          setFeedbackRefresh(v => v + 1)
+                          setShowFeedbackForm(false)
+                        }}
+                        onCancel={() => setShowFeedbackForm(false)}
+                      />
+                    </div>
+                  ) : (
+                    !myFeedback && (
+                      <button
+                        onClick={() => setShowFeedbackForm(true)}
+                        style={{
+                          width: '100%', padding: '12px', background: '#f9fafb',
+                          border: '1.5px dashed #d1d5db', borderRadius: '8px',
+                          color: '#6b7280', fontWeight: 600, fontSize: '0.9rem',
+                          cursor: 'pointer', display: 'flex', alignItems: 'center',
+                          justifyContent: 'center', gap: '8px', transition: 'all 0.2s'
+                        }}
+                        onMouseOver={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#088373'; (e.currentTarget as HTMLButtonElement).style.color = '#088373' }}
+                        onMouseOut={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#d1d5db'; (e.currentTarget as HTMLButtonElement).style.color = '#6b7280' }}
+                      >
+                        ✍️ Viết đánh giá phòng này
+                      </button>
+                    )
+                  )
+                ) : (
+                  <div style={{ textAlign: 'center', color: '#9ca3af', fontSize: 14, padding: '8px 0' }}>
+                    🔒 Bạn cần có hợp đồng active để đánh giá phòng này.
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>{/* end right column */}
+
+        </div>{/* end grid */}
       </div>
     </div>
   )
 }
+

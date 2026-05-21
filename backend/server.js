@@ -15,6 +15,8 @@ const adminRoutes = require("./routes/admin");
 const appointmentRoutes = require("./routes/appointments");
 const chatRoutes = require("./routes/chat");
 const notificationRoutes = require("./routes/notifications");
+const feedbackRoutes = require("./routes/feedback");
+const favoriteRoutes = require("./routes/favorites");
 
 const app = express();
 
@@ -76,6 +78,8 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/appointments", appointmentRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/feedback", feedbackRoutes);
+app.use("/api/favorites", favoriteRoutes);
 
 // ─── Health check ─────────────────────────────────────────────
 app.get("/api/health", (_, res) => res.json({ status: "OK", timestamp: new Date() }));
