@@ -141,7 +141,10 @@ router.post(
       const emailErr = validateEmail(email);
       if (emailErr) return res.status(400).json({ message: emailErr });
 
-      const user = await User.findOne({ email });
+      // Normalize trước khi query: User schema có trim + lowercase ở SAVE,
+      // nhưng query không tự áp → "  TEST@x.com  " sẽ không match nếu skip.
+      const normalizedEmail = email.trim().toLowerCase();
+      const user = await User.findOne({ email: normalizedEmail });
 
       // DEVIATION (2026-05-20): không dùng same-message pattern — báo trực
       // tiếp email tồn tại hay không. Trade-off: lộ user enumeration. Chấp
@@ -149,7 +152,7 @@ router.post(
       if (!user || !user.isActive) {
         return res
           .status(404)
-          .json({ message: `Email ${email} chưa được đăng ký.` });
+          .json({ message: `Email ${normalizedEmail} chưa được đăng ký.` });
       }
 
       const rawToken = crypto.randomBytes(32).toString("hex");
