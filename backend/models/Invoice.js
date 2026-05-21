@@ -5,9 +5,9 @@ const meterSchema = new mongoose.Schema(
   {
     oldReading: { type: Number, required: true, min: 0 },
     newReading: { type: Number, required: true, min: 0 },
-    usage:      { type: Number, default: 0 },   // tự tính = newReading - oldReading
-    rate:       { type: Number, required: true, min: 0 }, // đơn giá (VNĐ/kWh hoặc VNĐ/m³)
-    amount:     { type: Number, default: 0 },   // tự tính = usage * rate
+    usage: { type: Number, default: 0 },   // tự tính = newReading - oldReading
+    rate: { type: Number, required: true, min: 0 }, // đơn giá (VNĐ/kWh hoặc VNĐ/m³)
+    amount: { type: Number, default: 0 },   // tự tính = usage * rate
   },
   { _id: false }
 );
@@ -15,7 +15,7 @@ const meterSchema = new mongoose.Schema(
 // ─── Sub-schema: phí phụ (wifi, vệ sinh, …) ─────────────────────────────────
 const extraFeeSchema = new mongoose.Schema(
   {
-    name:   { type: String, required: true, trim: true },
+    name: { type: String, required: true, trim: true },
     amount: { type: Number, required: true, min: 0 },
   },
   { _id: false }
@@ -40,20 +40,20 @@ const invoiceSchema = new mongoose.Schema(
     },
 
     // ── Snapshot (lưu để không phụ thuộc vào dữ liệu gốc thay đổi sau này) ──
-    representativeName:  { type: String, required: true, trim: true },
+    representativeName: { type: String, required: true, trim: true },
     representativePhone: { type: String, trim: true, default: "" },
-    roomName:            { type: String, required: true, trim: true },
-    rentAmount:          { type: Number, required: true, min: 0 },
+    roomName: { type: String, required: true, trim: true },
+    rentAmount: { type: Number, required: true, min: 0 },
 
     // ── Chỉ dùng cho hóa đơn "deposit" ───────────────────────────────────────
     depositAmount: { type: Number, default: 0, min: 0 },
 
     // ── Chỉ dùng cho hóa đơn "service" ───────────────────────────────────────
-    month:       { type: Number, min: 1, max: 12 },   // 1-12
-    year:        { type: Number, min: 2000 },
+    month: { type: Number, min: 1, max: 12 },   // 1-12
+    year: { type: Number, min: 2000 },
     electricity: { type: meterSchema },
-    water:       { type: meterSchema },
-    extraFees:   { type: [extraFeeSchema], default: [] },
+    water: { type: meterSchema },
+    extraFees: { type: [extraFeeSchema], default: [] },
 
     // ── Tổng tiền (hệ thống tự tính, client KHÔNG được gửi) ──────────────────
     totalAmount: { type: Number, default: 0, min: 0 },
@@ -78,8 +78,8 @@ const invoiceSchema = new mongoose.Schema(
       ref: "User",
     },
     dueDate: { type: Date },   // hạn thanh toán
-    paidAt:  { type: Date },   // set tự động khi status = "paid"
-    sentAt:  { type: Date },   // thời điểm gửi hoá đơn cho tenant
+    paidAt: { type: Date },   // set tự động khi status = "paid"
+    sentAt: { type: Date },   // thời điểm gửi hoá đơn cho tenant
 
     // ── Tenant (snapshot để truy vấn nhanh, không cần populate contract) ──────
     tenantId: {
@@ -113,12 +113,12 @@ invoiceSchema.pre("save", function () {
   // 1. Tính chỉ số điện/nước (nếu có)
   if (this.electricity) {
     const usage = Math.max(0, this.electricity.newReading - this.electricity.oldReading);
-    this.electricity.usage  = usage;
+    this.electricity.usage = usage;
     this.electricity.amount = usage * this.electricity.rate;
   }
   if (this.water) {
     const usage = Math.max(0, this.water.newReading - this.water.oldReading);
-    this.water.usage  = usage;
+    this.water.usage = usage;
     this.water.amount = usage * this.water.rate;
   }
 
@@ -127,8 +127,8 @@ invoiceSchema.pre("save", function () {
     // tiền cọc + tiền phòng tháng đầu
     this.totalAmount = (this.depositAmount || 0) + (this.rentAmount || 0);
   } else if (this.type === "service") {
-    const elec       = this.electricity?.amount  || 0;
-    const wtr        = this.water?.amount         || 0;
+    const elec = this.electricity?.amount || 0;
+    const wtr = this.water?.amount || 0;
     const extraTotal = (this.extraFees || []).reduce((sum, f) => sum + f.amount, 0);
     this.totalAmount = (this.rentAmount || 0) + elec + wtr + extraTotal;
   }
