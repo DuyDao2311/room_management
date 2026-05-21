@@ -890,6 +890,7 @@ button, a.button { font: inherit; border: 0; cursor: pointer; }
 .auth-form { display: flex; flex-direction: column; gap: 20px; margin-bottom: 24px; }
 .auth-footer-text { margin: 0; text-align: center; color: var(--muted); font-size: 0.9rem; }
 .auth-link { color: var(--accent); font-weight: 600; }
+.auth-helper-row { display: flex; justify-content: flex-end; margin-top: -8px; font-size: 0.9rem; }
 .auth-visual { display: none; }
 
 /* Custom Design for Auth Form */

@@ -7,6 +7,8 @@ import RoomList from './pages/public/RoomList.tsx'
 import RoomDetail from './pages/public/RoomDetail.tsx'
 import Login from './pages/auth/Login.tsx'
 import Register from './pages/auth/Register.tsx'
+import ForgotPassword from './pages/auth/ForgotPassword.tsx'
+import ResetPassword from './pages/auth/ResetPassword.tsx'
 import Dashboard from './pages/admin/Dashboard.tsx'
 import RoomManagement from './pages/admin/RoomManagement.tsx'
 import ContractManagement from './pages/admin/ContractManagement.tsx'
@@ -40,7 +42,11 @@ function RequireAuth({ children, role }: { children: React.ReactNode; role?: str
 
 function AppLayout() {
   const location = useLocation()
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/register'
+  const isAuthPage =
+    location.pathname === '/login' ||
+    location.pathname === '/register' ||
+    location.pathname === '/forgot-password' ||
+    location.pathname.startsWith('/reset-password/')
   const isAdminPage = location.pathname.startsWith('/admin')
 
   return (
@@ -53,6 +59,8 @@ function AppLayout() {
         <Route path="/rooms/:id" element={<RoomDetail />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
 
         {/* Admin + Staff — dùng chung AdminLayout */}
         <Route path="/admin" element={<RequireAuth role={["admin", "staff"]}><AdminLayout /></RequireAuth>}>
