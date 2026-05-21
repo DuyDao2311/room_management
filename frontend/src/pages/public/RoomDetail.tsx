@@ -171,8 +171,8 @@ export default function RoomDetail() {
   // Kiểm tra eligibility và lấy feedback của tenant hiện tại
   useEffect(() => {
     if (!id || !user || user.role !== 'tenant') return
-    checkEligibility(id).then(r => setIsEligible(r.eligible)).catch(() => {})
-    getMyFeedback(id).then(f => setMyFeedback(f)).catch(() => {})
+    checkEligibility(id).then(r => setIsEligible(r.eligible)).catch(() => { })
+    getMyFeedback(id).then(f => setMyFeedback(f)).catch(() => { })
   }, [id, user])
 
 
