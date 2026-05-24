@@ -6,7 +6,16 @@ export interface User {
   name: string
   email: string
   role: 'admin' | 'staff' | 'tenant'
+  phone?: string
+  dob?: string
+  gender?: string
+  occupation?: string
+  address?: string
+  idCard?: string
+  idCardDate?: string
+  avatar?: string
   managedDistricts?: string[]
+  isEmailVerified?: boolean
 }
 
 interface AuthContextType {
@@ -16,6 +25,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<User>
   register: (name: string, email: string, password: string, role?: 'admin' | 'tenant') => Promise<void>
   logout: () => void
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
@@ -25,17 +35,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Khôi phục session từ sessionStorage khi app khởi động
-  // (sessionStorage tự xóa khi đóng tab/cửa sổ, không giữ qua lần chạy mới)
   useEffect(() => {
     const savedToken = sessionStorage.getItem('token')
     const savedUser = sessionStorage.getItem('user')
-    
+
     if (savedToken && savedUser) {
       setToken(savedToken)
-      setUser(JSON.parse(savedUser)) // Set initial state for fast render
-      
-      // Fetch fresh data from server to ensure roles/districts are up-to-date
+      setUser(JSON.parse(savedUser))
+
       api.get('/auth/me')
         .then(res => {
           setUser(res.data)
@@ -47,9 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           sessionStorage.removeItem('token')
           sessionStorage.removeItem('user')
         })
-        .finally(() => {
-          setLoading(false)
-        })
+        .finally(() => setLoading(false))
     } else {
       setLoading(false)
     }
@@ -79,8 +84,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem('user')
   }
 
+  const refreshUser = async () => {
+    const res = await api.get('/auth/me')
+    setUser(res.data)
+    sessionStorage.setItem('user', JSON.stringify(res.data))
+  }
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

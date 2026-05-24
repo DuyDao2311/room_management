@@ -69,6 +69,12 @@ const roomSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // ── Lượt xem (tăng mỗi khi user vào trang chi tiết) ────────────────────────
+    viewCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   { timestamps: true }
 );

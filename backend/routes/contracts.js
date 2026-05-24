@@ -5,6 +5,10 @@ const Room = require("../models/Room");
 const Invoice = require("../models/Invoice");
 const { protect, adminOnly, verifyRole, injectDistrictFilter } = require("../middleware/auth");
 const { signContract, clearSignature } = require("../controllers/contractController");
+const {
+  notifyNewContract,
+  sendSocketNotification,
+} = require("../utils/notificationService");
 
 // ─── Helper: lấy roomIds thuộc district của staff ────────────────────────────
 const getDistrictRoomIds = async (user) => {
@@ -137,6 +141,17 @@ router.post("/", protect, verifyRole("admin", "staff", "tenant"), async (req, re
 
     // Cập nhật trạng thái phòng → occupied
     await Room.findByIdAndUpdate(roomId, { status: "occupied" });
+
+    // Gửi thông báo đến staff/admin về hợp đồng mới
+    const notifications = await notifyNewContract(contract);
+    
+    // Gửi qua Socket.io
+    const io = req.app.get("io");
+    if (io && notifications.length > 0) {
+      notifications.forEach((notification) => {
+        sendSocketNotification(io, "new_notification", notification);
+      });
+    }
 
     const populated = await contract.populate([
       { path: "room", select: "name address" },

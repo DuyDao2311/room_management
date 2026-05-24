@@ -35,12 +35,13 @@ interface Contract {
 
 interface Invoice {
   _id: string
-  contract?: any
+  // contract có thể là object (sau populate) hoặc string (chưa populate)
+  contract?: { _id: string; room?: { _id: string; name: string; address: string } } | string
   type: 'deposit' | 'service'
   month?: number
   year?: number
   totalAmount: number
-  status: 'unpaid' | 'paid' | 'overdue'
+  status: 'unpaid' | 'paid' | 'overdue' | 'pending'
   dueDate?: string
   createdAt: string
   paidAt?: string
@@ -108,9 +109,15 @@ export default function MyRoom() {
   const contract = contracts[0]
   const room = contract.room
 
-  // Lấy lịch sử hóa đơn của phòng này (tối đa 3 cái gần nhất)
+  // Lấy hóa đơn thuộc đúng contract (so sánh string để tránh ObjectId so sánh sai)
+  const contractId = contract._id.toString()
   const roomInvoices = invoices
-    .filter(inv => inv.contract?._id === contract._id || inv.contract === contract._id || inv.contract?.room?._id === room._id || (inv as any).contract?.room === room._id || !inv.contract) // Fallback nếu dữ liệu populate khác
+    .filter(inv => {
+      const invContractId = typeof inv.contract === 'object' && inv.contract !== null
+        ? inv.contract._id
+        : inv.contract
+      return invContractId?.toString() === contractId
+    })
     .slice(0, 3)
 
   // Hàm render icon tiện ích
