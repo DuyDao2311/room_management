@@ -60,6 +60,23 @@ const formatDDMMYYYY = (dateString: string) => {
   return `${day}/${month}/${year}`;
 }
 
+const DateInput = ({ value, onChange, placeholder, style }: any) => {
+  const [type, setType] = useState<'text' | 'date'>('text');
+  const displayValue = type === 'text' && value ? value.split('-').reverse().join('/') : value;
+
+  return (
+    <input
+      type={type}
+      value={displayValue}
+      placeholder={placeholder}
+      onFocus={() => setType('date')}
+      onBlur={() => setType('text')}
+      onChange={(e) => onChange(e.target.value)}
+      style={style}
+    />
+  );
+};
+
 export default function ContractManagement() {
   const { user } = useAuth()
   const isStaff = user?.role === 'staff'
@@ -395,17 +412,17 @@ export default function ContractManagement() {
             {/* Date range */}
             <div style={{ display: 'flex', alignItems: 'center', background: '#f1f5f9', borderRadius: '6px', padding: '0 12px' }}>
               <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600, marginRight: '8px', textTransform: 'uppercase' }}>Từ</span>
-              <input
-                type="date"
+              <DateInput
                 value={filterFromDate}
-                onChange={e => handleFromDateChange(e.target.value)}
+                onChange={(val: string) => handleFromDateChange(val)}
+                placeholder="dd/mm/yyyy"
                 style={{ padding: '10px 0', border: 'none', background: 'transparent', color: '#475467', outline: 'none', fontSize: '0.9rem', width: '120px' }}
               />
               <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600, margin: '0 8px 0 16px', textTransform: 'uppercase' }}>Đến</span>
-              <input
-                type="date"
+              <DateInput
                 value={filterToDate}
-                onChange={e => handleToDateChange(e.target.value)}
+                onChange={(val: string) => handleToDateChange(val)}
+                placeholder="dd/mm/yyyy"
                 style={{ padding: '10px 0', border: 'none', background: 'transparent', color: '#475467', outline: 'none', fontSize: '0.9rem', width: '120px' }}
               />
             </div>
@@ -488,12 +505,12 @@ export default function ContractManagement() {
             </table>
           )}
         </div>
-        
+
         {!loading && totalPages > 1 && (
-          <Pagination 
-            currentPage={currentPage} 
-            totalPages={totalPages} 
-            onPageChange={handlePageChange} 
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
           />
         )}
 

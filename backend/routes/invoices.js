@@ -8,6 +8,7 @@ const {
   getInvoiceById,
   updateInvoiceStatus,
   getAllInvoices,
+  getInvoiceStats,
   sendInvoice,
   updateInvoice,
   getMyInvoices,
@@ -16,8 +17,11 @@ const {
   collectCash,
 } = require("../controllers/invoiceController");
 
+// ─── Thống kê hóa đơn (admin + staff) ────────────────────────────────────────
+router.get("/stats", protect, verifyRole("admin", "staff"), getInvoiceStats);
+
 // ─── Xem tất cả hóa đơn (admin + staff) ──────────────────────────────────────
-// GET /api/invoices/all?status=unpaid&type=service
+// GET /api/invoices/all?page=1&limit=9&search=&type=&paymentMethod=&status=&fromDate=&toDate=
 // Staff: tự filter theo district trong controller
 router.get("/all", protect, verifyRole("admin", "staff"), getAllInvoices);
 
