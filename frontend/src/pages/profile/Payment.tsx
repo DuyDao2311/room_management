@@ -36,13 +36,13 @@ const invoiceLabel = (inv: Invoice) => {
   return `${inv.roomName} - T${inv.month}/${inv.year}`
 }
 
-const invoiceIcon = (inv: Invoice) => {
-  if (inv.type === 'deposit') return '🏠'
-  const label = invoiceLabel(inv).toLowerCase()
-  if (label.includes('điện') || label.includes('dien') || label.includes('nước') || label.includes('nuoc')) return '⚡'
-  if (label.includes('internet') || label.includes('wifi')) return '📶'
-  return '🏠'
-}
+// const invoiceIcon = (inv: Invoice) => {
+//   if (inv.type === 'deposit') return '🏠'
+//   const label = invoiceLabel(inv).toLowerCase()
+//   if (label.includes('điện') || label.includes('dien') || label.includes('nước') || label.includes('nuoc')) return '⚡'
+//   if (label.includes('internet') || label.includes('wifi')) return '📶'
+//   return '🏠'
+// }
 
 const txnIcon = (inv: Invoice) => {
   const label = invoiceLabel(inv).toLowerCase()
@@ -77,13 +77,13 @@ export default function Payment() {
   }, [])
 
   // ── Derived stats ──────────────────────────────────────────────────────────
-  const unpaid   = invoices.filter(i => i.status === 'unpaid' || i.status === 'pending')
-  const overdue  = invoices.filter(i => i.status === 'overdue')
-  const paid     = invoices.filter(i => i.status === 'paid')
+  const unpaid = invoices.filter(i => i.status === 'unpaid' || i.status === 'pending')
+  const overdue = invoices.filter(i => i.status === 'overdue')
+  const paid = invoices.filter(i => i.status === 'paid')
 
-  const unpaidTotal  = unpaid.reduce((s, i) => s + i.totalAmount, 0)
+  const unpaidTotal = unpaid.reduce((s, i) => s + i.totalAmount, 0)
   const overdueTotal = overdue.reduce((s, i) => s + i.totalAmount, 0)
-  const paidTotal    = paid.reduce((s, i) => s + i.totalAmount, 0)
+  // const paidTotal    = paid.reduce((s, i) => s + i.totalAmount, 0)
 
   // Tháng này
   const now = new Date()
@@ -108,8 +108,8 @@ export default function Payment() {
     return list.filter(i => new Date(i.paidAt || i.createdAt) >= cutoff)
   }
 
-  const history      = filterByTime(paid).sort((a, b) => new Date(b.paidAt || b.createdAt).getTime() - new Date(a.paidAt || a.createdAt).getTime())
-  const totalPages   = Math.max(1, Math.ceil(history.length / PAGE_SIZE))
+  const history = filterByTime(paid).sort((a, b) => new Date(b.paidAt || b.createdAt).getTime() - new Date(a.paidAt || a.createdAt).getTime())
+  const totalPages = Math.max(1, Math.ceil(history.length / PAGE_SIZE))
   const pagedHistory = history.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   // ── Actions ────────────────────────────────────────────────────────────────
@@ -168,7 +168,7 @@ export default function Payment() {
       {/* ── Back ───────────────────────────────────────────────────────────── */}
       <button className="pmt-back-btn" onClick={() => navigate(-1)}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M19 12H5m7-7-7 7 7 7"/>
+          <path d="M19 12H5m7-7-7 7 7 7" />
         </svg>
         Quay lại
       </button>
@@ -186,7 +186,7 @@ export default function Payment() {
           <span className="pmt-stat-label">HÓA ĐƠN CHƯA THANH TOÁN</span>
           <span className="pmt-stat-value">{fmt(unpaidTotal)}</span>
           <div className="pmt-stat-footer pmt-stat-footer--blue">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 10h18" /></svg>
             {unpaid.length.toString().padStart(2, '0')} Hóa đơn
           </div>
         </div>
@@ -196,7 +196,7 @@ export default function Payment() {
           <span className="pmt-stat-label pmt-stat-label--red">HÓA ĐƠN QUÁ HẠN</span>
           <span className="pmt-stat-value pmt-stat-value--red">{fmt(overdueTotal)}</span>
           <div className="pmt-stat-footer pmt-stat-footer--red">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
             {overdue.length.toString().padStart(2, '0')} Hóa đơn trễ hạn
           </div>
         </div>
@@ -206,7 +206,7 @@ export default function Payment() {
           <span className="pmt-stat-label">TỔNG ĐÃ THANH TOÁN</span>
           <span className="pmt-stat-value">{fmt(paidThisMonth)}</span>
           <div className="pmt-stat-footer pmt-stat-footer--green">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
             Tháng này
           </div>
         </div>
@@ -216,7 +216,7 @@ export default function Payment() {
       <div className="pmt-section">
         <div className="pmt-section-header">
           <div className="pmt-section-title-wrap">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f5cc7" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f5cc7" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg>
             <span className="pmt-section-title">Hóa đơn hiện tại</span>
           </div>
           <button className="pmt-view-all-btn">Xem tất cả</button>
@@ -266,7 +266,7 @@ export default function Payment() {
                     onClick={() => navigate('/my-invoices')}
                     title="Xem chi tiết"
                   >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
                   </button>
                 </div>
               </div>
@@ -279,7 +279,7 @@ export default function Payment() {
       <div className="pmt-section">
         <div className="pmt-section-header">
           <div className="pmt-section-title-wrap">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f5cc7" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f5cc7" strokeWidth="2"><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
             <span className="pmt-section-title">Lịch sử thanh toán</span>
           </div>
           <div className="pmt-filter-wrap">
@@ -293,9 +293,9 @@ export default function Payment() {
               <option value="6m">6 tháng gần đây</option>
               <option value="1y">1 năm gần đây</option>
             </select>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#68718d" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#68718d" strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
             <button className="pmt-filter-icon-btn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#68718d" strokeWidth="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#68718d" strokeWidth="2"><line x1="4" y1="6" x2="20" y2="6" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="11" y1="18" x2="13" y2="18" /></svg>
             </button>
           </div>
         </div>
@@ -339,7 +339,7 @@ export default function Payment() {
                       </td>
                       <td className="pmt-td-action">
                         <button className="pmt-kebab-btn">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" /></svg>
                         </button>
                       </td>
                     </tr>
@@ -359,7 +359,7 @@ export default function Payment() {
                   disabled={page === 1}
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
                 </button>
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                   <button
@@ -375,7 +375,7 @@ export default function Payment() {
                   disabled={page === totalPages}
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
                 </button>
               </div>
             </div>

@@ -109,7 +109,7 @@ export default function Header() {
           </div>
         ) : (
           <>
-            <Link to="/login" className="nav-link">Đăng nhập</Link>
+            <Link to="/login" className="button button-outline">Đăng nhập</Link>
             <Link to="/register" className="button button-primary" id="register-btn">Đăng ký</Link>
           </>
         )}

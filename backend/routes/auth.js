@@ -124,7 +124,7 @@ router.post("/forgot-password", globalAuthLimiter, sensitiveAuthLimiter, async (
     await user.save({ validateBeforeSave: false });
 
     const resetUrl = `${process.env.CLIENT_URL}/reset-password/${rawToken}`;
-    const { html, text } = passwordResetTemplate({ userName: user.name, resetUrl });
+    const { html, text } = passwordResetTemplate({ userName: user.name, resetUrl, requestedAt: new Date() });
 
     try {
       await sendEmail({ to: user.email, subject: "Đặt lại mật khẩu - Room Management", html, text });

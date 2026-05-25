@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
+import Pagination from '../../components/ui/Pagination.tsx'
 
 interface Appointment {
   _id: string
@@ -24,6 +25,9 @@ export default function AppointmentManagement() {
   const [error, setError] = useState('')
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
 
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 9
+
   useEffect(() => {
     fetchAppointments()
   }, [])
@@ -38,6 +42,7 @@ export default function AppointmentManagement() {
     try {
       const { data } = await api.get('/appointments')
       setAppointments(data)
+      setCurrentPage(1)
     } catch (err: any) {
       setError(err.response?.data?.message || 'Lỗi tải dữ liệu lịch hẹn.')
     } finally {
@@ -79,6 +84,9 @@ export default function AppointmentManagement() {
     }
   }
 
+  const totalPages = Math.ceil(appointments.length / ITEMS_PER_PAGE)
+  const currentAppointments = appointments.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+
   return (
     <div className="admin-page">
       <div className="admin-page-header">
@@ -98,7 +106,7 @@ export default function AppointmentManagement() {
             <h3>Chưa có lịch hẹn nào</h3>
           </div>
         ) : (
-          appointments.map(a => {
+          currentAppointments.map(a => {
             const timeObj = parseTime(a.time)
             const thumb = a.room?.images?.[0] || DEFAULT_IMG
 
@@ -180,6 +188,14 @@ export default function AppointmentManagement() {
           })
         )}
       </div>
+
+      {!loading && totalPages > 1 && (
+        <Pagination 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          onPageChange={setCurrentPage} 
+        />
+      )}
     </div>
   )
 }

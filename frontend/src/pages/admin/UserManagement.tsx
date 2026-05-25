@@ -3,6 +3,7 @@ import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 import { Trash2, UserPlus, X } from "lucide-react"
+import Pagination from '../../components/ui/Pagination.tsx'
 
 interface User {
   _id: string
@@ -24,6 +25,9 @@ export default function UserManagement() {
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 9
+
   useEffect(() => {
     fetchUsers()
   }, [])
@@ -32,6 +36,7 @@ export default function UserManagement() {
     try {
       const { data } = await api.get('/admin/users')
       setUsers(data)
+      setCurrentPage(1)
     } catch (err: any) {
       setError(err.response?.data?.message || 'Lỗi tải dữ liệu người dùng.')
     } finally {
@@ -69,6 +74,9 @@ export default function UserManagement() {
     // If you add DELETE /api/admin/users/:id, you can wire it up here.
     alert(`Chức năng xóa người dùng "${userName}" đang được phát triển.`)
   }
+
+  const totalPages = Math.ceil(users.length / ITEMS_PER_PAGE)
+  const currentUsers = users.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
 
   return (
     <div className="admin-page">
@@ -117,7 +125,7 @@ export default function UserManagement() {
                 </td>
               </tr>
             ) : (
-              users.map(u => (
+              currentUsers.map(u => (
                 <tr key={u._id}>
                   <td className="td-name">{u.name}</td>
                   <td className="td-muted">{u.email}</td>
@@ -154,6 +162,14 @@ export default function UserManagement() {
           </tbody>
         </table>
       </div>
+
+      {!loading && totalPages > 1 && (
+        <Pagination 
+          currentPage={currentPage} 
+          totalPages={totalPages} 
+          onPageChange={setCurrentPage} 
+        />
+      )}
 
       {/* Modal Thêm người dùng */}
       {showModal && (
