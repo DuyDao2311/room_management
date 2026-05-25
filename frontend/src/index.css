@@ -435,6 +435,13 @@ button, a.button { font: inherit; border: 0; cursor: pointer; }
   color: var(--text);
 }
 .button-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+.button-outline {
+  background: transparent;
+  color: var(--accent);
+  border: 1.5px solid var(--accent);
+}
+.button-outline:hover { background: rgba(15, 103, 227, 0.08); }
+.button-outline:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-full { width: 100%; }
 
 /* =========================================

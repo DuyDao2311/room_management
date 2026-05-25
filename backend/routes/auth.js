@@ -170,6 +170,7 @@ router.post(
       const { html, text } = passwordResetTemplate({
         userName: user.name,
         resetUrl,
+        requestedAt: new Date(),
       });
 
       try {
