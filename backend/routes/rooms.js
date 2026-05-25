@@ -70,6 +70,17 @@ router.get("/my-district", protect, verifyRole("admin", "staff"), injectDistrict
   }
 });
 
+// PATCH /api/rooms/:id/view — tăng lượt xem (public, fire-and-forget)
+router.patch("/:id/view", async (req, res) => {
+  try {
+    await Room.findByIdAndUpdate(req.params.id, { $inc: { viewCount: 1 } });
+    res.json({ success: true });
+  } catch {
+    // Không trả lỗi về client — lượt xem không critical
+    res.json({ success: false });
+  }
+});
+
 // GET /api/rooms/:id — chi tiết phòng (public)
 router.get("/:id", async (req, res) => {
   try {

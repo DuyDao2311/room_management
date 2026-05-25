@@ -9,7 +9,7 @@ const {
   getAllFeedbacks,
   toggleFeedbackStatus,
   getMyFeedback,
-  checkEligibilityRoute,
+  checkEligibility,
   replyToFeedback,
 } = require("../controllers/feedbackController");
 
@@ -22,7 +22,7 @@ router.get("/room/:roomId", getFeedbacksByRoom);
 router.get("/my/:roomId", protect, verifyRole("tenant"), getMyFeedback);
 
 // GET /api/feedback/eligible/:roomId — Kiểm tra tenant có đủ điều kiện đánh giá
-router.get("/eligible/:roomId", protect, verifyRole("tenant"), checkEligibilityRoute);
+router.get("/eligible/:roomId", protect, verifyRole("tenant"), checkEligibility);
 
 // POST /api/feedback              — Tạo feedback mới
 router.post("/", protect, verifyRole("tenant"), createFeedback);

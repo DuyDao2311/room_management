@@ -6,11 +6,16 @@ import { useAuth } from './AuthContext.tsx'
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface Notification {
   _id: string
-  tenantId: string
-  type: 'INVOICE' | 'REMINDER' | 'SYSTEM'
+  userId?: string
+  tenantId?: string
+  type: 'INVOICE' | 'REMINDER' | 'SYSTEM' | 'APPOINTMENT' | 'CONTRACT' | 'FEEDBACK'
   title: string
   message: string
   invoiceId?: string
+  appointmentId?: string
+  contractId?: string
+  feedbackId?: string
+  roomId?: string
   isRead: boolean
   createdAt: string
   updatedAt: string
@@ -19,8 +24,13 @@ export interface Notification {
 interface NotificationContextType {
   notifications: Notification[]
   unreadCount: number
+  unreadAppointmentCount: number
+  unreadContractCount: number
+  unreadFeedbackCount: number
+  unreadInvoiceCount: number
   markAsRead: (id: string) => Promise<void>
-  markAllAsRead: () => Promise<void>
+  markAllAsRead: (type?: string) => Promise<void>
+  deleteNotification: (id: string) => Promise<void>
   socket: Socket | null
 }
 
@@ -34,6 +44,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   // Tính unreadCount từ danh sách notifications
   const unreadCount = notifications.filter(n => !n.isRead).length
+  const unreadAppointmentCount = notifications.filter(n => n.type === 'APPOINTMENT' && !n.isRead).length
+  const unreadContractCount = notifications.filter(n => n.type === 'CONTRACT' && !n.isRead).length
+  const unreadFeedbackCount = notifications.filter(n => n.type === 'FEEDBACK' && !n.isRead).length
+  const unreadInvoiceCount = notifications.filter(n => n.type === 'INVOICE' && !n.isRead).length
 
   // ─── Fetch thông báo cũ khi mount ──────────────────────────────────────────
   useEffect(() => {
@@ -42,7 +56,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    api.get('/notifications')
+    // Fetch tất cả thông báo (bao gồm cả staff notifications)
+    api.get('/notifications?limit=50')
       .then(r => setNotifications(r.data))
       .catch(() => { /* silent */ })
   }, [user, token])
@@ -61,6 +76,19 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     })
 
     socket.on('new_notification', (notification: Notification) => {
+      setNotifications(prev => [notification, ...prev])
+    })
+
+    // Staff-specific notification events
+    socket.on('staff_appointment_notification', (notification: Notification) => {
+      setNotifications(prev => [notification, ...prev])
+    })
+
+    socket.on('staff_contract_notification', (notification: Notification) => {
+      setNotifications(prev => [notification, ...prev])
+    })
+
+    socket.on('staff_feedback_notification', (notification: Notification) => {
       setNotifications(prev => [notification, ...prev])
     })
 
@@ -108,15 +136,39 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // ─── Đánh dấu tất cả đã đọc ───────────────────────────────────────────────
-  const markAllAsRead = useCallback(async () => {
+  const markAllAsRead = useCallback(async (type?: string) => {
     try {
-      await api.patch('/notifications/read-all')
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
+      const url = type ? `/notifications/read-all?type=${type}` : '/notifications/read-all'
+      await api.patch(url)
+      if (type) {
+        setNotifications(prev => prev.map(n => n.type === type ? { ...n, isRead: true } : n))
+      } else {
+        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
+      }
+    } catch { /* silent */ }
+  }, [])
+
+  // ─── Xóa 1 thông báo ──────────────────────────────────────────────────────
+  const deleteNotification = useCallback(async (id: string) => {
+    try {
+      await api.delete(`/notifications/${id}`)
+      setNotifications(prev => prev.filter(n => n._id !== id))
     } catch { /* silent */ }
   }, [])
 
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead, markAllAsRead, socket }}>
+    <NotificationContext.Provider value={{ 
+      notifications, 
+      unreadCount, 
+      unreadAppointmentCount,
+      unreadContractCount,
+      unreadFeedbackCount,
+      unreadInvoiceCount,
+      markAsRead, 
+      markAllAsRead,
+      deleteNotification,
+      socket 
+    }}>
       {children}
     </NotificationContext.Provider>
   )

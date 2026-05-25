@@ -325,9 +325,16 @@ export default function FeedbackList({
                   <div className="fb-card-left">
                     <div
                       className="fb-avatar"
-                      style={{ background: fb.isAnonymous ? '#9ca3af' : avatarColor(name) }}
+                      style={{
+                        background: (!fb.tenantAvatar ? (fb.isAnonymous ? '#9ca3af' : avatarColor(name)) : undefined),
+                        overflow: 'hidden',
+                      }}
                     >
-                      {fb.isAnonymous ? '?' : getInitial(name)}
+                      {fb.tenantAvatar ? (
+                        <img src={fb.tenantAvatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        fb.isAnonymous ? '?' : getInitial(name)
+                      )}
                     </div>
                     <div>
                       <div className="fb-reviewer-name">

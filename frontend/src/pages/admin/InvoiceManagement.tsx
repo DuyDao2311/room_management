@@ -325,7 +325,7 @@ export default function InvoiceManagement() {
                       <td className="td-actions" onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                           {!inv.sentAt && (
-                            <SendInvoiceButton invoiceId={inv._id} />
+                            <SendInvoiceButton invoiceId={inv._id} onSent={fetchInvoices} />
                           )}
                           {inv.sentAt && (
                             <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>Đã gửi ✓</span>

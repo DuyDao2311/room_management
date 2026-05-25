@@ -3,6 +3,7 @@ const contractModel = require('../models/Contract');
 const userModel = require('../models/User');
 const paymentModel = require('../models/Payment');
 const { checkUserDistrictPermission } = require('../middleware/auth');
+const { notifyInvoicePaid, sendSocketNotification } = require('../utils/notificationService');
 
 const { NotFoundError, BadRequestError, ForbiddenError } = require('../core/error.response');
 const { Created, OK } = require('../core/success.response');
@@ -311,6 +312,13 @@ class PaymentController {
             invoice.paymentMethod = 'MoMo';
             await invoice.save();
 
+            // Gửi thông báo đến staff/admin
+            const notifs = await notifyInvoicePaid(invoice);
+            const io = req.app ? req.app.get('io') : null;
+            if (io && notifs.length > 0) {
+              notifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));
+            }
+
             // Cập nhật Payment record → success
             if (pendingPaymentId) {
                 await paymentModel.findByIdAndUpdate(pendingPaymentId, {
@@ -399,6 +407,9 @@ class PaymentController {
             invoice.paidAt = new Date();
             invoice.paymentMethod = 'VNPay';
             await invoice.save();
+
+            // Gửi thông báo đến staff/admin (Không có req.app ở đây, ghi log thôi)
+            await notifyInvoicePaid(invoice);
 
             // Cập nhật Payment record → success
             if (paymentRecord) {
@@ -626,8 +637,14 @@ class PaymentController {
                 }
             });
 
-            // 3. Emit Socket.io event cho tenant
+            // 3. Gửi thông báo đến staff/admin
+            const notifs = await notifyInvoicePaid(invoice);
             const io = req.app.get('io');
+            if (io && notifs.length > 0) {
+              notifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));
+            }
+
+            // 4. Emit Socket.io event cho tenant
             if (io && invoice.tenantId) {
                 io.to(`tenant_${invoice.tenantId.toString()}`).emit('invoice_paid', {
                     invoiceId: invoice._id,
