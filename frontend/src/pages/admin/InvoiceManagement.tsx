@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import Badge from '../../components/ui/Badge.tsx'
-import { FiInfo, FiZap, FiTrash2, FiPlus, FiCheck } from 'react-icons/fi'
+import { FiInfo, FiZap, FiTrash2, FiPlus, FiCheck, FiSearch, FiSliders, FiFileText, FiCheckCircle, FiClock, FiAlertTriangle, FiDollarSign, FiTrendingUp } from 'react-icons/fi'
 import { MdOutlineWaterDrop, MdReceiptLong, MdHouse } from 'react-icons/md'
 import SendInvoiceButton from '../../components/ui/SendInvoiceButton.tsx'
 import { collectCashPayment } from '../../api/payment.ts'
+import Pagination from '../../components/ui/Pagination.tsx'
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 interface Invoice {
@@ -36,6 +38,15 @@ interface ContractOption {
   room?: { name: string; price: number }
   monthlyRent: number
   status: string
+}
+
+interface InvoiceStats {
+  totalInvoices: number
+  paid: number
+  unpaid: number
+  pending: number
+  overdue: number
+  expectedRevenue: number
 }
 
 interface ExtraFee {
@@ -70,35 +81,118 @@ const getDefaultForm = () => ({
   notes: '',
 })
 
+// ─── Components ───────────────────────────────────────────────────────────────
+const DateInput = ({ value, onChange, placeholder, style }: any) => {
+  const [type, setType] = useState<'text' | 'date'>('text');
+  const displayValue = type === 'text' && value ? value.split('-').reverse().join('/') : value;
+
+  return (
+    <input
+      type={type}
+      value={displayValue}
+      placeholder={placeholder}
+      onFocus={() => setType('date')}
+      onBlur={() => setType('text')}
+      onChange={(e) => onChange(e.target.value)}
+      style={style}
+    />
+  );
+};
+
 export default function InvoiceManagement() {
+  const [searchParams, setSearchParams] = useSearchParams()
+
   const [view, setView] = useState<'list' | 'create' | 'edit'>('list')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isSent, setIsSent] = useState(false)
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [contracts, setContracts] = useState<ContractOption[]>([])
+  const [stats, setStats] = useState<InvoiceStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [formError, setFormError] = useState('')
 
+  // ─── Filter & Pagination States ─────────────────────────────────────────────
+  const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1)
+  const [totalPages, setTotalPages] = useState(1)
+  const ITEMS_PER_PAGE = 9
+
+  const [filterSearch, setFilterSearch] = useState(searchParams.get('search') || '')
+  const [filterType, setFilterType] = useState(searchParams.get('type') || '')
+  const [filterMethod, setFilterMethod] = useState(searchParams.get('paymentMethod') || '')
+  const [filterStatus, setFilterStatus] = useState(searchParams.get('status') || '')
+  const [filterFromDate, setFilterFromDate] = useState(searchParams.get('fromDate') || '')
+  const [filterToDate, setFilterToDate] = useState(searchParams.get('toDate') || '')
+
   const [form, setForm] = useState(getDefaultForm())
 
+  // ─── URL Sync ──────────────────────────────────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (currentPage > 1) params.set('page', currentPage.toString())
+    if (filterSearch) params.set('search', filterSearch)
+    if (filterType) params.set('type', filterType)
+    if (filterMethod) params.set('paymentMethod', filterMethod)
+    if (filterStatus) params.set('status', filterStatus)
+    if (filterFromDate) params.set('fromDate', filterFromDate)
+    if (filterToDate) params.set('toDate', filterToDate)
+    setSearchParams(params, { replace: true })
+  }, [currentPage, filterSearch, filterType, filterMethod, filterStatus, filterFromDate, filterToDate, setSearchParams])
+
   // ─── Fetch ──────────────────────────────────────────────────────────────────
-  const fetchInvoices = () => {
+  const fetchStats = useCallback(async () => {
+    try {
+      const { data } = await api.get('/invoices/stats')
+      setStats(data)
+    } catch (err) {
+      console.error('Fetch stats failed:', err)
+    }
+  }, [])
+
+  const fetchInvoices = useCallback(async () => {
     setLoading(true)
-    api.get('/invoices/all')
-      .then(r => setInvoices(r.data))
-      .catch(() => setError('Không thể tải danh sách hóa đơn.'))
-      .finally(() => setLoading(false))
-  }
+    setError('')
+    try {
+      const params = new URLSearchParams()
+      params.append('page', currentPage.toString())
+      params.append('limit', ITEMS_PER_PAGE.toString())
+      if (filterSearch) params.append('search', filterSearch)
+      if (filterType) params.append('type', filterType)
+      if (filterMethod) params.append('paymentMethod', filterMethod)
+      if (filterStatus) params.append('status', filterStatus)
+      if (filterFromDate) params.append('fromDate', filterFromDate)
+      if (filterToDate) params.append('toDate', filterToDate)
+
+      const { data } = await api.get(`/invoices/all?${params.toString()}`)
+      setInvoices(data.data)
+      setTotalPages(data.pagination.totalPages)
+    } catch (err) {
+      setError('Không thể tải danh sách hóa đơn.')
+    } finally {
+      setLoading(false)
+    }
+  }, [currentPage, filterSearch, filterType, filterMethod, filterStatus, filterFromDate, filterToDate])
+
+  // Debounce search
+  const debounceTimeout = useRef<number | null>(null)
+  useEffect(() => {
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    debounceTimeout.current = window.setTimeout(() => {
+      fetchInvoices()
+    }, 500)
+    return () => {
+      if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    }
+  }, [fetchInvoices])
 
   useEffect(() => {
-    fetchInvoices()
+    fetchStats()
     api.get('/contracts')
       .then(r => setContracts(r.data.filter((c: ContractOption) => c.status === 'active')))
       .catch(() => { })
-  }, [])
+  }, [fetchStats])
 
   const handleCashPayment = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -246,11 +340,10 @@ export default function InvoiceManagement() {
     return (
       <div className="page-shell">
         <div className="admin-page">
-          <div className="admin-page-header">
-            <div>
-              <h1>Quản lý hóa đơn</h1>
-              <p>Theo dõi hóa đơn đặt cọc và dịch vụ hàng tháng</p>
-            </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <h1 style={{ color: '#003e68', fontSize: '1.5rem', fontWeight: 700, margin: 0, paddingBottom: '16px', borderBottom: '1px solid #eaecf0', flex: 1 }}>
+              Quản lý hóa đơn
+            </h1>
             <button
               onClick={() => { setForm(getDefaultForm()); setFormError(''); setView('create') }}
               style={{
@@ -259,16 +352,149 @@ export default function InvoiceManagement() {
                 padding: '10px 20px', borderRadius: '8px',
                 border: 'none', fontWeight: 700, fontSize: '0.9rem',
                 cursor: 'pointer', whiteSpace: 'nowrap',
+                marginLeft: '16px'
               }}
             >
               <FiPlus /> Tạo hóa đơn mới
             </button>
           </div>
 
+          {/* ─── Dashboard Stats ─── */}
+          {stats && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px', marginBottom: '24px' }}>
+              <div
+                onClick={() => { setFilterStatus(''); setCurrentPage(1); }}
+                style={{ background: '#fff', borderRadius: '8px', padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'all 0.2s', transform: filterStatus === '' ? 'translateY(-2px)' : 'none', border: filterStatus === '' ? '1px solid #003e68' : '1px solid #eaecf0' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 600 }}>Tổng số Hóa đơn</div>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4b5563' }}>
+                    <FiFileText size={16} />
+                  </div>
+                </div>
+                <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#111827', marginBottom: '8px', lineHeight: 1 }}>{stats.totalInvoices}</div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Trong tháng {new Date().getMonth() + 1}/{new Date().getFullYear()}</div>
+              </div>
+
+              <div
+                onClick={() => { setFilterStatus('paid'); setCurrentPage(1); }}
+                style={{ background: '#fff', borderRadius: '8px', padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'all 0.2s', transform: filterStatus === 'paid' ? 'translateY(-2px)' : 'none', border: filterStatus === 'paid' ? '1px solid #003e68' : '1px solid #eaecf0' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 600 }}>Đã thanh toán</div>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669' }}>
+                    <FiCheckCircle size={16} />
+                  </div>
+                </div>
+                <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#111827', marginBottom: '8px', lineHeight: 1 }}>{stats.paid}</div>
+                <div style={{ fontSize: '0.75rem', color: '#0d9488', display: 'flex', alignItems: 'center', gap: '4px' }}><FiTrendingUp size={12} /> {(stats.totalInvoices > 0 ? (stats.paid / stats.totalInvoices * 100).toFixed(0) : 0)}% hoàn thành</div>
+              </div>
+
+              <div
+                onClick={() => { setFilterStatus('pending'); setCurrentPage(1); }}
+                style={{ background: '#fff', borderRadius: '8px', padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'all 0.2s', transform: filterStatus === 'pending' ? 'translateY(-2px)' : 'none', border: filterStatus === 'pending' ? '1px solid #003e68' : '1px solid #eaecf0' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 600 }}>Chờ thanh toán</div>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ea580c' }}>
+                    <FiClock size={16} />
+                  </div>
+                </div>
+                <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#111827', marginBottom: '8px', lineHeight: 1 }}>{stats.pending}</div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Cần nhắc nhở</div>
+              </div>
+
+              <div
+                onClick={() => { setFilterStatus('overdue'); setCurrentPage(1); }}
+                style={{ background: '#fff', borderRadius: '8px', padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'all 0.2s', transform: filterStatus === 'overdue' ? 'translateY(-2px)' : 'none', border: filterStatus === 'overdue' ? '1px solid #003e68' : '1px solid #eaecf0' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 600 }}>Quá hạn</div>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626' }}>
+                    <FiAlertTriangle size={16} />
+                  </div>
+                </div>
+                <div style={{ fontSize: '1.75rem', fontWeight: 700, color: '#dc2626', marginBottom: '8px', lineHeight: 1 }}>{stats.overdue}</div>
+                <div style={{ fontSize: '0.75rem', color: '#dc2626' }}>Cần xử lý ngay</div>
+              </div>
+
+              <div
+                style={{ background: '#fff', borderRadius: '8px', padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', border: '1px solid #eaecf0' }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 600 }}>Doanh thu dự kiến</div>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0369a1' }}>
+                    <FiDollarSign size={16} />
+                  </div>
+                </div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#111827', marginBottom: '8px', lineHeight: 1 }}>{stats.expectedRevenue.toLocaleString('vi-VN')}đ</div>
+                <div style={{ fontSize: '0.75rem', color: '#6b7280', fontStyle: 'italic' }}>Tất cả nguồn thu</div>
+              </div>
+            </div>
+          )}
+
           {error && <div className="alert alert-error">{error}</div>}
 
-          {loading ? <Spinner /> : (
-            <div className="admin-table-wrap">
+          <div className="admin-table-wrap" style={{ background: '#fff' }}>
+            {/* ─── Filter Toolbar ─── */}
+            <div style={{ display: 'flex', flexWrap: 'nowrap', gap: '12px', padding: '16px', borderBottom: '1px solid #f1f5f9', alignItems: 'center', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+              <div style={{ position: 'relative', flex: '1', minWidth: '200px' }}>
+                <FiSearch style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+                <input
+                  type="text"
+                  placeholder="Tìm khách thuê / phòng..."
+                  value={filterSearch}
+                  onChange={e => { setFilterSearch(e.target.value); setCurrentPage(1); }}
+                  style={{ width: '100%', padding: '10px 16px 10px 36px', borderRadius: '8px', border: '1px solid #f1f5f9', outline: 'none', fontSize: '0.9rem', background: '#f1f5f9' }}
+                />
+              </div>
+
+              <select value={filterType} onChange={e => { setFilterType(e.target.value); setCurrentPage(1); }} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #eaecf0', background: '#f1f5f9', color: '#475467', outline: 'none', fontSize: '0.9rem' }}>
+                <option value="">Loại HĐ</option>
+                <option value="deposit">Đặt cọc</option>
+                <option value="service">Dịch vụ</option>
+              </select>
+
+              <select value={filterMethod} onChange={e => { setFilterMethod(e.target.value); setCurrentPage(1); }} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #eaecf0', background: '#f1f5f9', color: '#475467', outline: 'none', fontSize: '0.9rem' }}>
+                <option value="">Thanh toán</option>
+                <option value="MoMo">MoMo</option>
+                <option value="Cash">Tiền mặt</option>
+                <option value="VNPay">VNPay</option>
+              </select>
+
+              <div style={{ display: 'flex', alignItems: 'center', background: '#f1f5f9', border: '1px solid #eaecf0', borderRadius: '8px', padding: '0 12px' }}>
+                <span style={{ fontSize: '0.85rem', color: '#6b7280', marginRight: '8px' }}>Từ</span>
+                <DateInput value={filterFromDate} onChange={(val: string) => { setFilterFromDate(val); setCurrentPage(1); }} style={{ padding: '10px 0', border: 'none', background: 'transparent', outline: 'none', fontSize: '0.9rem', color: '#475467', width: '110px' }} placeholder="dd/mm/yyyy" />
+                <span style={{ fontSize: '0.85rem', color: '#6b7280', margin: '0 8px 0 16px' }}>Đến</span>
+                <DateInput value={filterToDate} onChange={(val: string) => { setFilterToDate(val); setCurrentPage(1); }} style={{ padding: '10px 0', border: 'none', background: 'transparent', outline: 'none', fontSize: '0.9rem', color: '#475467', width: '110px' }} placeholder="dd/mm/yyyy" />
+              </div>
+
+              <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #eaecf0', background: '#f1f5f9', color: '#475467', outline: 'none', fontSize: '0.9rem' }}>
+                <option value="">Trạng thái</option>
+                <option value="unpaid">Chưa thanh toán</option>
+                <option value="pending">Chờ thu tiền</option>
+                <option value="paid">Đã thanh toán</option>
+                <option value="overdue">Quá hạn</option>
+              </select>
+
+              <button
+                onClick={() => {
+                  setFilterSearch(''); setFilterType(''); setFilterMethod(''); setFilterStatus(''); setFilterFromDate(''); setFilterToDate(''); setCurrentPage(1);
+                }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', borderRadius: '8px', border: 'none',
+                  background: (filterSearch || filterType || filterMethod || filterStatus || filterFromDate || filterToDate) ? '#fee2e2' : '#f1f5f9',
+                  color: (filterSearch || filterType || filterMethod || filterStatus || filterFromDate || filterToDate) ? '#ef4444' : '#6b7280',
+                  fontWeight: 600, fontSize: '0.9rem', cursor: 'pointer', transition: 'all 0.2s', flexShrink: 0
+                }}
+              >
+                <FiSliders />
+              </button>
+            </div>
+
+            {loading ? (
+              <div style={{ padding: '40px 0' }}><Spinner /></div>
+            ) : (
               <table className="admin-table">
                 <thead>
                   <tr>
@@ -291,9 +517,9 @@ export default function InvoiceManagement() {
                         <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#6b7280' }}>
                           #{inv._id.slice(-8).toUpperCase()}
                         </span>
-                        {inv.month && inv.year &&
+                        {inv.month && inv.year && (
                           <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>T{inv.month}/{inv.year}</div>
-                        }
+                        )}
                       </td>
                       <td>
                         <div className="td-stack">
@@ -325,14 +551,14 @@ export default function InvoiceManagement() {
                       <td className="td-actions" onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                           {!inv.sentAt && (
-                            <SendInvoiceButton invoiceId={inv._id} />
+                            <SendInvoiceButton invoiceId={inv._id} onSent={fetchInvoices} />
                           )}
                           {inv.sentAt && (
                             <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>Đã gửi ✓</span>
                           )}
                           {inv.status === 'pending' && (
-                            <button 
-                              className="action-btn" 
+                            <button
+                              className="action-btn"
                               style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#088373', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, cursor: confirmingId === inv._id ? 'not-allowed' : 'pointer', opacity: confirmingId === inv._id ? 0.7 : 1 }}
                               onClick={(e) => handleCashPayment(inv._id, e)}
                               disabled={confirmingId === inv._id}
@@ -347,7 +573,15 @@ export default function InvoiceManagement() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            )}
+          </div>
+
+          {!loading && totalPages > 1 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
           )}
         </div>
       </div>

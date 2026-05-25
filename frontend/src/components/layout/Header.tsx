@@ -1,13 +1,27 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 import NotificationBell from '../ui/NotificationBell.tsx'
+import FavoritesDropdown from '../ui/FavoritesDropdown.tsx'
 
 export default function Header() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Click outside → close dropdown
+  useEffect(() => {
+    if (!menuOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [menuOpen])
 
   const handleLogout = () => {
     logout()
@@ -44,15 +58,22 @@ export default function Header() {
       </nav>
 
       <div className="header-right">
-        {user?.role === 'tenant' && <NotificationBell />}
+        <FavoritesDropdown />
+        {user && <NotificationBell />}
         {user ? (
-          <div className="user-menu">
+          <div className="user-menu" ref={menuRef}>
             <button
               className="user-toggle"
               onClick={() => setMenuOpen(!menuOpen)}
               id="user-menu-toggle"
             >
-              <span className="user-avatar">{user.name.charAt(0).toUpperCase()}</span>
+              <span className="user-avatar">
+                {user.avatar ? (
+                  <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                ) : (
+                  user.name.charAt(0).toUpperCase()
+                )}
+              </span>
               <span className="user-name">{user.name}</span>
               <span className="chevron">{menuOpen ? '▲' : '▼'}</span>
             </button>
@@ -60,8 +81,25 @@ export default function Header() {
               <div className="user-dropdown">
                 <div className="dropdown-info">
                   <span className="dropdown-name">{user.name}</span>
-                  <span className="dropdown-role">{user.role === 'admin' ? 'Quản trị viên' : 'Khách thuê'}</span>
+                  <span className="dropdown-role">{
+                    user.role === 'admin' ? 'Quản trị viên' : 
+                    user.role === 'staff' ? 'Nhân viên' : 
+                    'Khách thuê'
+                  }</span>
                 </div>
+                <hr className="dropdown-divider" />
+                <button className="dropdown-item" onClick={() => { setMenuOpen(false); navigate('/profile') }}>
+                  <span className="dropdown-item-icon">👤</span>
+                  Thông tin cá nhân
+                </button>
+                <button className="dropdown-item" onClick={() => { setMenuOpen(false); navigate('/profile/payment') }}>
+                  <span className="dropdown-item-icon">💳</span>
+                  Thanh toán & Công nợ
+                </button>
+                <button className="dropdown-item" onClick={() => { setMenuOpen(false); navigate('/profile/security') }}>
+                  <span className="dropdown-item-icon">🔒</span>
+                  Tài khoản & Bảo mật
+                </button>
                 <hr className="dropdown-divider" />
                 <button className="dropdown-item logout-btn" onClick={handleLogout} id="logout-btn">
                   Đăng xuất
@@ -71,7 +109,7 @@ export default function Header() {
           </div>
         ) : (
           <>
-            <Link to="/login" className="nav-link">Đăng nhập</Link>
+            <Link to="/login" className="button button-outline">Đăng nhập</Link>
             <Link to="/register" className="button button-primary" id="register-btn">Đăng ký</Link>
           </>
         )}

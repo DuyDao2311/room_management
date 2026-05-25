@@ -3,8 +3,13 @@ const router = express.Router();
 const Contract = require("../models/Contract");
 const Room = require("../models/Room");
 const Invoice = require("../models/Invoice");
+const User = require("../models/User");
 const { protect, adminOnly, verifyRole, injectDistrictFilter } = require("../middleware/auth");
 const { signContract, clearSignature } = require("../controllers/contractController");
+const {
+  notifyNewContract,
+  sendSocketNotification,
+} = require("../utils/notificationService");
 
 // ─── Helper: lấy roomIds thuộc district của staff ────────────────────────────
 const getDistrictRoomIds = async (user) => {
@@ -15,22 +20,237 @@ const getDistrictRoomIds = async (user) => {
   return rooms.map((r) => r._id);
 };
 
-// GET /api/contracts — tất cả hợp đồng (admin + staff)
-router.get("/", protect, verifyRole("admin", "staff"), async (req, res) => {
+// GET /api/contracts/stats — Lấy thống kê hợp đồng
+router.get("/stats", protect, verifyRole("admin", "staff"), async (req, res) => {
   try {
     const filter = {};
-
-    // Staff: chỉ thấy contracts thuộc rooms trong district
     if (req.user.role === "staff") {
       const roomIds = await getDistrictRoomIds(req.user);
       filter.room = { $in: roomIds };
     }
 
+    const now = new Date();
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+    
+    // 30 ngày tới
+    const next30Days = new Date(now);
+    next30Days.setDate(next30Days.getDate() + 30);
+
+    const [
+      totalContracts,
+      totalUpToLastMonth,
+      newThisMonth,
+      newLastMonth,
+      expiringSoon,
+      terminated
+    ] = await Promise.all([
+      Contract.countDocuments(filter),
+      Contract.countDocuments({ ...filter, startDate: { $lte: endOfLastMonth } }),
+      Contract.countDocuments({ ...filter, startDate: { $gte: startOfThisMonth } }),
+      Contract.countDocuments({ ...filter, startDate: { $gte: startOfLastMonth, $lte: endOfLastMonth } }),
+      Contract.countDocuments({ ...filter, status: "active", endDate: { $gte: now, $lte: next30Days } }),
+      Contract.countDocuments({ ...filter, status: "terminated" })
+    ]);
+
+    let growthPercent = 0;
+    if (totalUpToLastMonth > 0) {
+      growthPercent = ((totalContracts - totalUpToLastMonth) / totalUpToLastMonth) * 100;
+    } else if (totalUpToLastMonth === 0 && totalContracts > 0) {
+      growthPercent = 100;
+    }
+    
+    const newPercentOfTotal = totalContracts > 0 ? (newThisMonth / totalContracts) * 100 : 0;
+
+    res.json({
+      totalContracts,
+      growthPercent: parseFloat(growthPercent.toFixed(1)),
+      newThisMonth,
+      newPercentOfTotal: parseFloat(newPercentOfTotal.toFixed(1)),
+      expiringSoon,
+      terminated
+    });
+  } catch (error) {
+    console.error("Lỗi lấy thống kê hợp đồng:", error);
+    res.status(500).json({ message: "Lỗi server khi lấy thống kê hợp đồng." });
+  }
+});
+
+// GET /api/contracts — tất cả hợp đồng (admin + staff)
+// Hỗ trợ: ?page=1&limit=9&search=&district=&status=&fromDate=&toDate=
+router.get("/", protect, verifyRole("admin", "staff"), async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 9,
+      search = "",
+      district = "",
+      status = "",
+      fromDate = "",
+      toDate = "",
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+
+    // ── 1. Xây dựng danh sách roomIds hợp lệ (kết hợp district filter + role) ──
+
+    // 1a. Room filter theo district
+    const roomQuery = {};
+    if (district) {
+      // Staff: validate district thuộc managedDistricts
+      if (req.user.role === "staff") {
+        if (
+          !req.user.managedDistricts ||
+          !req.user.managedDistricts.includes(district)
+        ) {
+          return res.status(403).json({
+            message: "Bạn không có quyền xem hợp đồng thuộc khu vực này.",
+          });
+        }
+        roomQuery.district = district;
+      } else {
+        // Admin: cho phép mọi district
+        roomQuery.district = district;
+      }
+    } else if (req.user.role === "staff") {
+      // Staff không truyền district → filter theo tất cả managed districts
+      roomQuery.district = { $in: req.user.managedDistricts || [] };
+    }
+
+    // 1b. Search: tìm room theo name
+    let searchRoomIds = null;
+    let searchTenantIds = null;
+
+    if (search.trim()) {
+      const searchRegex = new RegExp(search.trim(), "i");
+
+      // Tìm rooms match theo name
+      const matchedRooms = await Room.find({
+        ...roomQuery,
+        name: searchRegex,
+      }).select("_id");
+      searchRoomIds = matchedRooms.map((r) => r._id);
+
+      // Tìm tenants match theo name, email, phone
+      const matchedUsers = await User.find({
+        $or: [
+          { name: searchRegex },
+          { email: searchRegex },
+          { phone: searchRegex },
+        ],
+      }).select("_id");
+      searchTenantIds = matchedUsers.map((u) => u._id);
+    }
+
+    // ── 2. Xây dựng contract filter ──────────────────────────────────────────
+
+    const filter = {};
+
+    // 2a. Room filter (district-based)
+    if (Object.keys(roomQuery).length > 0 && !search.trim()) {
+      // Có district filter nhưng không search → lấy roomIds theo district
+      const districtRooms = await Room.find(roomQuery).select("_id");
+      filter.room = { $in: districtRooms.map((r) => r._id) };
+    } else if (!search.trim() && req.user.role === "staff") {
+      // Staff không filter cụ thể → dùng managed districts
+      const roomIds = await getDistrictRoomIds(req.user);
+      filter.room = { $in: roomIds };
+    }
+
+    // 2b. Search: kết hợp room name + tenant name/email/phone + representativeName
+    if (search.trim()) {
+      const searchRegex = new RegExp(search.trim(), "i");
+      const orConditions = [];
+
+      if (searchRoomIds && searchRoomIds.length > 0) {
+        orConditions.push({ room: { $in: searchRoomIds } });
+      }
+      if (searchTenantIds && searchTenantIds.length > 0) {
+        orConditions.push({ tenant: { $in: searchTenantIds } });
+      }
+      // Tìm theo representativeName trực tiếp trên Contract
+      orConditions.push({ representativeName: searchRegex });
+      // Tìm theo representativePhone
+      orConditions.push({ representativePhone: searchRegex });
+
+      if (orConditions.length > 0) {
+        filter.$or = orConditions;
+      }
+
+      // Vẫn phải enforce district cho staff khi search
+      if (req.user.role === "staff" && !district) {
+        const staffRoomIds = await getDistrictRoomIds(req.user);
+        filter.room = filter.room
+          ? { $in: filter.room.$in.filter((id) => staffRoomIds.some((sid) => sid.equals(id))) }
+          : { $in: staffRoomIds };
+        // Khi có $or, cần wrap lại bằng $and để kết hợp room filter
+        if (filter.$or) {
+          const orPart = filter.$or;
+          delete filter.$or;
+          filter.$and = [
+            { room: { $in: staffRoomIds } },
+            { $or: orPart },
+          ];
+        }
+      } else if (district) {
+        // Có district cụ thể → lấy rooms theo district đó
+        const districtRooms = await Room.find(roomQuery).select("_id");
+        const districtRoomIds = districtRooms.map((r) => r._id);
+        if (filter.$or) {
+          const orPart = filter.$or;
+          delete filter.$or;
+          filter.$and = [
+            { room: { $in: districtRoomIds } },
+            { $or: orPart },
+          ];
+        }
+      }
+    }
+
+    // 2c. Status filter
+    if (status) {
+      filter.status = status;
+    }
+
+    // 2d. Date range filter (endDate)
+    if (fromDate || toDate) {
+      filter.endDate = {};
+      if (fromDate) {
+        filter.endDate.$gte = new Date(fromDate);
+      }
+      if (toDate) {
+        // Đặt toDate cuối ngày để bao gồm cả ngày đó
+        const endOfDay = new Date(toDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        filter.endDate.$lte = endOfDay;
+      }
+    }
+
+    // ── 3. Query với pagination ──────────────────────────────────────────────
+
+    const total = await Contract.countDocuments(filter);
+    const totalPages = Math.ceil(total / limitNum);
+
     const contracts = await Contract.find(filter)
       .populate("room", "name address price area type district")
       .populate("tenant", "name email phone")
-      .sort({ createdAt: -1 });
-    res.json(contracts);
+      .sort({ createdAt: -1 })
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum);
+
+    // ── 4. Response ─────────────────────────────────────────────────────────
+
+    res.json({
+      data: contracts,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+      },
+    });
   } catch (err) {
     console.error("Get contracts error:", err);
     res.status(500).json({ message: "Lỗi server." });
@@ -80,7 +300,7 @@ router.get("/:id", protect, async (req, res) => {
   }
 });
 
-// POST /api/contracts — tạo hợp đồng mới (admin + staff + tenant đăng ký thuê)
+// POST /api/contracts — tạo hợp đồng mới (admin + staff)
 router.post("/", protect, verifyRole("admin", "staff", "tenant"), async (req, res) => {
   try {
     const {
@@ -137,6 +357,17 @@ router.post("/", protect, verifyRole("admin", "staff", "tenant"), async (req, re
 
     // Cập nhật trạng thái phòng → occupied
     await Room.findByIdAndUpdate(roomId, { status: "occupied" });
+
+    // Gửi thông báo đến staff/admin về hợp đồng mới
+    const notifications = await notifyNewContract(contract);
+    
+    // Gửi qua Socket.io
+    const io = req.app.get("io");
+    if (io && notifications.length > 0) {
+      notifications.forEach((notification) => {
+        sendSocketNotification(io, "new_notification", notification);
+      });
+    }
 
     const populated = await contract.populate([
       { path: "room", select: "name address" },

@@ -56,22 +56,22 @@ const paymentSchema = new mongoose.Schema(
 
     // ── Dữ liệu từ Momo gateway ─────────────────────────────────────────────
     momo: {
-      orderId:     { type: String },   // orderId trả về từ Momo
-      requestId:   { type: String },
-      transId:     { type: String },   // Momo transaction ID
-      resultCode:  { type: Number },   // 0 = thành công
-      message:     { type: String },
-      payType:     { type: String },   // web / qr / app
+      orderId: { type: String },   // orderId trả về từ Momo
+      requestId: { type: String },
+      transId: { type: String },   // Momo transaction ID
+      resultCode: { type: Number },   // 0 = thành công
+      message: { type: String },
+      payType: { type: String },   // web / qr / app
     },
 
     // ── Dữ liệu từ VNPay gateway ────────────────────────────────────────────
     vnpay: {
-      txnRef:        { type: String },   // vnp_TxnRef
+      txnRef: { type: String },   // vnp_TxnRef
       transactionNo: { type: String },   // vnp_TransactionNo
-      bankCode:      { type: String },   // vnp_BankCode
-      responseCode:  { type: String },   // 00 = thành công
-      orderInfo:     { type: String },
-      bankTranNo:    { type: String },
+      bankCode: { type: String },   // vnp_BankCode
+      responseCode: { type: String },   // 00 = thành công
+      orderInfo: { type: String },
+      bankTranNo: { type: String },
     },
 
     // ── Thanh toán tiền mặt (admin/staff xác nhận) ──────────────────────────
@@ -84,8 +84,8 @@ const paymentSchema = new mongoose.Schema(
     },
 
     // ── Thông tin bổ sung ────────────────────────────────────────────────────
-    paidAt:    { type: Date },           // thời điểm giao dịch hoàn tất
-    note:      { type: String, trim: true, default: "" },
+    paidAt: { type: Date },           // thời điểm giao dịch hoàn tất
+    note: { type: String, trim: true, default: "" },
   },
   {
     timestamps: true,  // createdAt (lúc tạo giao dịch), updatedAt

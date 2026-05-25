@@ -1,0 +1,14 @@
+[v] Chức năng đánh giá sao và feedback.
+[v] Chức năng phòng yêu thích cho user.
+[v] Chức năng phản hồi feedback cho role staff/admin.
+[v] Bỏ đánh giá 5 sao trang /my-room.
+[v] Phân quyền quản lý đánh giá theo khu vực cho staff. Admin quản lý tất cả đánh giá.
+
+[V] Sửa bug ViewCount(Số lượt xem phòng) và filter invoice.
+[V] Staff/Admin nhận thông báo khi có lịch hẹn mới.
+[v] Trang Profile cá nhân/ Thanh toán và công nợ/ Tài khoản và bảo mật (cho user).
+[ ] Cron job tự chuyển invoice → overdue và thông báo cho người dùng là "Hóa đơn tháng 06/2026 của bạn đã quá hạn thanh toán. 
+    Vui lòng thanh toán sớm để tránh phát sinh phí/phạt."
+[ ] Update Danh sách phòng đã thuê trang /my-room
+[ ] Trang profile cá nhân/ Tài khoản và bảo mật (Cho admin).
+[ ] Dashboard staff/admin thêm hợp đồng đang hoạt động/ yêu cầu sửa chữa/ feedback chưa phản hồi.

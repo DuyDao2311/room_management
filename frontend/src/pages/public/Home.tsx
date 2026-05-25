@@ -10,6 +10,7 @@ import { BiBuildingHouse } from "react-icons/bi";
 import { IoIosSearch } from "react-icons/io";
 import { PiBuildingApartmentFill } from "react-icons/pi";
 import { MdSecurity, MdOutlineBedroomParent } from "react-icons/md";
+import FavoriteHeartButton from '../../components/ui/FavoriteHeartButton.tsx'
 const PRICE_OPTIONS = [
   { value: '', label: 'Giá thuê' },
   { value: 'below-3', label: 'Dưới 3tr' },
@@ -202,11 +203,12 @@ export default function Home() {
                   : { backgroundImage: 'url("https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80")' };
 
                 return (
-                  <article className="design-room-card" key={room._id}>
+                  <Link to={`/rooms/${room._id}`} className="design-room-card" key={room._id}>
                     <div className="design-room-image" style={bgStyle}>
                       <div className={`design-room-badge ${room.status === 'available' ? 'badge-available' : 'badge-full'}`}>
                         {room.status === 'available' ? 'CÒN PHÒNG' : STATUS_MAP[room.status as keyof typeof STATUS_MAP].label}
                       </div>
+                      <FavoriteHeartButton room={room} />
                     </div>
                     <div className="design-room-body">
                       <h3 className="design-room-title">{room.name}</h3>
@@ -218,10 +220,10 @@ export default function Home() {
                         <div className="design-room-price">
                           <strong>{formatPrice(room.price)}</strong><span>/tháng</span>
                         </div>
-                        <Link to={`/rooms/${room._id}`} className="design-room-link">Chi tiết</Link>
+                        <span className="design-room-link">Chi tiết →</span>
                       </div>
                     </div>
-                  </article>
+                  </Link>
                 )
               })}
             </div>

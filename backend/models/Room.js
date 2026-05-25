@@ -57,6 +57,24 @@ const roomSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    // ── Feedback cache (cập nhật mỗi khi có thay đổi feedback) ──────────────
+    avgRating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5,
+    },
+    reviewCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    // ── Lượt xem (tăng mỗi khi user vào trang chi tiết) ────────────────────────
+    viewCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   { timestamps: true }
 );

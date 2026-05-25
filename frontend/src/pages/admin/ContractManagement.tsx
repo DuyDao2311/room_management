@@ -1,14 +1,18 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import Badge from '../../components/ui/Badge.tsx'
 import SignaturePad from '../../components/ui/SignaturePad.tsx'
 import { MdOutlineBusiness, MdOutlinePerson, MdOutlinePeopleAlt, MdOutlineMeetingRoom, MdOutlineGavel, MdPictureAsPdf, MdCheckCircleOutline } from "react-icons/md";
 import { LuCalendarDays } from "react-icons/lu";
+import { FiSearch, FiSliders } from "react-icons/fi"
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import ContractPDF from '../../components/pdf/ContractPDF'
 import { Trash2 } from "lucide-react"
+import Pagination from '../../components/ui/Pagination.tsx'
+import { useAuth } from '../../contexts/AuthContext.tsx'
 
 interface Contract {
   _id: string
@@ -31,6 +35,15 @@ interface Contract {
   isSignedByTenant?: boolean // Bên B đã ký chưa
 }
 
+interface ContractStats {
+  totalContracts: number;
+  growthPercent: number;
+  newThisMonth: number;
+  newPercentOfTotal: number;
+  expiringSoon: number;
+  terminated: number;
+}
+
 const STATUS_MAP = {
   pending: { label: 'Chờ duyệt', variant: 'warning' as const },
   active: { label: 'Đang hiệu lực', variant: 'success' as const },
@@ -38,11 +51,42 @@ const STATUS_MAP = {
   terminated: { label: 'Đã chấm dứt', variant: 'danger' as const },
 }
 
+const formatDDMMYYYY = (dateString: string) => {
+  if (!dateString) return '—';
+  const d = new Date(dateString);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+const DateInput = ({ value, onChange, placeholder, style }: any) => {
+  const [type, setType] = useState<'text' | 'date'>('text');
+  const displayValue = type === 'text' && value ? value.split('-').reverse().join('/') : value;
+
+  return (
+    <input
+      type={type}
+      value={displayValue}
+      placeholder={placeholder}
+      onFocus={() => setType('date')}
+      onBlur={() => setType('text')}
+      onChange={(e) => onChange(e.target.value)}
+      style={style}
+    />
+  );
+};
+
 export default function ContractManagement() {
+  const { user } = useAuth()
+  const isStaff = user?.role === 'staff'
+  const [searchParams, setSearchParams] = useSearchParams()
+
   const [contracts, setContracts] = useState<Contract[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedContract, setSelectedContract] = useState<Contract | null>(null)
+  const [stats, setStats] = useState<ContractStats | null>(null)
   const pdfRef = useRef<HTMLDivElement>(null)
 
   // State lưu chữ ký tạm thời (chưa gửi lên server)
@@ -53,16 +97,101 @@ export default function ContractManagement() {
   const [signSaving, setSignSaving] = useState(false)
   const [signMsg, setSignMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  useEffect(() => {
-    fetchContracts()
-  }, [])
+  // ─── Filter state (đồng bộ URL) ────────────────────────────────────────────
+  const currentPage = parseInt(searchParams.get('page') || '1')
+  const filterSearch = searchParams.get('search') || ''
+  const filterDistrict = searchParams.get('district') || ''
+  const filterStatus = searchParams.get('status') || ''
+  const filterFromDate = searchParams.get('fromDate') || ''
+  const filterToDate = searchParams.get('toDate') || ''
 
-  const fetchContracts = () => {
+  // Debounce search input (local state cho input, sync lên URL sau 500ms)
+  const [searchInput, setSearchInput] = useState(filterSearch)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Pagination từ server
+  const [totalPages, setTotalPages] = useState(1)
+  const ITEMS_PER_PAGE = 9
+
+  // ─── Hàm cập nhật URL params ───────────────────────────────────────────────
+  const updateParams = useCallback((updates: Record<string, string>) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      Object.entries(updates).forEach(([k, v]) => {
+        if (v) next.set(k, v)
+        else next.delete(k)
+      })
+      return next
+    })
+  }, [setSearchParams])
+
+  // ─── Fetch contracts từ server (server-side filtering & pagination) ─────────
+  const fetchContracts = useCallback(() => {
     setLoading(true)
-    api.get('/contracts')
-      .then(r => setContracts(r.data))
+    setError('')
+
+    const params = new URLSearchParams()
+    params.set('page', String(currentPage))
+    params.set('limit', String(ITEMS_PER_PAGE))
+    if (filterSearch) params.set('search', filterSearch)
+    if (filterDistrict) params.set('district', filterDistrict)
+    if (filterStatus) params.set('status', filterStatus)
+    if (filterFromDate) params.set('fromDate', filterFromDate)
+    if (filterToDate) params.set('toDate', filterToDate)
+
+    api.get(`/contracts?${params.toString()}`)
+      .then(r => {
+        setContracts(r.data.data)
+        setTotalPages(r.data.pagination?.totalPages || 1)
+      })
       .catch(() => setError('Không thể tải danh sách hợp đồng.'))
       .finally(() => setLoading(false))
+  }, [currentPage, filterSearch, filterDistrict, filterStatus, filterFromDate, filterToDate])
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await api.get('/contracts/stats')
+      setStats(res.data)
+    } catch (err) {
+      console.error('Không thể lấy thống kê:', err)
+    }
+  }, [])
+
+  // Gọi fetchContracts khi filter thay đổi
+  useEffect(() => {
+    fetchContracts()
+  }, [fetchContracts])
+
+  useEffect(() => {
+    fetchStats()
+  }, [fetchStats])
+
+  // Debounce search input → sync lên URL
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTimerRef.current = setTimeout(() => {
+      if (searchInput !== filterSearch) {
+        updateParams({ search: searchInput, page: '1' })
+      }
+    }, 500)
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
+  }, [searchInput])
+
+  // Sync khi URL search thay đổi từ bên ngoài (ví dụ: back/forward)
+  useEffect(() => {
+    setSearchInput(filterSearch)
+  }, [filterSearch])
+
+  // ─── Filter handlers ───────────────────────────────────────────────────────
+  const handleDistrictChange = (val: string) => updateParams({ district: val, page: '1' })
+  const handleStatusChange = (val: string) => updateParams({ status: val, page: '1' })
+  const handleFromDateChange = (val: string) => updateParams({ fromDate: val, page: '1' })
+  const handleToDateChange = (val: string) => updateParams({ toDate: val, page: '1' })
+  const handlePageChange = (p: number) => updateParams({ page: String(p) })
+
+  const handleResetFilter = () => {
+    setSearchInput('')
+    setSearchParams({})
   }
 
   /** Khi mở modal, đồng bộ chữ ký đã lưu trên server vào local state */
@@ -110,7 +239,8 @@ export default function ContractManagement() {
     if (!confirm('Bạn có chắc muốn chấm dứt hợp đồng này?')) return
     try {
       await api.put(`/contracts/${id}`, { status: 'terminated' })
-      setContracts(prev => prev.map(c => c._id === id ? { ...c, status: 'terminated' } : c))
+      fetchContracts() // Reload từ server
+      fetchStats() // Reload thống kê
     } catch {
       alert('Không thể cập nhật hợp đồng.')
     }
@@ -121,8 +251,9 @@ export default function ContractManagement() {
     if (!confirm('Bạn có chắc muốn xoá hợp đồng này vĩnh viễn? Hành động này sẽ xoá luôn các hoá đơn liên quan và không thể hoàn tác.')) return
     try {
       await api.delete(`/contracts/${id}`)
-      setContracts(prev => prev.filter(c => c._id !== id))
       if (selectedContract?._id === id) setSelectedContract(null)
+      fetchContracts() // Reload từ server
+      fetchStats() // Reload thống kê
     } catch {
       alert('Không thể xoá hợp đồng.')
     }
@@ -132,8 +263,9 @@ export default function ContractManagement() {
     if (!selectedContract) return
     try {
       await api.put(`/contracts/${selectedContract._id}`, { status: 'active' })
-      setContracts(prev => prev.map(c => c._id === selectedContract._id ? { ...c, status: 'active' } : c))
       setSelectedContract({ ...selectedContract, status: 'active' })
+      fetchContracts() // Reload từ server
+      fetchStats() // Reload thống kê
     } catch {
       alert('Không thể phê duyệt hợp đồng.')
     }
@@ -188,19 +320,145 @@ export default function ContractManagement() {
     }
   }
 
+  // ─── Kiểm tra có filter nào đang active không ──────────────────────────────
+  const hasActiveFilter = !!(filterSearch || filterDistrict || filterStatus || filterFromDate || filterToDate)
+
   return (
     <div className="page-shell">
       <div className="admin-page">
-        <div className="admin-page-header">
-          <div>
-            <h1>Quản lý hợp đồng</h1>
-            <p>Theo dõi các hợp đồng thuê phòng</p>
+        <h1 style={{ color: '#003e68', fontSize: '1.5rem', fontWeight: 700, margin: '0 0 24px 0', paddingBottom: '16px', borderBottom: '1px solid #eaecf0' }}>
+          Quản lý hợp đồng
+        </h1>
+
+        {/* Thống kê */}
+        {stats && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+            <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', position: 'relative', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ position: 'absolute', right: '16px', top: '24px', bottom: '24px', width: '36px', borderRadius: '8px', background: '#ecfdf5' }} />
+              <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600, zIndex: 1 }}>Tổng số hợp đồng</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', zIndex: 1 }}>
+                <span style={{ fontSize: '2.2rem', fontWeight: 800, color: '#003e68', lineHeight: 1 }}>{stats.totalContracts}</span>
+                {stats.growthPercent > 0 && <span style={{ fontSize: '0.85rem', color: '#059669', fontWeight: 600 }}>~+{stats.growthPercent}%</span>}
+                {stats.growthPercent < 0 && <span style={{ fontSize: '0.85rem', color: '#dc2626', fontWeight: 600 }}>~{stats.growthPercent}%</span>}
+                {stats.growthPercent === 0 && <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600 }}>~0%</span>}
+              </div>
+            </div>
+
+            <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', position: 'relative', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ position: 'absolute', right: '16px', top: '24px', bottom: '24px', width: '36px', borderRadius: '8px', background: '#eff6ff' }} />
+              <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600, zIndex: 1 }}>Hợp đồng mới tháng này</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', zIndex: 1 }}>
+                <span style={{ fontSize: '2.2rem', fontWeight: 800, color: '#003e68', lineHeight: 1 }}>{stats.newThisMonth}</span>
+                <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 500 }}>{stats.newPercentOfTotal}% / tổng</span>
+              </div>
+            </div>
+
+            <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', position: 'relative', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ position: 'absolute', right: '16px', top: '24px', bottom: '24px', width: '36px', borderRadius: '8px', background: '#fff7ed' }} />
+              <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600, zIndex: 1 }}>Sắp hết hạn (30 ngày)</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', zIndex: 1 }}>
+                <span style={{ fontSize: '2.2rem', fontWeight: 800, color: '#92400e', lineHeight: 1 }}>{stats.expiringSoon < 10 && stats.expiringSoon > 0 ? `0${stats.expiringSoon}` : stats.expiringSoon}</span>
+                <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 500 }}>Cần xử lý</span>
+              </div>
+            </div>
+
+            <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)', position: 'relative', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ position: 'absolute', right: '16px', top: '24px', bottom: '24px', width: '36px', borderRadius: '8px', background: '#f1f5f9' }} />
+              <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600, zIndex: 1 }}>Đã chấm dứt</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', zIndex: 1 }}>
+                <span style={{ fontSize: '2.2rem', fontWeight: 800, color: '#1f2937', lineHeight: 1 }}>{stats.terminated < 10 && stats.terminated > 0 ? `0${stats.terminated}` : stats.terminated}</span>
+                <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 500 }}>Lũy kế</span>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         {error && <div className="alert alert-error">{error}</div>}
-        {loading ? <Spinner /> : (
-          <div className="admin-table-wrap">
+
+        <div className="admin-table-wrap" style={{ background: '#fff' }}>
+          {/* ─── Filter Toolbar ─────────────────────────────────────────────── */}
+          <div style={{ padding: '20px 24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Search */}
+            <div style={{ position: 'relative', flex: '1 1 220px', minWidth: '180px' }}>
+              <FiSearch size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={e => setSearchInput(e.target.value)}
+                placeholder="Tìm phòng / khách thuê..."
+                style={{ width: '100%', padding: '10px 16px 10px 36px', borderRadius: '6px', border: 'none', background: '#f1f5f9', color: '#475467', outline: 'none', fontSize: '0.9rem' }}
+              />
+            </div>
+
+            {/* District */}
+            <select
+              value={filterDistrict}
+              onChange={e => handleDistrictChange(e.target.value)}
+              style={{ padding: '10px 16px', borderRadius: '6px', border: 'none', background: '#f1f5f9', color: '#475467', outline: 'none', fontSize: '0.9rem' }}
+            >
+              <option value="">Khu vực</option>
+              {isStaff && user?.managedDistricts && user.managedDistricts.length > 0 ? (
+                user.managedDistricts.map(d => <option key={d} value={d}>{d}</option>)
+              ) : (
+                <>
+                  <option value="Quận Hà Đông">Quận Hà Đông</option>
+                  <option value="Quận Nam Từ Liêm">Quận Nam Từ Liêm</option>
+                  <option value="Quận Long Biên">Quận Long Biên</option>
+                  <option value="Quận Thanh Xuân">Quận Thanh Xuân</option>
+                </>
+              )}
+            </select>
+
+            {/* Date range */}
+            <div style={{ display: 'flex', alignItems: 'center', background: '#f1f5f9', borderRadius: '6px', padding: '0 12px' }}>
+              <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600, marginRight: '8px', textTransform: 'uppercase' }}>Từ</span>
+              <DateInput
+                value={filterFromDate}
+                onChange={(val: string) => handleFromDateChange(val)}
+                placeholder="dd/mm/yyyy"
+                style={{ padding: '10px 0', border: 'none', background: 'transparent', color: '#475467', outline: 'none', fontSize: '0.9rem', width: '120px' }}
+              />
+              <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600, margin: '0 8px 0 16px', textTransform: 'uppercase' }}>Đến</span>
+              <DateInput
+                value={filterToDate}
+                onChange={(val: string) => handleToDateChange(val)}
+                placeholder="dd/mm/yyyy"
+                style={{ padding: '10px 0', border: 'none', background: 'transparent', color: '#475467', outline: 'none', fontSize: '0.9rem', width: '120px' }}
+              />
+            </div>
+
+            {/* Status */}
+            <select
+              value={filterStatus}
+              onChange={e => handleStatusChange(e.target.value)}
+              style={{ padding: '10px 16px', borderRadius: '6px', border: 'none', background: '#f1f5f9', color: '#475467', outline: 'none', fontSize: '0.9rem' }}
+            >
+              <option value="">Trạng thái</option>
+              <option value="active">Đang hiệu lực</option>
+              <option value="expired">Đã hết hạn</option>
+              <option value="terminated">Đã chấm dứt</option>
+              <option value="pending">Chờ duyệt</option>
+            </select>
+
+            {/* Reset */}
+            <button
+              onClick={handleResetFilter}
+              title="Xóa bộ lọc"
+              style={{
+                padding: '10px 14px', borderRadius: '6px', border: 'none',
+                background: hasActiveFilter ? '#fee2e2' : '#f1f5f9',
+                color: hasActiveFilter ? '#dc2626' : '#475467',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'all 0.2s'
+              }}
+            >
+              <FiSliders size={18} />
+            </button>
+          </div>
+
+          {loading ? (
+            <Spinner />
+          ) : (
             <table className="admin-table">
               <thead>
                 <tr>
@@ -225,8 +483,8 @@ export default function ContractManagement() {
                         {/* <span className="td-muted td-sm">{c.tenant?.email ?? ''}</span> */}
                       </div>
                     </td>
-                    <td>{new Date(c.startDate).toLocaleDateString('vi-VN')}</td>
-                    <td>{new Date(c.endDate).toLocaleDateString('vi-VN')}</td>
+                    <td>{formatDDMMYYYY(c.startDate)}</td>
+                    <td>{formatDDMMYYYY(c.endDate)}</td>
                     <td className="td-price">{c.monthlyRent.toLocaleString('vi-VN')}đ</td>
                     <td><Badge label={STATUS_MAP[c.status]?.label || c.status} variant={STATUS_MAP[c.status]?.variant || 'neutral'} /></td>
                     <td className="td-actions">
@@ -245,7 +503,15 @@ export default function ContractManagement() {
                 ))}
               </tbody>
             </table>
-          </div>
+          )}
+        </div>
+
+        {!loading && totalPages > 1 && (
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
         )}
 
         {/* Modal Chi tiết hợp đồng */}

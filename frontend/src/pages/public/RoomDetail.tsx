@@ -1,15 +1,19 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 import { RiMapPin2Line } from "react-icons/ri";
+import FavoriteHeartButton from '../../components/ui/FavoriteHeartButton.tsx'
 import { LiaRulerHorizontalSolid } from "react-icons/lia";
 import { MdOutlineBedroomParent, MdSecurity, MdOutlinePerson, MdOutlinePhone, MdOutlineMoreTime } from "react-icons/md";
 import { FaWifi } from "react-icons/fa";
 import { LuCalendarDays } from "react-icons/lu";
 import { MdOutlinePeopleAlt, MdDeleteOutline, MdCheckCircleOutline, MdOutlineBusiness, MdOutlineGavel, MdOutlineMeetingRoom, MdPictureAsPdf } from "react-icons/md";
 import SignaturePad from '../../components/ui/SignaturePad.tsx'
+import FeedbackList from '../../components/ui/FeedbackList.tsx'
+import FeedbackForm from '../../components/ui/FeedbackForm.tsx'
+import { checkEligibility, getMyFeedback, type Feedback } from '../../api/feedback.ts'
 
 interface Room {
   _id: string
@@ -22,6 +26,7 @@ interface Room {
   description: string
   amenities: string[]
   images: string[]
+  viewCount: number
 }
 
 const STATUS_MAP = {
@@ -53,6 +58,34 @@ interface CoResident {
 
 const MAX_CO_RESIDENTS = 3
 
+// Component custom để hiển thị date dạng dd/mm/yyyy
+const CustomDateInput = ({ value, onChange, readOnly = false, required = false, className = "", style = {}, placeholder = "dd/mm/yyyy" }: any) => {
+  const displayValue = value ? value.split('-').reverse().join('/') : placeholder;
+  return (
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
+      <input
+        type="date"
+        value={value}
+        onChange={onChange}
+        readOnly={readOnly}
+        required={required}
+        className={className}
+        style={{ ...style, color: 'transparent', width: '100%' }}
+      />
+      <span style={{
+        position: 'absolute',
+        left: '12px',
+        pointerEvents: 'none',
+        color: value ? 'inherit' : '#9ca3af',
+        fontSize: 'inherit',
+        fontFamily: 'inherit'
+      }}>
+        {displayValue}
+      </span>
+    </div>
+  )
+}
+
 export default function RoomDetail() {
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
@@ -61,6 +94,17 @@ export default function RoomDetail() {
   const [error, setError] = useState('')
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [activeImg, setActiveImg] = useState(0)
+
+  // Chỉ gọi API view 1 lần khi mount — dùng useRef tránh double-call trong StrictMode
+  const hasTrackedView = useRef(false)
+
+  // Feedback state
+  const [feedbackRefresh, setFeedbackRefresh] = useState(0)
+  const [myFeedback, setMyFeedback] = useState<Feedback | null>(null)
+  const [isEligible, setIsEligible] = useState(false)
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false)
+
+
 
   // Booking form state
   const [bookName, setBookName] = useState('')
@@ -86,6 +130,7 @@ export default function RoomDetail() {
   const [mainIdCard, setMainIdCard] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [leaseTerm, setLeaseTerm] = useState<number>(12)
 
   // Co-residents
   const [coResidents, setCoResidents] = useState<CoResident[]>([])
@@ -114,6 +159,7 @@ export default function RoomDetail() {
     setMainIdCard('')
     setStartDate('')
     setEndDate('')
+    setLeaseTerm(12)
     setCoResidents([])
     setSigB('')          // reset chữ ký khi mở modal mới
     setRentError('')
@@ -155,6 +201,36 @@ export default function RoomDetail() {
       .catch(() => setError('Không tìm thấy phòng trọ này.'))
       .finally(() => setLoading(false))
   }, [id])
+
+  // Tăng lượt xem — chỉ gọi 1 lần khi component mount, bỏ qua lỗi (fire-and-forget)
+  useEffect(() => {
+    if (!id || hasTrackedView.current) return
+    hasTrackedView.current = true
+    api.patch(`/rooms/${id}/view`).catch(() => {})
+  }, [id])
+
+  // Kiểm tra eligibility và lấy feedback của tenant hiện tại
+  useEffect(() => {
+    if (!id || !user || user.role !== 'tenant') return
+    checkEligibility(id).then(r => setIsEligible(r.eligible)).catch(() => { })
+    getMyFeedback(id).then(f => setMyFeedback(f)).catch(() => { })
+  }, [id, user])
+
+  // Tự động tính ngày kết thúc khi ngày bắt đầu hoặc thời hạn thuê thay đổi
+  useEffect(() => {
+    if (startDate) {
+      const date = new Date(startDate)
+      date.setMonth(date.getMonth() + leaseTerm)
+      const yyyy = date.getFullYear()
+      const mm = String(date.getMonth() + 1).padStart(2, '0')
+      const dd = String(date.getDate()).padStart(2, '0')
+      setEndDate(`${yyyy}-${mm}-${dd}`)
+    } else {
+      setEndDate('')
+    }
+  }, [startDate, leaseTerm])
+
+
 
   if (loading) return <div className="page-shell"><Spinner /></div>
   if (error || !room) return (
@@ -218,6 +294,8 @@ export default function RoomDetail() {
           <button className="rd-view-all-btn" onClick={e => { e.stopPropagation(); setPreviewImage(mainImg) }}>
             🖼️ Xem tất cả {imgs.length} ảnh
           </button>
+          {/* Heart button — same style as /rooms cards */}
+          <FavoriteHeartButton room={room} />
         </div>
 
         {/* Thumbnails */}
@@ -246,7 +324,8 @@ export default function RoomDetail() {
               <span className="rd-status-badge" style={{ color: s.color, background: s.bg }}>
                 {s.label}
               </span>
-              <span className="rd-views">👁 {Math.floor(Math.random() * 200) + 50} lượt xem</span>
+              <span className="rd-views">👁 {room.viewCount ?? 0} lượt xem</span>
+
             </div>
             <div className="rd-price">
               <span className="rd-price-num">{(room.price / 1_000_000).toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}tr</span>
@@ -351,10 +430,9 @@ export default function RoomDetail() {
                   <label>Ngày muốn xem</label>
                   <div className="rd-input-wrap">
                     <span className="rd-input-icon" style={{ paddingTop: "8px" }}><LuCalendarDays size={20} color="#647885ff" /></span>
-                    <input
-                      type="date"
+                    <CustomDateInput
                       value={bookDate}
-                      onChange={e => setBookDate(e.target.value)}
+                      onChange={(e: any) => setBookDate(e.target.value)}
                       required
                     />
                   </div>
@@ -532,7 +610,7 @@ export default function RoomDetail() {
                         </div>
                         <div className="contract-field">
                           <label>Ngày sinh</label>
-                          <input className="contract-input" type="date" value={mainDob} onChange={e => setMainDob(e.target.value)} required />
+                          <CustomDateInput className="contract-input" value={mainDob} onChange={(e: any) => setMainDob(e.target.value)} required />
                         </div>
                         <div className="contract-field">
                           <label>Số CCCD/CMND</label>
@@ -578,7 +656,7 @@ export default function RoomDetail() {
                             </div>
                             <div className="contract-field">
                               <label>Ngày sinh</label>
-                              <input className="contract-input" type="date" value={r.dob} onChange={e => updateCoResident(idx, 'dob', e.target.value)} />
+                              <CustomDateInput className="contract-input" value={r.dob} onChange={(e: any) => updateCoResident(idx, 'dob', e.target.value)} />
                             </div>
                             <div className="contract-field">
                               <label>Số CCCD/CMND</label>
@@ -629,12 +707,19 @@ export default function RoomDetail() {
                     </div>
                     <div style={{ background: '#fff', borderRadius: '8px', padding: '20px', border: '1px solid #d1d5db', display: 'flex', gap: '20px' }}>
                       <div className="contract-field" style={{ flex: 1 }}>
+                        <label>Thời hạn thuê</label>
+                        <select className="contract-input" value={leaseTerm} onChange={e => setLeaseTerm(Number(e.target.value))}>
+                          <option value={6}>6 tháng</option>
+                          <option value={12}>12 tháng</option>
+                        </select>
+                      </div>
+                      <div className="contract-field" style={{ flex: 1 }}>
                         <label>Ngày bắt đầu</label>
-                        <input className="contract-input" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} required />
+                        <CustomDateInput className="contract-input" value={startDate} onChange={(e: any) => setStartDate(e.target.value)} required />
                       </div>
                       <div className="contract-field" style={{ flex: 1 }}>
                         <label>Ngày kết thúc</label>
-                        <input className="contract-input" type="date" value={endDate} onChange={e => setEndDate(e.target.value)} required />
+                        <CustomDateInput className="contract-input" value={endDate} readOnly style={{ backgroundColor: '#f3f4f6', cursor: 'not-allowed' }} required />
                       </div>
                     </div>
                   </div>
@@ -647,7 +732,7 @@ export default function RoomDetail() {
                     </div>
                     <div className="contract-text-box">
                       <p style={{ margin: '0 0 12px' }}><strong>1. Mục đích thuê:</strong> Bên B thuê phòng để ở, không sử dụng vào mục đích kinh doanh, sản xuất hay các mục đích trái pháp luật.</p>
-                      <p style={{ margin: '0 0 12px' }}><strong>2. Thời hạn thuê:</strong> Hợp đồng có giá trị trong vòng 12 tháng kể từ ngày ký. Sau khi hết hạn, nếu hai bên có nhu cầu tiếp tục, sẽ tiến hành gia hạn hợp đồng mới.</p>
+                      <p style={{ margin: '0 0 12px' }}><strong>2. Thời hạn thuê:</strong> Hợp đồng có giá trị trong vòng {leaseTerm} tháng kể từ ngày ký. Sau khi hết hạn, nếu hai bên có nhu cầu tiếp tục, sẽ tiến hành gia hạn hợp đồng mới.</p>
                       <p style={{ margin: '0 0 8px' }}><strong>3. Giá thuê và phương thức thanh toán:</strong></p>
                       <ul style={{ margin: '0 0 12px', paddingLeft: '20px' }}>
                         <li>Giá thuê phòng: 5.500.000 VNĐ/tháng.</li>
@@ -718,6 +803,107 @@ export default function RoomDetail() {
           </div>
         </div>
       )}
+
+      {/* ── Feedback & Đánh giá ── */}
+      {room && (
+        <section className="rd-feedback-section">
+          {/* Section header */}
+          <div className="rd-feedback-header">
+            <div>
+              <h2 className="rd-feedback-title">⭐ Đánh giá & Nhận xét</h2>
+              <p className="rd-feedback-subtitle">
+                Nhận xét từ người đã và đang thuê phòng này
+              </p>
+            </div>
+          </div>
+
+          {/* FeedbackList full width: summary trái | cards phải */}
+          <FeedbackList
+            roomId={room._id}
+            currentUserId={user?._id}
+            ownFeedbackId={myFeedback?._id}
+            onRefreshTrigger={feedbackRefresh}
+            summaryLayout="side"
+            onEditSuccess={(fb) => {
+              setMyFeedback(fb)
+              setFeedbackRefresh(v => v + 1)
+            }}
+          />
+
+          {/* Action row bên dưới — chỉ hiện khi cần */}
+          {user?.role === 'tenant' ? (
+            isEligible && !myFeedback ? (
+              /* Tenant đủ điều kiện, chưa đánh giá → hiển thị button hoặc form */
+              showFeedbackForm ? (
+                <div className="rd-write-review-card">
+                  <div className="rd-write-review-header">
+                    <span className="rd-write-review-icon">📝</span>
+                    <div>
+                      <div className="rd-write-review-title">Chia sẻ trải nghiệm</div>
+                      <div className="rd-write-review-sub">
+                        Đánh giá của bạn giúp những người thuê khác có quyết định tốt hơn
+                      </div>
+                    </div>
+                  </div>
+                  <FeedbackForm
+                    roomId={room._id}
+                    existingFeedback={null}
+                    onSuccess={() => {
+                      setFeedbackRefresh(v => v + 1)
+                      getMyFeedback(room._id).then(f => setMyFeedback(f)).catch(() => { })
+                      setShowFeedbackForm(false)
+                    }}
+                    onCancel={() => setShowFeedbackForm(false)}
+                  />
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowFeedbackForm(true)}
+                  className="rd-write-review-button"
+                >
+                  ✍️ Viết đánh giá phòng này
+                </button>
+              )
+            ) : !isEligible ? (
+              /* Không đủ điều kiện */
+              <div className="rd-review-locked rd-review-locked--row">
+                <div className="rd-review-locked-icon">🔒</div>
+                <div>
+                  <div className="rd-review-locked-title">Chưa thể đánh giá</div>
+                  <p className="rd-review-locked-desc">
+                    Bạn cần đang thuê hoặc đã thuê phòng này trong vòng 7 ngày gần đây.
+                  </p>
+                </div>
+              </div>
+            ) : null /* Đã đánh giá — dùng ⋮ để sửa */
+          ) : !user ? (
+            /* Chưa đăng nhập */
+            <div className="rd-review-locked rd-review-locked--row">
+              <div className="rd-review-locked-icon">👤</div>
+              <div>
+                <div className="rd-review-locked-title">Đăng nhập để đánh giá</div>
+                <p className="rd-review-locked-desc">
+                  Đăng nhập với tài khoản người thuê để gửi đánh giá.
+                </p>
+              </div>
+              <Link to="/login" className="rd-review-login-btn">Đăng nhập</Link>
+            </div>
+          ) : (
+            /* Admin / Staff */
+            <div className="rd-review-locked rd-review-locked--row">
+              <div className="rd-review-locked-icon">👁️</div>
+              <div>
+                <div className="rd-review-locked-title">Chế độ xem quản trị</div>
+                <p className="rd-review-locked-desc">
+                  Truy cập <Link to="/admin/feedback" style={{ color: '#6366f1', fontWeight: 600 }}>Quản lý đánh giá</Link> để kiểm duyệt.
+                </p>
+              </div>
+            </div>
+          )}
+
+        </section>
+      )}
     </div>
   )
 }
+

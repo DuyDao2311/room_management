@@ -8,6 +8,7 @@ import { useNotifications } from '../../contexts/NotificationContext.tsx'
 
 import { MdOutlineReceipt, MdHouse, MdOutlineWaterDrop, MdDownload, MdCheckCircle } from 'react-icons/md'
 import { FiZap, FiInfo, FiClock } from 'react-icons/fi'
+import Pagination from '../../components/ui/Pagination.tsx'
 
 interface Invoice {
   _id: string
@@ -49,6 +50,9 @@ export default function MyInvoices() {
   const [cashModal, setCashModal] = useState(false)
   const { socket } = useNotifications()
 
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 9
+
   // ─── Real-time: Lắng nghe sự kiện thanh toán thành công ─────────────────────
   useEffect(() => {
     if (!socket) return
@@ -72,7 +76,10 @@ export default function MyInvoices() {
 
   useEffect(() => {
     api.get('/invoices/my')
-      .then(r => setInvoices(r.data))
+      .then(r => {
+        setInvoices(r.data)
+        setCurrentPage(1)
+      })
       .catch(() => setError('Không thể tải hóa đơn của bạn.'))
       .finally(() => setLoading(false))
   }, [])
@@ -142,6 +149,9 @@ export default function MyInvoices() {
     }
   }
 
+  const totalPages = Math.ceil(invoices.length / ITEMS_PER_PAGE)
+  const currentInvoices = invoices.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+
   return (
     <div className="page-shell">
       <div className="tenant-page">
@@ -175,9 +185,9 @@ export default function MyInvoices() {
                 </tr>
               </thead>
               <tbody>
-                {invoices.length === 0 ? (
+                {currentInvoices.length === 0 ? (
                   <tr><td colSpan={7} className="table-empty">Chưa có hóa đơn nào.</td></tr>
-                ) : invoices.map(inv => (
+                ) : currentInvoices.map(inv => (
                   <tr key={inv._id}>
                     <td style={{ fontWeight: 600, color: '#4b5563' }}>
                       {generateInvoiceCode(inv)}
@@ -230,6 +240,15 @@ export default function MyInvoices() {
             </table>
           </div>
         )}
+
+        {!loading && totalPages > 1 && (
+          <Pagination 
+            currentPage={currentPage} 
+            totalPages={totalPages} 
+            onPageChange={setCurrentPage} 
+          />
+        )}
+
         {/* MODAL CHI TIẾT HÓA ĐƠN */}
         {selectedInvoice && (
           <div className="rent-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSelectedInvoice(null) }}>

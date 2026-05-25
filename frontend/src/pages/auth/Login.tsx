@@ -1,10 +1,17 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 
 export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const successMessage = (location.state as { message?: string } | null)?.message
+  
+  // Đọc redirect path từ query param (do RequireAuth set khi redirect)
+  const queryParams = new URLSearchParams(location.search)
+  const redirectPath = queryParams.get('redirect') || undefined
+  
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -17,7 +24,10 @@ export default function Login() {
     setLoading(true)
     try {
       const loggedInUser = await login(email, password)
-      if (loggedInUser.role === 'admin' || loggedInUser.role === 'staff') {
+      // Nếu có redirect path từ query param → chuyển đến đó (giữ query params)
+      if (redirectPath) {
+        navigate(redirectPath)
+      } else if (loggedInUser.role === 'admin' || loggedInUser.role === 'staff') {
         navigate('/admin')
       } else {
         navigate('/')
@@ -38,6 +48,7 @@ export default function Login() {
           <p>Mừng bạn trở lại với hệ sinh thái quản lý phòng trọ hiện đại.</p>
         </div>
 
+        {successMessage && <div className="alert alert-success">{successMessage}</div>}
         {error && <div className="alert alert-error">{error}</div>}
 
         <form onSubmit={handleSubmit} className="auth-form design-form" id="login-form">
@@ -64,6 +75,9 @@ export default function Login() {
               onChange={e => setPassword(e.target.value)}
               autoComplete="current-password"
             />
+          </div>
+          <div className="auth-helper-row">
+            <Link to="/forgot-password" className="auth-link">Quên mật khẩu?</Link>
           </div>
           <button
             type="submit"

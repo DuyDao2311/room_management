@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { useNotifications } from '../../contexts/NotificationContext.tsx'
 import {
   FiGrid,        // Tổng quan
   FiHome,        // Phòng
@@ -7,11 +8,13 @@ import {
   FiFileText,    // Hợp đồng
   FiFile,        // Hóa đơn
   FiCalendar,
-  FiUserCheck    // Quản lý nhân viên
+  FiUserCheck,   // Quản lý nhân viên
+  FiStar         // Đánh giá
 } from "react-icons/fi";
 
 export default function AdminLayout() {
   const { user, logout } = useAuth()
+  const { unreadAppointmentCount, unreadContractCount, unreadFeedbackCount, unreadInvoiceCount, markAllAsRead } = useNotifications()
   const navigate = useNavigate()
 
   const handleLogout = () => {
@@ -22,15 +25,23 @@ export default function AdminLayout() {
   const isAdmin = user?.role === 'admin'
   const isStaff = user?.role === 'staff'
 
+  // Khi click vào nav item, đánh dấu thông báo theo loại đã đọc
+  const handleNavClick = (type?: string) => {
+    if (type) {
+      markAllAsRead(type)
+    }
+  }
+
   // ── Sidebar items theo role ─────────────────────────────────────────────
   const navItems = [
-    { name: 'Dashboard', path: '/admin', exact: true, icon: <FiGrid />, roles: ['admin', 'staff'] },
-    { name: 'Quản lý phòng', path: '/admin/rooms', exact: false, icon: <FiHome />, roles: ['admin', 'staff'] },
-    { name: 'Hợp đồng', path: '/admin/contracts', exact: false, icon: <FiFileText />, roles: ['admin', 'staff'] },
-    { name: 'Hóa đơn', path: '/admin/invoices', exact: false, icon: <FiFile />, roles: ['admin', 'staff'] },
-    { name: 'Lịch hẹn', path: '/admin/appointments', exact: false, icon: <FiCalendar />, roles: ['admin', 'staff'] },
-    { name: 'Người dùng', path: '/admin/users', exact: false, icon: <FiUsers />, roles: ['admin'] },
-    { name: 'Quản lý nhân viên', path: '/admin/staff', exact: false, icon: <FiUserCheck />, roles: ['admin'] },
+    { name: 'Dashboard', path: '/admin', exact: true, icon: <FiGrid />, roles: ['admin', 'staff'], badge: 0, notifType: undefined },
+    { name: 'Quản lý phòng', path: '/admin/rooms', exact: false, icon: <FiHome />, roles: ['admin', 'staff'], badge: 0, notifType: undefined },
+    { name: 'Hợp đồng', path: '/admin/contracts', exact: false, icon: <FiFileText />, roles: ['admin', 'staff'], badge: unreadContractCount, notifType: 'CONTRACT' },
+    { name: 'Hóa đơn', path: '/admin/invoices', exact: false, icon: <FiFile />, roles: ['admin', 'staff'], badge: unreadInvoiceCount, notifType: 'INVOICE' },
+    { name: 'Lịch hẹn', path: '/admin/appointments', exact: false, icon: <FiCalendar />, roles: ['admin', 'staff'], badge: unreadAppointmentCount, notifType: 'APPOINTMENT' },
+    { name: 'Đánh giá phòng', path: '/admin/feedback', exact: false, icon: <FiStar />, roles: ['admin', 'staff'], badge: unreadFeedbackCount, notifType: 'FEEDBACK' },
+    { name: 'Người dùng', path: '/admin/users', exact: false, icon: <FiUsers />, roles: ['admin'], badge: 0, notifType: undefined },
+    { name: 'Quản lý nhân viên', path: '/admin/staff', exact: false, icon: <FiUserCheck />, roles: ['admin'], badge: 0, notifType: undefined },
   ]
 
   // Filter items theo role
@@ -57,11 +68,15 @@ export default function AdminLayout() {
               key={item.path}
               to={item.path}
               end={item.exact}
+              onClick={() => handleNavClick(item.notifType)}
               className={({ isActive }) => `admin-nav-link ${isActive ? 'active' : ''}`}
             >
-              <span className="admin-nav-icon">{item.icon}</span>
-              {item.name}
-            </NavLink>
+                <span className="admin-nav-icon">{item.icon}</span>
+                {item.name}
+                {item.badge > 0 && (
+                  <span className="admin-nav-badge">{item.badge > 9 ? '9+' : item.badge}</span>
+                )}
+              </NavLink>
           ))}
         </nav>
 
@@ -95,7 +110,13 @@ export default function AdminLayout() {
           )}
 
           <div className="admin-user-info">
-            <span className="admin-user-avatar">{user?.name?.charAt(0).toUpperCase()}</span>
+            <span className="admin-user-avatar">
+              {user?.avatar ? (
+                <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+              ) : (
+                user?.name?.charAt(0).toUpperCase()
+              )}
+            </span>
             <div className="admin-user-details">
               <span className="admin-user-name">{user?.name}</span>
               <span className="admin-user-role">{roleLabel}</span>
