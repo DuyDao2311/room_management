@@ -307,18 +307,31 @@ const updateInvoiceStatus = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. Lấy TẤT CẢ hóa đơn (admin – để làm trang tổng quan)
+// 6. Lấy TẤT CẢ hóa đơn (admin + staff – server-side filtering & pagination)
 // ─────────────────────────────────────────────────────────────────────────────
 /**
- * GET /api/invoices/all?status=unpaid&type=service
- * Quyền: admin only
+ * GET /api/invoices/all?page=1&limit=9&search=&type=&paymentMethod=&status=&fromDate=&toDate=&sortBy=createdAt&sortOrder=desc
+ * Quyền: admin, staff
  */
 const getAllInvoices = async (req, res) => {
   try {
-    const { status, type } = req.query;
+    const {
+      page = 1,
+      limit = 9,
+      search = "",
+      type = "",
+      paymentMethod = "",
+      status = "",
+      fromDate = "",
+      toDate = "",
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = req.query;
+
+    const pageNum = Math.max(1, parseInt(page));
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit)));
+
     const filter = {};
-    if (status) filter.status = status;
-    if (type)   filter.type   = type;
 
     // Staff: chỉ lấy invoices thuộc contracts trong district
     if (req.user.role === "staff") {
@@ -330,13 +343,135 @@ const getAllInvoices = async (req, res) => {
       filter.contract = { $in: contractIds };
     }
 
+    // Filter theo type
+    if (type) filter.type = type;
+
+    // Filter theo paymentMethod
+    if (paymentMethod) filter.paymentMethod = paymentMethod;
+
+    // Filter theo status
+    if (status) filter.status = status;
+
+    // Filter theo ngày xuất (createdAt)
+    if (fromDate || toDate) {
+      filter.createdAt = {};
+      if (fromDate) filter.createdAt.$gte = new Date(fromDate);
+      if (toDate) {
+        const endOfDay = new Date(toDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = endOfDay;
+      }
+    }
+
+    // Search: tìm theo representativeName, representativePhone, roomName, _id
+    if (search.trim()) {
+      const searchRegex = new RegExp(search.trim(), "i");
+      const orConditions = [
+        { representativeName: searchRegex },
+        { representativePhone: searchRegex },
+        { roomName: searchRegex },
+      ];
+
+      // Thử tìm theo _id (mã hóa đơn)
+      if (search.trim().length >= 3) {
+        orConditions.push({
+          $expr: {
+            $regexMatch: {
+              input: { $toString: "$_id" },
+              regex: search.trim(),
+              options: "i"
+            }
+          }
+        });
+      }
+
+      // Nếu đã có filter khác, wrap bằng $and
+      if (Object.keys(filter).length > 0) {
+        const existingFilter = { ...filter };
+        // Clear filter
+        Object.keys(filter).forEach((k) => delete filter[k]);
+        filter.$and = [existingFilter, { $or: orConditions }];
+      } else {
+        filter.$or = orConditions;
+      }
+    }
+
+    // Sort
+    const allowedSortFields = ["createdAt", "totalAmount", "dueDate"];
+    const sortField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
+    const sortDir = sortOrder === "asc" ? 1 : -1;
+
+    // Query với pagination
+    const total = await Invoice.countDocuments(filter);
+    const totalPages = Math.ceil(total / limitNum);
+
     const invoices = await Invoice.find(filter)
-      .sort({ createdAt: -1 })
+      .sort({ [sortField]: sortDir })
+      .skip((pageNum - 1) * limitNum)
+      .limit(limitNum)
       .lean();
 
-    res.json(invoices);
+    res.json({
+      data: invoices,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+      },
+    });
   } catch (err) {
     res.status(500).json({ message: err.message || "Lỗi server." });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6b. Thống kê hóa đơn (dashboard)
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * GET /api/invoices/stats
+ * Quyền: admin, staff
+ */
+const getInvoiceStats = async (req, res) => {
+  try {
+    const filter = {};
+
+    // Staff: chỉ tính invoices thuộc contracts trong district
+    if (req.user.role === "staff") {
+      const rooms = await Room.find({
+        district: { $in: req.user.managedDistricts || [] },
+      }).select("_id");
+      const roomIds = rooms.map((r) => r._id);
+      const contractIds = await Contract.find({ room: { $in: roomIds } }).distinct("_id");
+      filter.contract = { $in: contractIds };
+    }
+
+    const [totalInvoices, paid, unpaid, pending, overdue, revenueAgg] =
+      await Promise.all([
+        Invoice.countDocuments(filter),
+        Invoice.countDocuments({ ...filter, status: "paid" }),
+        Invoice.countDocuments({ ...filter, status: "unpaid" }),
+        Invoice.countDocuments({ ...filter, status: "pending" }),
+        Invoice.countDocuments({ ...filter, status: "overdue" }),
+        Invoice.aggregate([
+          { $match: filter },
+          { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+        ]),
+      ]);
+
+    const expectedRevenue = revenueAgg.length > 0 ? revenueAgg[0].total : 0;
+
+    res.json({
+      totalInvoices,
+      paid,
+      unpaid,
+      pending,
+      overdue,
+      expectedRevenue,
+    });
+  } catch (err) {
+    console.error("Lỗi lấy thống kê hóa đơn:", err);
+    res.status(500).json({ message: "Lỗi server khi lấy thống kê hóa đơn." });
   }
 };
 
@@ -622,6 +757,7 @@ module.exports = {
   payInvoice,
   updateInvoiceStatus,
   getAllInvoices,
+  getInvoiceStats,
   sendInvoice,
   updateInvoice,
   requestCashPayment,
