@@ -360,9 +360,9 @@ const sendInvoice = async (req, res) => {
       return res.status(404).json({ message: "Không tìm thấy hoá đơn." });
     }
 
-    // 3. Nếu đã gửi rồi thì không gửi lại
+    // 3. Nếu đã gửi rồi thì trả về success (idempotent)
     if (invoice.sentAt) {
-      return res.status(400).json({ message: "Hoá đơn này đã được gửi trước đó." });
+      return res.json({ success: true, alreadySent: true });
     }
 
     // 4. Populate contract để lấy tenantId từ DB (KHÔNG từ request body)
@@ -378,14 +378,18 @@ const sendInvoice = async (req, res) => {
     invoice.tenantId = tenantId;
     await invoice.save();
 
-    // 6. Tạo Notification document
+    // Format số tiền thủ công (tránh lỗi locale)
+    const fmt = (n) => (n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    
+    // 6. Tạo Notification document (bao gồm cả userId cho model mới)
     const notification = await Notification.create({
-      tenantId,
+      userId:    tenantId,
+      tenantId,  // alias để tương thích
       type:      "INVOICE",
       title:     `Hoá đơn mới — ${invoice.roomName}`,
       message:   invoice.type === "deposit"
-        ? `Hoá đơn tiền cọc: ${invoice.totalAmount?.toLocaleString("vi-VN")}đ`
-        : `Hoá đơn tháng ${invoice.month}/${invoice.year}: ${invoice.totalAmount?.toLocaleString("vi-VN")}đ`,
+        ? `Hoá đơn tiền cọc: ${fmt(invoice.totalAmount)}đ`
+        : `Hoá đơn tháng ${invoice.month}/${invoice.year}: ${fmt(invoice.totalAmount)}đ`,
       invoiceId: invoice._id,
     });
 
@@ -397,7 +401,10 @@ const sendInvoice = async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    res.status(err.status || 500).json({ message: err.message || "Lỗi server." });
+    console.error("sendInvoice error:", err);
+    res.status(err.status || 500).json({ 
+      message: err.message || "Lỗi server." 
+    });
   }
 };
 
@@ -569,12 +576,16 @@ const collectCash = async (req, res) => {
       },
     });
 
+    // Format số tiền thủ công
+    const fmt = (n) => (n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    
     // 6. Tạo Notification cho tenant
     const notification = await Notification.create({
+      userId: invoice.tenantId,
       tenantId: invoice.tenantId,
       type: "INVOICE",
       title: "Hóa đơn đã được xác nhận thanh toán",
-      message: `Hóa đơn phòng ${invoice.roomName} đã được xác nhận thanh toán tiền mặt (${invoice.totalAmount?.toLocaleString("vi-VN")}đ)`,
+      message: `Hóa đơn phòng ${invoice.roomName} đã được xác nhận thanh toán tiền mặt (${fmt(invoice.totalAmount)}đ)`,
       invoiceId: invoice._id,
     });
 

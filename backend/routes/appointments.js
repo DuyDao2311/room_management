@@ -3,6 +3,10 @@ const router = express.Router();
 const Appointment = require("../models/Appointment");
 const Room = require("../models/Room");
 const { protect, adminOnly, verifyRole, injectDistrictFilter } = require("../middleware/auth");
+const {
+  notifyNewAppointment,
+  sendSocketNotification,
+} = require("../utils/notificationService");
 
 // POST /api/appointments - Tạo lịch hẹn mới (Public / Khách vãng lai)
 router.post("/", async (req, res) => {
@@ -13,7 +17,7 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "Vui lòng cung cấp đủ họ tên, SĐT, ngày, thời gian và phòng." });
     }
 
-    // Tự động lấy district từ room để lưu vào appointment
+    // Tự động lấy district from room để lưu vào appointment
     let district = "";
     const roomDoc = await Room.findById(room).select("district");
     if (roomDoc) {
@@ -32,6 +36,18 @@ router.post("/", async (req, res) => {
     });
 
     await appointment.save();
+
+    // Gửi thông báo đến staff/admin
+    const notifications = await notifyNewAppointment(appointment);
+    
+    // Gửi qua Socket.io
+    const io = req.app.get("io");
+    if (io && notifications.length > 0) {
+      notifications.forEach((notification) => {
+        sendSocketNotification(io, "new_notification", notification);
+      });
+    }
+
     res.status(201).json(appointment);
   } catch (err) {
     console.error("Lỗi tạo lịch hẹn:", err);

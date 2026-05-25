@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
@@ -26,6 +26,7 @@ interface Room {
   description: string
   amenities: string[]
   images: string[]
+  viewCount: number
 }
 
 const STATUS_MAP = {
@@ -93,6 +94,9 @@ export default function RoomDetail() {
   const [error, setError] = useState('')
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [activeImg, setActiveImg] = useState(0)
+
+  // Chỉ gọi API view 1 lần khi mount — dùng useRef tránh double-call trong StrictMode
+  const hasTrackedView = useRef(false)
 
   // Feedback state
   const [feedbackRefresh, setFeedbackRefresh] = useState(0)
@@ -196,6 +200,13 @@ export default function RoomDetail() {
       .then(res => setRoom(res.data))
       .catch(() => setError('Không tìm thấy phòng trọ này.'))
       .finally(() => setLoading(false))
+  }, [id])
+
+  // Tăng lượt xem — chỉ gọi 1 lần khi component mount, bỏ qua lỗi (fire-and-forget)
+  useEffect(() => {
+    if (!id || hasTrackedView.current) return
+    hasTrackedView.current = true
+    api.patch(`/rooms/${id}/view`).catch(() => {})
   }, [id])
 
   // Kiểm tra eligibility và lấy feedback của tenant hiện tại
@@ -313,7 +324,7 @@ export default function RoomDetail() {
               <span className="rd-status-badge" style={{ color: s.color, background: s.bg }}>
                 {s.label}
               </span>
-              <span className="rd-views">👁 {Math.floor(Math.random() * 200) + 50} lượt xem</span>
+              <span className="rd-views">👁 {room.viewCount ?? 0} lượt xem</span>
 
             </div>
             <div className="rd-price">

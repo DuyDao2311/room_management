@@ -9,11 +9,12 @@ export interface FeedbackReply {
 export interface Feedback {
   _id: string;
   room: { _id: string; name: string; address: string } | string;
-  tenant: { _id: string; name: string; email: string } | string;
+  tenant: { _id: string; name: string; email: string; avatar?: string } | string;
   rating: number;
   comment: string;
   isAnonymous: boolean;
   tenantName?: string; // chỉ có trong public response
+  tenantAvatar?: string | null; // chỉ có trong public response
   status: 'visible' | 'hidden';
   createdAt: string;
   updatedAt: string;
