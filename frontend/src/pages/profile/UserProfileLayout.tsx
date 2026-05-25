@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { useAuth } from '../../contexts/AuthContext.tsx'
+// import { useAuth } from '../../contexts/AuthContext.tsx'
 
 const navItems = [
   { to: '/profile', label: 'Thông tin cá nhân', icon: '👤' },
@@ -9,7 +9,7 @@ const navItems = [
 ]
 
 export default function UserProfileLayout() {
-  const { user } = useAuth()
+  // const { user } = useAuth()
   const location = useLocation()
 
   const isActive = (to: string) => {
