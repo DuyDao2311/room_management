@@ -9,6 +9,7 @@ import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
 import ContractPDF from '../../components/pdf/ContractPDF'
 import { Trash2 } from "lucide-react"
+import Pagination from '../../components/ui/Pagination.tsx'
 
 interface Contract {
   _id: string
@@ -53,6 +54,9 @@ export default function ContractManagement() {
   const [signSaving, setSignSaving] = useState(false)
   const [signMsg, setSignMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 9
+
   useEffect(() => {
     fetchContracts()
   }, [])
@@ -60,7 +64,10 @@ export default function ContractManagement() {
   const fetchContracts = () => {
     setLoading(true)
     api.get('/contracts')
-      .then(r => setContracts(r.data))
+      .then(r => {
+        setContracts(r.data)
+        setCurrentPage(1)
+      })
       .catch(() => setError('Không thể tải danh sách hợp đồng.'))
       .finally(() => setLoading(false))
   }
@@ -188,6 +195,9 @@ export default function ContractManagement() {
     }
   }
 
+  const totalPages = Math.ceil(contracts.length / ITEMS_PER_PAGE)
+  const currentContracts = contracts.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+
   return (
     <div className="page-shell">
       <div className="admin-page">
@@ -214,9 +224,9 @@ export default function ContractManagement() {
                 </tr>
               </thead>
               <tbody>
-                {contracts.length === 0 ? (
+                {currentContracts.length === 0 ? (
                   <tr><td colSpan={7} className="table-empty">Chưa có hợp đồng nào.</td></tr>
-                ) : contracts.map(c => (
+                ) : currentContracts.map(c => (
                   <tr key={c._id} onClick={() => openContract(c)} style={{ cursor: 'pointer' }} title="Click để xem chi tiết">
                     <td className="td-name">{c.room?.name ?? '—'}</td>
                     <td>
@@ -246,6 +256,14 @@ export default function ContractManagement() {
               </tbody>
             </table>
           </div>
+        )}
+        
+        {!loading && totalPages > 1 && (
+          <Pagination 
+            currentPage={currentPage} 
+            totalPages={totalPages} 
+            onPageChange={setCurrentPage} 
+          />
         )}
 
         {/* Modal Chi tiết hợp đồng */}

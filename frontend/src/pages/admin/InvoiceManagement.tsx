@@ -6,6 +6,7 @@ import { FiInfo, FiZap, FiTrash2, FiPlus, FiCheck } from 'react-icons/fi'
 import { MdOutlineWaterDrop, MdReceiptLong, MdHouse } from 'react-icons/md'
 import SendInvoiceButton from '../../components/ui/SendInvoiceButton.tsx'
 import { collectCashPayment } from '../../api/payment.ts'
+import Pagination from '../../components/ui/Pagination.tsx'
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 interface Invoice {
@@ -82,13 +83,19 @@ export default function InvoiceManagement() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null)
   const [formError, setFormError] = useState('')
 
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 9
+
   const [form, setForm] = useState(getDefaultForm())
 
   // ─── Fetch ──────────────────────────────────────────────────────────────────
   const fetchInvoices = () => {
     setLoading(true)
     api.get('/invoices/all')
-      .then(r => setInvoices(r.data))
+      .then(r => {
+        setInvoices(r.data)
+        setCurrentPage(1)
+      })
       .catch(() => setError('Không thể tải danh sách hóa đơn.'))
       .finally(() => setLoading(false))
   }
@@ -243,6 +250,9 @@ export default function InvoiceManagement() {
 
   // ─── View: Danh sách ────────────────────────────────────────────────────────
   if (view === 'list') {
+    const totalPages = Math.ceil(invoices.length / ITEMS_PER_PAGE)
+    const currentInvoices = invoices.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+
     return (
       <div className="page-shell">
         <div className="admin-page">
@@ -283,9 +293,9 @@ export default function InvoiceManagement() {
                   </tr>
                 </thead>
                 <tbody>
-                  {invoices.length === 0 ? (
+                  {currentInvoices.length === 0 ? (
                     <tr><td colSpan={8} className="table-empty">Chưa có hóa đơn nào.</td></tr>
-                  ) : invoices.map(inv => (
+                  ) : currentInvoices.map(inv => (
                     <tr key={inv._id} onClick={() => handleRowClick(inv)} style={{ cursor: 'pointer' }} className="hover:bg-gray-50">
                       <td>
                         <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#6b7280' }}>
@@ -348,6 +358,14 @@ export default function InvoiceManagement() {
                 </tbody>
               </table>
             </div>
+          )}
+
+          {!loading && totalPages > 1 && (
+            <Pagination 
+              currentPage={currentPage} 
+              totalPages={totalPages} 
+              onPageChange={setCurrentPage} 
+            />
           )}
         </div>
       </div>
