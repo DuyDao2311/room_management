@@ -76,10 +76,10 @@ export default function RoomManagement() {
   }
 
   const fetchContracts = () => {
-    api.get('/contracts')
+    api.get('/contracts?limit=1000')
       .then(res => {
         const map: Record<string, ContractInfo> = {}
-        res.data.forEach((c: { room?: { _id: string }; representativeName?: string; tenant?: { name: string }; endDate: string; status: string }) => {
+        res.data.data.forEach((c: { room?: { _id: string }; representativeName?: string; tenant?: { name: string }; endDate: string; status: string }) => {
           if (c.room?._id && (c.status === 'active' || c.status === 'pending')) {
             map[c.room._id] = {
               representativeName: c.representativeName,

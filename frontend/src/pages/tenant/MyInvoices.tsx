@@ -427,13 +427,15 @@ export default function MyInvoices() {
                     {selectedInvoice.totalAmount.toLocaleString('vi-VN')} <span style={{ fontSize: '1.2rem', fontWeight: 500, color: '#93c5fd' }}>đ</span>
                   </div>
 
-                  <div style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '16px', display: 'flex', gap: '12px', marginBottom: '32px' }}>
-                    <FiInfo size={20} color="#93c5fd" style={{ flexShrink: 0, marginTop: '2px' }} />
-                    <span style={{ fontSize: '0.9rem', color: '#dbeafe', lineHeight: 1.5 }}>
-                      Vui lòng thanh toán trước<br />
-                      <strong>{selectedInvoice.dueDate ? new Date(selectedInvoice.dueDate).toLocaleDateString('vi-VN') : '—'}</strong>
-                    </span>
-                  </div>
+                  {selectedInvoice.status !== 'paid' && (
+                    <div style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '16px', display: 'flex', gap: '12px', marginBottom: '32px' }}>
+                      <FiInfo size={20} color="#93c5fd" style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <span style={{ fontSize: '0.9rem', color: '#dbeafe', lineHeight: 1.5 }}>
+                        Vui lòng thanh toán trước<br />
+                        <strong>{selectedInvoice.dueDate ? new Date(selectedInvoice.dueDate).toLocaleDateString('vi-VN') : '—'}</strong>
+                      </span>
+                    </div>
+                  )}
 
                   {/* ── PENDING: Đang chờ thu tiền mặt ── */}
                   {selectedInvoice.status === 'pending' && (
