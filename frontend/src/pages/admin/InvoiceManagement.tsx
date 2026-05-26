@@ -472,7 +472,7 @@ export default function InvoiceManagement() {
               <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #eaecf0', background: '#f1f5f9', color: '#475467', outline: 'none', fontSize: '0.9rem' }}>
                 <option value="">Trạng thái</option>
                 <option value="unpaid">Chưa thanh toán</option>
-                <option value="pending">Chờ thu tiền</option>
+                <option value="pending">Chờ thanh toán</option>
                 <option value="paid">Đã thanh toán</option>
                 <option value="overdue">Quá hạn</option>
               </select>
