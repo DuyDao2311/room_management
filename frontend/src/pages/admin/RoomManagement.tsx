@@ -7,6 +7,7 @@ import { Building, TrendingUp, Key, Wrench, Pencil, Trash2 } from "lucide-react"
 // import { DoorOpen, Bed, User } from "lucide-react"
 import { FiHome, FiTool } from "react-icons/fi";
 import { MdBed } from "react-icons/md";
+import MapPicker from '../../components/map/MapPicker.tsx'
 
 interface Room {
   _id: string
@@ -21,6 +22,10 @@ interface Room {
   amenities?: string[]
   images?: string[]
   maintenanceEndDate?: string
+  location?: {
+    type: string
+    coordinates: [number, number]
+  }
 }
 
 interface ContractInfo {
@@ -32,7 +37,8 @@ interface ContractInfo {
 const EMPTY_FORM = {
   name: '', address: '', district: '', price: '', area: '',
   type: 'Studio', status: 'available' as Room['status'],
-  description: '', amenities: '', images: '', maintenanceEndDate: ''
+  description: '', amenities: '', images: '', maintenanceEndDate: '',
+  locationLat: 0, locationLng: 0
 }
 
 const STATUS_MAP = {
@@ -113,7 +119,9 @@ export default function RoomManagement() {
       description: r.description || '',
       amenities: r.amenities ? r.amenities.join(', ') : '',
       images: r.images ? r.images.join(', ') : '',
-      maintenanceEndDate: r.maintenanceEndDate ? new Date(r.maintenanceEndDate).toISOString().split('T')[0] : ''
+      maintenanceEndDate: r.maintenanceEndDate ? new Date(r.maintenanceEndDate).toISOString().split('T')[0] : '',
+      locationLat: r.location?.coordinates?.[1] || 0,
+      locationLng: r.location?.coordinates?.[0] || 0
     })
     setShowModal(true)
   }
@@ -122,13 +130,24 @@ export default function RoomManagement() {
     e.preventDefault()
     setFormError('')
     setSaving(true)
-    const payload = {
+    const payload: Record<string, unknown> = {
       ...form,
       price: Number(form.price),
       area: Number(form.area),
       amenities: form.amenities.split(',').map(s => s.trim()).filter(Boolean),
       images: form.images.split(',').map(s => s.trim()).filter(Boolean)
     }
+
+    // Thêm location GeoJSON nếu có tọa độ hợp lệ
+    if (form.locationLat !== 0 || form.locationLng !== 0) {
+      payload.location = {
+        type: 'Point',
+        coordinates: [form.locationLng, form.locationLat]
+      }
+    }
+    // Xóa locationLat/locationLng khỏi payload (chỉ là state nội bộ)
+    delete payload.locationLat
+    delete payload.locationLng
     try {
       if (editing) {
         await api.put(`/rooms/${editing._id}`, payload)
@@ -405,6 +424,12 @@ export default function RoomManagement() {
                   <label htmlFor="f-address">Địa chỉ</label>
                   <input id="f-address" className="form-input" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} required placeholder="128 Đề Thám, Q.1, TP.HCM" />
                 </div>
+                {/* MapPicker — auto geocode khi nhập địa chỉ */}
+                <MapPicker
+                  address={form.address}
+                  value={{ lat: form.locationLat, lng: form.locationLng }}
+                  onChange={(loc) => setForm({ ...form, locationLat: loc.lat, locationLng: loc.lng })}
+                />
                 <div className="form-row">
                   <div className="form-group">
                     <label htmlFor="f-price">Giá thuê (VNĐ/tháng)</label>

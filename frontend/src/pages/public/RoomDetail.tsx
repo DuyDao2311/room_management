@@ -5,6 +5,7 @@ import Spinner from '../../components/ui/Spinner.tsx'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 import { RiMapPin2Line } from "react-icons/ri";
 import FavoriteHeartButton from '../../components/ui/FavoriteHeartButton.tsx'
+import MapView from '../../components/map/MapView.tsx'
 import { LiaRulerHorizontalSolid } from "react-icons/lia";
 import { MdOutlineBedroomParent, MdSecurity, MdOutlinePerson, MdOutlinePhone, MdOutlineMoreTime } from "react-icons/md";
 import { FaWifi } from "react-icons/fa";
@@ -27,6 +28,10 @@ interface Room {
   amenities: string[]
   images: string[]
   viewCount: number
+  location?: {
+    type: string
+    coordinates: [number, number]
+  }
 }
 
 const STATUS_MAP = {
@@ -169,7 +174,7 @@ export default function RoomDetail() {
 
   const handleRentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!startDate) {
       setRentError('Hãy chọn ngày bắt đầu hợp đồng')
       return
@@ -395,6 +400,17 @@ export default function RoomDetail() {
               <p className="rd-desc">{room.description}</p>
             </div>
           )}
+
+          {/* Map Location */}
+          {room.location?.coordinates &&
+            (room.location.coordinates[0] !== 0 || room.location.coordinates[1] !== 0) && (
+              <MapView
+                lat={room.location.coordinates[1]}
+                lng={room.location.coordinates[0]}
+                address={room.address}
+                roomName={room.name}
+              />
+            )}
         </div>
 
         {/* RIGHT: Booking form */}

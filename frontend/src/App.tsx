@@ -5,6 +5,7 @@ import Footer from './components/layout/Footer.tsx'
 import Home from './pages/public/Home.tsx'
 import RoomList from './pages/public/RoomList.tsx'
 import RoomDetail from './pages/public/RoomDetail.tsx'
+import RoomMapPage from './pages/public/RoomMapPage.tsx'
 import PaymentCallback from './pages/public/PaymentCallback.tsx'
 import Login from './pages/auth/Login.tsx'
 import Register from './pages/auth/Register.tsx'
@@ -71,6 +72,7 @@ function AppLayout() {
         {/* Public */}
         <Route path="/" element={<Home />} />
         <Route path="/rooms" element={<RoomList />} />
+        <Route path="/rooms/map" element={<RoomMapPage />} />
         <Route path="/rooms/:id" element={<RoomDetail />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/login" element={<Login />} />

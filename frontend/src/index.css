@@ -5821,3 +5821,455 @@ select.sp-input { cursor: pointer; }
 @media (max-width: 600px) {
   .sc-page { padding: 24px 16px 60px; }
 }
+
+/* =========================================
+   MapBox Components — MapPicker, MapView, RoomMapPage
+   ========================================= */
+
+/* ── MapPicker (Admin form) ─────────────────────────── */
+.map-picker-container {
+  margin: 8px 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.map-picker-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+}
+.map-picker-icon {
+  font-size: 1.1rem;
+}
+.map-picker-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: #0f5cc7;
+  font-weight: 500;
+  margin-left: auto;
+}
+.map-picker-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #e2e8f0;
+  border-top-color: #0f5cc7;
+  border-radius: 50%;
+  animation: mapPickerSpin 0.6s linear infinite;
+}
+@keyframes mapPickerSpin { to { transform: rotate(360deg); } }
+
+.map-picker-error {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.map-picker-map {
+  width: 100%;
+  height: 300px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+.map-picker-hint {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  font-style: italic;
+}
+.map-picker-coords {
+  display: flex;
+  gap: 12px;
+}
+.map-picker-coord-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.map-picker-coord-field label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.map-picker-coord-field input {
+  padding: 6px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  color: #374151;
+  background: #f9fafb;
+  font-family: 'Courier New', monospace;
+}
+
+/* ── MapView (RoomDetail) ───────────────────────────── */
+.rd-location-section {
+  margin-top: 8px;
+}
+.map-view-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+.map-view-map {
+  width: 100%;
+  height: 350px;
+}
+.map-view-info {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid #f3f4f6;
+}
+.map-view-address {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #374151;
+  font-weight: 500;
+}
+.map-view-address-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.map-view-directions-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #003e68;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.2s, transform 0.15s;
+}
+.map-view-directions-btn:hover {
+  background: #002d4f;
+  transform: translateY(-1px);
+}
+
+/* ── RoomMapPage (Airbnb-style) ─────────────────────── */
+.room-map-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: #f8f9fb;
+}
+
+/* Top bar */
+.room-map-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: #fff;
+  border-bottom: 1px solid #eaecf0;
+  gap: 16px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+.room-map-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.room-map-back-link {
+  color: #003e68;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.room-map-back-link:hover {
+  text-decoration: underline;
+}
+.room-map-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #101828;
+  margin: 0;
+  white-space: nowrap;
+}
+.room-map-count {
+  font-size: 0.82rem;
+  color: #667085;
+  background: #f0f2f5;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.room-map-topbar-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.room-map-filter-select {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  font-size: 0.82rem;
+  color: #475467;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+}
+.room-map-filter-select:focus {
+  border-color: #003e68;
+}
+.room-map-nearby-btn {
+  padding: 8px 16px;
+  background: #003e68;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+.room-map-nearby-btn:hover:not(:disabled) {
+  background: #002d4f;
+}
+.room-map-nearby-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.room-map-nearby-btn--reset {
+  background: #dc2626;
+}
+.room-map-nearby-btn--reset:hover {
+  background: #b91c1c;
+}
+
+/* Main body: sidebar + map */
+.room-map-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.room-map-sidebar {
+  width: 420px;
+  min-width: 360px;
+  max-width: 480px;
+  overflow-y: auto;
+  border-right: 1px solid #eaecf0;
+  background: #fff;
+  flex-shrink: 0;
+}
+.room-map-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.room-map-sidebar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.room-map-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.room-map-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 60px 24px;
+  color: #667085;
+  text-align: center;
+}
+.room-map-empty-icon {
+  font-size: 2.5rem;
+}
+.room-map-empty p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* Room card */
+.room-map-card {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+.room-map-card:hover,
+.room-map-card--selected {
+  background: #f0f7ff;
+}
+.room-map-card--selected {
+  border-left: 3px solid #003e68;
+}
+.room-map-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.room-map-card-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #101828;
+}
+.room-map-card-status {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.room-map-card-address {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: #667085;
+  margin-bottom: 8px;
+}
+.room-map-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.room-map-card-price {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+}
+.room-map-card-price strong {
+  font-size: 1rem;
+  color: #003e68;
+  font-weight: 800;
+}
+.room-map-card-price span {
+  font-size: 0.75rem;
+  color: #667085;
+}
+.room-map-card-meta {
+  font-size: 0.78rem;
+  color: #9ca3af;
+}
+.room-map-card-distance {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: #0f5cc7;
+  font-weight: 600;
+}
+.room-map-card-link {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: #003e68;
+  font-weight: 600;
+  text-decoration: none;
+}
+.room-map-card-link:hover {
+  text-decoration: underline;
+}
+
+/* Map container */
+.room-map-main {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+}
+.room-map-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* MapBox popup override */
+.mapboxgl-popup-content {
+  border-radius: 10px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+.mapboxgl-popup-close-button {
+  font-size: 1.2rem;
+  padding: 4px 8px;
+  color: #9ca3af;
+}
+.mapboxgl-popup-close-button:hover {
+  color: #111827;
+  background: transparent;
+}
+
+/* ── Responsive ─────────────────────────────────────── */
+@media (max-width: 900px) {
+  .room-map-topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 16px;
+  }
+  .room-map-topbar-filters {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .room-map-body {
+    flex-direction: column;
+  }
+  .room-map-sidebar {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    max-height: 40vh;
+    border-right: none;
+    border-bottom: 1px solid #eaecf0;
+  }
+  .room-map-main {
+    height: 60vh;
+  }
+}
+
+@media (max-width: 600px) {
+  .room-map-filter-select {
+    font-size: 0.78rem;
+    padding: 6px 10px;
+  }
+  .room-map-nearby-btn {
+    font-size: 0.78rem;
+    padding: 6px 12px;
+  }
+  .room-map-title {
+    font-size: 0.95rem;
+  }
+  .map-view-info {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .map-view-directions-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .map-view-map {
+    height: 250px;
+  }
+}

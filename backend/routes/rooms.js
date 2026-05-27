@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const Room = require("../models/Room");
 const { protect, adminOnly, verifyRole, injectDistrictFilter, checkDistrictPermission } = require("../middleware/auth");
+const { validateLocationInput, isValidCoordinates } = require("../utils/geo.util");
+const { getRoomsForMap, getNearbyRooms, getRoomLocation } = require("../services/room.service");
 
 // GET /api/rooms — danh sách phòng (public), hỗ trợ lọc
 router.get("/", async (req, res) => {
@@ -70,6 +72,53 @@ router.get("/my-district", protect, verifyRole("admin", "staff"), injectDistrict
   }
 });
 
+// ─── MAP APIs (phải đặt TRƯỚC /:id để tránh Express path conflict) ────────
+
+// GET /api/rooms/map — danh sách phòng tối ưu cho map markers (public)
+router.get("/map", async (req, res) => {
+  try {
+    const filter = {};
+    const { district, type, status } = req.query;
+    if (district) filter.district = district;
+    if (type) filter.type = type;
+    if (status) filter.status = status;
+
+    const rooms = await getRoomsForMap(filter);
+    res.json({ success: true, data: rooms });
+  } catch (err) {
+    console.error("Get rooms for map error:", err);
+    res.status(500).json({ success: false, message: "Lỗi server." });
+  }
+});
+
+// GET /api/rooms/nearby — tìm phòng gần vị trí (public)
+router.get("/nearby", async (req, res) => {
+  try {
+    const lng = parseFloat(req.query.lng);
+    const lat = parseFloat(req.query.lat);
+    const radius = parseInt(req.query.radius) || 5000;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+
+    if (!isValidCoordinates(lng, lat)) {
+      return res.status(400).json({
+        success: false,
+        message: "Tọa độ không hợp lệ. Cần cung cấp lng và lat.",
+      });
+    }
+
+    const extraFilter = {};
+    if (req.query.district) extraFilter.district = req.query.district;
+    if (req.query.type) extraFilter.type = req.query.type;
+
+    const result = await getNearbyRooms(lng, lat, radius, page, limit, extraFilter);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    console.error("Get nearby rooms error:", err);
+    res.status(500).json({ success: false, message: "Lỗi server." });
+  }
+});
+
 // PATCH /api/rooms/:id/view — tăng lượt xem (public, fire-and-forget)
 router.patch("/:id/view", async (req, res) => {
   try {
@@ -78,6 +127,20 @@ router.patch("/:id/view", async (req, res) => {
   } catch {
     // Không trả lỗi về client — lượt xem không critical
     res.json({ success: false });
+  }
+});
+
+// GET /api/rooms/:id/location — lấy thông tin vị trí (public)
+router.get("/:id/location", async (req, res) => {
+  try {
+    const data = await getRoomLocation(req.params.id);
+    if (!data) {
+      return res.status(404).json({ success: false, message: "Không tìm thấy phòng." });
+    }
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error("Get room location error:", err);
+    res.status(500).json({ success: false, message: "Lỗi server." });
   }
 });
 
@@ -96,7 +159,13 @@ router.get("/:id", async (req, res) => {
 // Staff chỉ được tạo phòng trong district được phân công
 router.post("/", protect, verifyRole("admin", "staff"), async (req, res) => {
   try {
-    const { name, address, price, area, type, status, description, amenities, district, images, maintenanceEndDate } = req.body;
+    const { name, address, price, area, type, status, description, amenities, district, images, maintenanceEndDate, location } = req.body;
+
+    // Validate location nếu có
+    const locResult = validateLocationInput(req.body);
+    if (!locResult.valid) {
+      return res.status(400).json({ success: false, message: locResult.error });
+    }
 
     if (!name || !address || !price || !area) {
       return res.status(400).json({ message: "Vui lòng nhập đầy đủ thông tin bắt buộc." });
@@ -131,7 +200,7 @@ router.post("/", protect, verifyRole("admin", "staff"), async (req, res) => {
       });
     }
 
-    const room = await Room.create({
+    const roomData = {
       name,
       address,
       price,
@@ -144,7 +213,14 @@ router.post("/", protect, verifyRole("admin", "staff"), async (req, res) => {
       images: images || [],
       maintenanceEndDate: status === "maintenance" ? maintenanceEndDate : undefined,
       createdBy: req.user._id,
-    });
+    };
+
+    // Thêm location nếu có và hợp lệ
+    if (locResult.location) {
+      roomData.location = locResult.location;
+    }
+
+    const room = await Room.create(roomData);
 
     res.status(201).json(room);
   } catch (err) {
@@ -168,6 +244,12 @@ router.put("/:id", protect, verifyRole("admin", "staff"), async (req, res) => {
       if (req.body.district && !req.user.managedDistricts.includes(req.body.district)) {
         return res.status(403).json({ message: "Bạn không có quyền chuyển phòng sang khu vực khác." });
       }
+    }
+
+    // Validate location nếu có
+    const locResult = validateLocationInput(req.body);
+    if (!locResult.valid) {
+      return res.status(400).json({ success: false, message: locResult.error });
     }
 
     const updatedRoom = await Room.findByIdAndUpdate(req.params.id, req.body, {
