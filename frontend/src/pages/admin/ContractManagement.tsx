@@ -7,8 +7,8 @@ import SignaturePad from '../../components/ui/SignaturePad.tsx'
 import { MdOutlineBusiness, MdOutlinePerson, MdOutlinePeopleAlt, MdOutlineMeetingRoom, MdOutlineGavel, MdPictureAsPdf, MdCheckCircleOutline } from "react-icons/md";
 import { LuCalendarDays } from "react-icons/lu";
 import { FiSearch, FiSliders } from "react-icons/fi"
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
+// @ts-ignore
+import html2pdf from 'html2pdf.js'
 import ContractPDF from '../../components/pdf/ContractPDF'
 import { Trash2 } from "lucide-react"
 import Pagination from '../../components/ui/Pagination.tsx'
@@ -50,6 +50,14 @@ const STATUS_MAP = {
   expired: { label: 'Đã hết hạn', variant: 'neutral' as const },
   terminated: { label: 'Đã chấm dứt', variant: 'danger' as const },
 }
+
+/**
+ * Chữ ký mặc định cho Bên A (base64 PNG).
+ * Hướng dẫn: Mở hợp đồng bất kỳ → ký Bên A → nhấn "Xác nhận lưu chữ ký"
+ * → Mở F12 Console → copy chuỗi base64 từ dòng "[DEFAULT] signatureA base64:"
+ * → Paste vào hằng số bên dưới.
+ */
+const DEFAULT_SIGNATURE_A = 'data:image/png;base64,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'
 
 const formatDDMMYYYY = (dateString: string) => {
   if (!dateString) return '—';
@@ -194,11 +202,12 @@ export default function ContractManagement() {
     setSearchParams({})
   }
 
-  /** Khi mở modal, đồng bộ chữ ký đã lưu trên server vào local state */
+  /** Khi mở modal, đồng bộ chữ ký đã lưu trên server vào local state.
+   *  Nếu Bên A chưa ký → tự động điền chữ ký mặc định (DEFAULT_SIGNATURE_A) */
   const openContract = (c: Contract) => {
     setSelectedContract(c)
     setSigState({
-      signatureA: c.signatureA || '',
+      signatureA: c.signatureA || DEFAULT_SIGNATURE_A,
       signatureB: c.signatureB || '',
     })
     setSignMsg(null)
@@ -206,7 +215,7 @@ export default function ContractManagement() {
 
   /**
    * Gửi chữ ký lên API POST /api/contracts/:id/sign
-   * Chỉ gửi khi ít nhất một bên đã ký
+   * Chỉ gửi khi ít nhất một bên đã ký, và chỉ gửi những chữ ký có sự thay đổi (mới vẽ thêm)
    */
   const handleSaveSignatures = async () => {
     if (!selectedContract) return
@@ -214,18 +223,34 @@ export default function ContractManagement() {
       setSignMsg({ type: 'error', text: 'Vui lòng ký ít nhất một bên trước khi lưu.' })
       return
     }
+
+    // Chỉ gửi những chữ ký có thay đổi so với server
+    const payload: { signatureA?: string, signatureB?: string } = {}
+    if (sigState.signatureA && sigState.signatureA !== selectedContract.signatureA) {
+      payload.signatureA = sigState.signatureA
+    }
+    if (sigState.signatureB && sigState.signatureB !== selectedContract.signatureB) {
+      payload.signatureB = sigState.signatureB
+    }
+
+    if (Object.keys(payload).length === 0) {
+      setSignMsg({ type: 'success', text: 'Lưu chữ ký thành công!' }) // Không có gì mới để lưu
+      return
+    }
+
     try {
       setSignSaving(true)
       setSignMsg(null)
-      const { data } = await api.post(`/contracts/${selectedContract._id}/sign`, {
-        signatureA: sigState.signatureA || undefined,
-        signatureB: sigState.signatureB || undefined,
-      })
+      const { data } = await api.post(`/contracts/${selectedContract._id}/sign`, payload)
       // Cập nhật contract trong danh sách
       setContracts(prev => prev.map(c => c._id === data._id ? data : c))
       setSelectedContract(data)
       setSigState({ signatureA: data.signatureA || '', signatureB: data.signatureB || '' })
       setSignMsg({ type: 'success', text: 'Lưu chữ ký thành công!' })
+      // Log base64 để bạn copy paste vào DEFAULT_SIGNATURE_A
+      if (data.signatureA) {
+        console.log('[DEFAULT] signatureA base64:\n', data.signatureA)
+      }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       setSignMsg({ type: 'error', text: msg || 'Không thể lưu chữ ký.' })
@@ -277,43 +302,17 @@ export default function ContractManagement() {
     try {
       await new Promise(r => setTimeout(r, 500))
 
-      const sigElements = document.querySelectorAll('.contract-signatures-section')
-      sigElements.forEach(el => (el as HTMLElement).style.display = 'none')
+      const opt: any = {
+        margin:       10,
+        filename:     `hop-dong-${selectedContract?._id}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['css', 'legacy'], avoid: '.no-break' }
+      };
 
-      const canvas = await html2canvas(pdfRef.current, {
-        scale: 3,
-        useCORS: true,
-        allowTaint: true,
-        scrollY: -window.scrollY,
-        windowWidth: document.body.scrollWidth,
-        windowHeight: document.body.scrollHeight
-      })
-      sigElements.forEach(el => (el as HTMLElement).style.display = 'block')
+      await html2pdf().set(opt).from(pdfRef.current).save()
 
-      const imgData = canvas.toDataURL('image/png')
-
-      const pdf = new jsPDF('p', 'mm', 'a4')
-
-      const imgWidth = 210
-      const pageHeight = 295
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
-
-      let y = 0
-      while (y < imgHeight) {
-        pdf.addImage(
-          imgData,
-          'PNG',
-          0,
-          y === 0 ? 0 : -y,
-          imgWidth,
-          imgHeight)
-
-        y += pageHeight
-
-        if (y < imgHeight) pdf.addPage()
-      }
-
-      pdf.save(`hop-dong-${selectedContract?._id}.pdf`)
     } catch (error) {
       console.error('PDF error FULL:', error)
       alert('Không thể xuất PDF')
@@ -726,6 +725,7 @@ export default function ContractManagement() {
                             }))
                           }}
                           onClear={() => setSigState(prev => ({ ...prev, signatureA: '' }))}
+                          readOnly={selectedContract.status !== 'pending'}
                         />
 
                         {/* Bên B – Bên thuê */}
@@ -736,20 +736,23 @@ export default function ContractManagement() {
                           accentColor="#088373"
                           onSave={(b64) => setSigState(prev => ({ ...prev, signatureB: b64 }))}
                           onClear={() => setSigState(prev => ({ ...prev, signatureB: '' }))}
+                          readOnly={selectedContract.status !== 'pending'}
                         />
                       </div>
 
-                      {/* Nút lưu chữ ký lên server */}
-                      <div className="sig-save-row">
-                        <button
-                          type="button"
-                          className="sig-save-btn"
-                          onClick={handleSaveSignatures}
-                          disabled={signSaving || (!sigState.signatureA && !sigState.signatureB)}
-                        >
-                          {signSaving ? '⏳ Đang lưu...' : '💾 Xác nhận lưu chữ ký'}
-                        </button>
-                      </div>
+                      {/* Nút lưu chữ ký lên server – ẩn sau khi lưu thành công hoặc đã phê duyệt */}
+                      {signMsg?.type !== 'success' && selectedContract.status === 'pending' && (
+                        <div className="sig-save-row">
+                          <button
+                            type="button"
+                            className="sig-save-btn"
+                            onClick={handleSaveSignatures}
+                            disabled={signSaving || (!sigState.signatureA && !sigState.signatureB)}
+                          >
+                            {signSaving ? '⏳ Đang lưu...' : '💾 Xác nhận lưu chữ ký'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

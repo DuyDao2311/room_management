@@ -126,7 +126,7 @@ const signContract = async (req, res) => {
           roomName:            updated.room.name,
           rentAmount:          updated.monthlyRent,
           depositAmount:       updated.depositAmount || updated.monthlyRent,
-          dueDate:             updated.startDate,
+          dueDate:             new Date(Date.now() + 86400000), // Hạn thanh toán: hiện tại + 1 ngày
           notes:               "Hóa đơn đặt cọc tự động khi cả hai bên ký hợp đồng.",
           createdBy:           req.user._id,
         });
