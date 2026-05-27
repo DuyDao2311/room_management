@@ -250,7 +250,7 @@ QUY TẮC CỐT LÕI:
     let finalText = "";
     try {
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("timeout")), 3000)
+        setTimeout(() => reject(new Error("timeout")), 15000)
       );
 
       const aiPromise = ai.models.generateContent({
@@ -375,7 +375,7 @@ QUY TẮC CỐT LÕI:
 
 try {
   const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("timeout")), 3000)
+    setTimeout(() => reject(new Error("timeout")), 15000)
   );
 
   // 🤖 gọi AI
