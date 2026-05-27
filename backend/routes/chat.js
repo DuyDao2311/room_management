@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { GoogleGenAI } = require("@google/genai");
 const Room = require("../models/Room");
+const { getNearbyRooms } = require("../services/room.service");
 
 // Khởi tạo Gemini client
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -10,6 +11,10 @@ function detectIntent(message) {
 
   if (/hello|hi|xin chào|chào|alo/.test(msg)) {
     return "greeting";
+  }
+
+  if (/gần vị trí của tôi|gần tôi|gần đây|quanh đây|xung quanh đây|chỗ tôi|gần chỗ tôi/.test(msg)) {
+    return "nearby_search";
   }
 
   if (/phòng|thuê|tìm|giá|trọ/.test(msg)) {
@@ -140,7 +145,7 @@ function generateRawReply(rooms, message) {
 📍 ${r.address}
 💰 ${r.price.toLocaleString()} đ/tháng
 📐 ${r.area || "?"} m²
-
+${r.distance ? `🚶 Cách ${r.distance}m\n` : ""}
 `;
   });
 
@@ -152,7 +157,7 @@ function generateRawReply(rooms, message) {
 // ─── Route POST /api/chat ─────────────────────────────────────
 router.post("/", async (req, res) => {
   try {
-    const { message, history = [] } = req.body;
+    const { message, history = [], userAddress } = req.body;
 
     if (!message || !message.trim()) {
       return res.status(400).json({ message: "Tin nhắn không được để trống." });
@@ -166,6 +171,114 @@ if (intent === "greeting") {
     text: "Dạ em chào anh/chị 😊 Anh/chị đang cần tìm phòng ở khu vực nào và mức giá khoảng bao nhiêu ạ?",
     rooms: []
   });
+}
+
+// 👉 BƯỚC 4.5: NEARBY SEARCH
+if (intent === "nearby_search") {
+  if (!userAddress) {
+    return res.json({
+      text: "Dạ em cần biết vị trí của anh/chị để tìm phòng. Anh/chị vui lòng đăng nhập và cập nhật địa chỉ trong phần Thông tin cá nhân trước nhé, hoặc anh/chị có thể nói tên quận cụ thể ạ!",
+      rooms: []
+    });
+  }
+
+  try {
+    // 1. Geocoding userAddress bằng MapBox API
+    const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN || 'pk.eyJ1IjoiYmV0YXBjaG9pMTBrIiwiYSI6ImNrY2ZuaWEwNjA2ZW0yeWw4bG9yNnUyYm0ifQ.bFCQ-5yq6cSsrhugfxO2_Q';
+    
+    const endpoint = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(userAddress)}.json`;
+    const geoRes = await fetch(`${endpoint}?access_token=${MAPBOX_TOKEN}&limit=1`);
+    const geoData = await geoRes.json();
+
+    if (geoData.message === "Not Authorized - Invalid Token") {
+      return res.json({
+        text: "Dạ tính năng bản đồ chưa được cấu hình đúng (Lỗi Token). Anh/chị báo quản trị viên cập nhật MAPBOX_TOKEN nhé!",
+        rooms: []
+      });
+    }
+
+    if (!geoData.features || geoData.features.length === 0) {
+      return res.json({
+        text: "Dạ em không định vị được địa chỉ trong hồ sơ của anh/chị. Anh/chị kiểm tra lại địa chỉ trong phần Thông tin cá nhân giúp em nhé!",
+        rooms: []
+      });
+    }
+
+    const [lng, lat] = geoData.features[0].center;
+
+    // 2. Lấy danh sách phòng gần đó (5km)
+    const nearbyResult = await getNearbyRooms(lng, lat, 5000, 1, 5, {});
+    let foundRooms = nearbyResult.rooms;
+
+    if (foundRooms.length === 0) {
+      return res.json({
+        text: "Dạ hiện quanh khu vực của anh/chị (bán kính 5km) em chưa tìm thấy phòng nào phù hợp. Anh/chị thử tìm ở khu vực khác xem sao nhé!",
+        rooms: []
+      });
+    }
+
+    // 3. Chuẩn bị JSON cho AI
+    const compactRooms = foundRooms.map(r => ({
+      name: r.name,
+      price: r.price,
+      address: r.address,
+      distance: `${Math.round(r.distance)}m`
+    }));
+
+    let dynamicSystemPrompt = `Bạn là nhân viên lễ tân tư vấn phòng trọ của RoomFinder tên là Gemini. 
+Nhiệm vụ duy nhất: Thông báo cho khách hàng danh sách các phòng trọ gần vị trí của họ dựa trên dữ liệu.
+
+QUY TẮC CỐT LÕI:
+1. Xưng hô "Dạ", "Em", gọi khách là "Anh/Chị".
+2. Trả lời cực kỳ NGẮN GỌN (Tối đa 5-6 câu). 
+3. Liệt kê rõ khoảng cách (distance), giá tiền và địa chỉ rõ ràng.
+
+======= THÔNG TIN HỆ THỐNG CUNG CẤP =======
+- Ý định của khách: Khách muốn tìm phòng gần vị trí của họ (${userAddress}).
+- Kết quả Query: ${foundRooms.length} phòng.
+- Danh sách phòng JSON: ${JSON.stringify(compactRooms)}
+============================================`;
+
+    const contents = [
+      ...history.map((h) => ({
+        role: h.role === "ai" ? "model" : "user",
+        parts: [{ text: h.content }],
+      })),
+      { role: "user", parts: [{ text: message }] },
+    ];
+
+    let finalText = "";
+    try {
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), 3000)
+      );
+
+      const aiPromise = ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents,
+        config: {
+          systemInstruction: dynamicSystemPrompt,
+          temperature: 0.5,
+        },
+      });
+
+      const response = await Promise.race([aiPromise, timeoutPromise]);
+      finalText = response.candidates?.[0]?.content?.parts?.[0]?.text || generateRawReply(foundRooms, message);
+    } catch (aiErr) {
+      console.log("Gemini lỗi (nearby_search):", aiErr.message);
+      // 🔥 fallback không dùng AI
+      finalText = generateRawReply(foundRooms, message);
+    }
+
+    return res.json({ text: finalText, rooms: foundRooms });
+
+  } catch (err) {
+    console.log("Lỗi tìm phòng gần đây trong chat:", err.message);
+    return res.json({
+      text: "Dạ hệ thống đang gặp lỗi khi tìm vị trí, anh/chị thông cảm thử lại sau giúp em nhé!",
+      rooms: []
+    });
+  }
 }
 
 // 👉 BƯỚC 5: GENERAL (chat bình thường)

@@ -60,7 +60,17 @@ async function getNearbyRooms(
     ...extraFilter,
   };
 
-  const total = await Room.countDocuments(geoFilter);
+  const countFilter = {
+    status: { $in: ["available", "occupied"] },
+    ...extraFilter,
+    location: {
+      $geoWithin: {
+        $centerSphere: [[lng, lat], radius / 6378100] // chia bán kính trái đất để ra radian
+      }
+    }
+  };
+
+  const total = await Room.countDocuments(countFilter);
   const totalPages = Math.ceil(total / limit);
   const skip = (page - 1) * limit;
 
