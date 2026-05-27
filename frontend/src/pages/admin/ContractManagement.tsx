@@ -7,8 +7,8 @@ import SignaturePad from '../../components/ui/SignaturePad.tsx'
 import { MdOutlineBusiness, MdOutlinePerson, MdOutlinePeopleAlt, MdOutlineMeetingRoom, MdOutlineGavel, MdPictureAsPdf, MdCheckCircleOutline } from "react-icons/md";
 import { LuCalendarDays } from "react-icons/lu";
 import { FiSearch, FiSliders } from "react-icons/fi"
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
+// @ts-ignore
+import html2pdf from 'html2pdf.js'
 import ContractPDF from '../../components/pdf/ContractPDF'
 import { Trash2 } from "lucide-react"
 import Pagination from '../../components/ui/Pagination.tsx'
@@ -302,43 +302,17 @@ export default function ContractManagement() {
     try {
       await new Promise(r => setTimeout(r, 500))
 
-      const sigElements = document.querySelectorAll('.contract-signatures-section')
-      sigElements.forEach(el => (el as HTMLElement).style.display = 'none')
+      const opt: any = {
+        margin:       10,
+        filename:     `hop-dong-${selectedContract?._id}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak:    { mode: ['css', 'legacy'], avoid: '.no-break' }
+      };
 
-      const canvas = await html2canvas(pdfRef.current, {
-        scale: 3,
-        useCORS: true,
-        allowTaint: true,
-        scrollY: -window.scrollY,
-        windowWidth: document.body.scrollWidth,
-        windowHeight: document.body.scrollHeight
-      })
-      sigElements.forEach(el => (el as HTMLElement).style.display = 'block')
+      await html2pdf().set(opt).from(pdfRef.current).save()
 
-      const imgData = canvas.toDataURL('image/png')
-
-      const pdf = new jsPDF('p', 'mm', 'a4')
-
-      const imgWidth = 210
-      const pageHeight = 295
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
-
-      let y = 0
-      while (y < imgHeight) {
-        pdf.addImage(
-          imgData,
-          'PNG',
-          0,
-          y === 0 ? 0 : -y,
-          imgWidth,
-          imgHeight)
-
-        y += pageHeight
-
-        if (y < imgHeight) pdf.addPage()
-      }
-
-      pdf.save(`hop-dong-${selectedContract?._id}.pdf`)
     } catch (error) {
       console.error('PDF error FULL:', error)
       alert('Không thể xuất PDF')
