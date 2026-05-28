@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import { useAuth } from '../../contexts/AuthContext.tsx'
@@ -49,6 +50,7 @@ const STATUS_MAP = {
 
 export default function RoomManagement() {
   const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const isStaff = user?.role === 'staff'
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
@@ -62,8 +64,8 @@ export default function RoomManagement() {
 
   // Filters
   const [filterDistrict, setFilterDistrict] = useState(
-    isStaff && user?.managedDistricts && user.managedDistricts.length > 0 
-      ? user.managedDistricts[0] 
+    isStaff && user?.managedDistricts && user.managedDistricts.length > 0
+      ? user.managedDistricts[0]
       : ''
   )
   const [filterType, setFilterType] = useState('')
@@ -101,14 +103,42 @@ export default function RoomManagement() {
 
   useEffect(() => { fetchRooms(); fetchContracts() }, [])
 
-  const openCreate = () => { 
-    setEditing(null); 
+  // Auto-open edit modal if ?edit=id exists
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (editId && rooms.length > 0) {
+      const r = rooms.find((room) => room._id === editId);
+      if (r) {
+        // Cần dùng openEdit bên dưới, nhưng vì openEdit dùng state setEditing/setForm 
+        // Nên ta đưa logic vào đây hoặc gọi openEdit. Gọi trực tiếp setState luôn cho chắc.
+        setEditing(r);
+        setFormError('');
+        setForm({
+          name: r.name, address: r.address, district: r.district || '',
+          price: String(r.price), area: String(r.area), type: r.type, status: r.status,
+          description: r.description || '',
+          amenities: r.amenities ? r.amenities.join(', ') : '',
+          images: r.images ? r.images.join(', ') : '',
+          maintenanceEndDate: r.maintenanceEndDate ? new Date(r.maintenanceEndDate).toISOString().split('T')[0] : '',
+          locationLat: r.location?.coordinates?.[1] || 0,
+          locationLng: r.location?.coordinates?.[0] || 0
+        });
+        setShowModal(true);
+      }
+      // Xoá tham số edit để tránh mở lại khi reload trang
+      searchParams.delete('edit');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [rooms, searchParams, setSearchParams]);
+
+  const openCreate = () => {
+    setEditing(null);
     setForm({
       ...EMPTY_FORM,
       district: isStaff && user?.managedDistricts && user.managedDistricts.length > 0 ? user.managedDistricts[0] : ''
-    }); 
-    setFormError(''); 
-    setShowModal(true) 
+    });
+    setFormError('');
+    setShowModal(true)
   }
   const openEdit = (r: Room) => {
     setEditing(r)

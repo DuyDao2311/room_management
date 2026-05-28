@@ -25,42 +25,100 @@ const STATUS_COLORS: Record<string, string> = {
   maintenance: "#d97706",
 };
 
-function formatPrice(price: number): string {
-  if (price >= 1_000_000) return (price / 1_000_000).toFixed(1).replace(".0", "") + "tr";
-  if (price >= 1_000) return (price / 1_000).toFixed(0) + "k";
-  return price.toString();
-}
-
 const STATUS_LABELS: Record<string, string> = {
   available: "Còn phòng",
   occupied: "Đã thuê",
   maintenance: "Đang sửa",
 };
 
+function formatPrice(price: number): string {
+  if (price >= 1_000_000) return (price / 1_000_000).toFixed(1).replace(".0", "") + "tr";
+  if (price >= 1_000) return (price / 1_000).toFixed(0) + "k";
+  return price.toString();
+}
+
+function formatPriceFull(price: number): string {
+  return price.toLocaleString("vi-VN") + " đ/tháng";
+}
+
 /**
- * RoomMap — Component hiển thị nhiều markers trên map
- * Dùng cho trang tìm phòng trên bản đồ (Airbnb-style)
+ * Chuyển rooms thành GeoJSON FeatureCollection cho MapBox clustering
+ */
+function roomsToGeoJSON(rooms: RoomMapItem[]): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: rooms
+      .filter(
+        (r) =>
+          r.location?.coordinates &&
+          !(r.location.coordinates[0] === 0 && r.location.coordinates[1] === 0)
+      )
+      .map((room) => ({
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: room.location.coordinates,
+        },
+        properties: {
+          id: room._id,
+          name: room.name,
+          price: room.price,
+          priceLabel: formatPrice(room.price),
+          priceFull: formatPriceFull(room.price),
+          status: room.status,
+          statusLabel: STATUS_LABELS[room.status] || room.status,
+          statusColor: STATUS_COLORS[room.status] || "#667085",
+          address: room.address,
+          type: room.type,
+          area: room.area,
+          district: room.district,
+          thumbnail:
+            (room as RoomMapItem & { images?: string[] }).images?.[0] || "",
+        },
+      })),
+  };
+}
+
+const SOURCE_ID = "rooms-source";
+const CLUSTER_LAYER = "clusters";
+const CLUSTER_COUNT_LAYER = "cluster-count";
+const UNCLUSTERED_LAYER = "unclustered-point";
+const UNCLUSTERED_LABEL = "unclustered-label";
+
+/**
+ * RoomMap — Component hiển thị nhiều markers trên map với clustering
+ * Dùng GeoJSON source + layers cho performance tốt nhất
  */
 export default function RoomMap({
   rooms,
   selectedRoomId,
   onMarkerClick,
   userLocation,
-  height = "100%",
+  // height = "100%",
 }: RoomMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
   const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
-  const popupsRef = useRef<mapboxgl.Popup[]>([]);
+  const popupRef = useRef<mapboxgl.Popup | null>(null);
+  const mapLoadedRef = useRef(false);
 
-  // Cleanup markers
-  const clearMarkers = useCallback(() => {
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
-    popupsRef.current.forEach((p) => p.remove());
-    popupsRef.current = [];
+  // Cleanup popup
+  const clearPopup = useCallback(() => {
+    if (popupRef.current) {
+      popupRef.current.remove();
+      popupRef.current = null;
+    }
   }, []);
+
+  // Cleanup source + layers
+  const clearSourceAndLayers = useCallback((map: mapboxgl.Map) => {
+    clearPopup();
+    const layers = [UNCLUSTERED_LABEL, UNCLUSTERED_LAYER, CLUSTER_COUNT_LAYER, CLUSTER_LAYER];
+    layers.forEach((id) => {
+      if (map.getLayer(id)) map.removeLayer(id);
+    });
+    if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
+  }, [clearPopup]);
 
   // Init map
   useEffect(() => {
@@ -74,101 +132,257 @@ export default function RoomMap({
     });
 
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
+
+    map.on("load", () => {
+      mapLoadedRef.current = true;
+    });
+
     mapRef.current = map;
 
     return () => {
-      clearMarkers();
+      mapLoadedRef.current = false;
+      clearPopup();
+      if (userMarkerRef.current) {
+        userMarkerRef.current.remove();
+        userMarkerRef.current = null;
+      }
       map.remove();
       mapRef.current = null;
     };
-  }, [clearMarkers]);
+  }, [clearPopup]);
 
-  // Render markers khi rooms thay đổi
+  // ── Add/update GeoJSON source + cluster layers ──────────────
   useEffect(() => {
-    if (!mapRef.current) return;
-    clearMarkers();
+    const map = mapRef.current;
+    if (!map) return;
 
-    const bounds = new mapboxgl.LngLatBounds();
-    let hasValidBounds = false;
+    const applyData = () => {
+      const geojson = roomsToGeoJSON(rooms);
 
-    rooms.forEach((room) => {
-      if (!room.location?.coordinates) return;
-      const [lng, lat] = room.location.coordinates;
-      if (lng === 0 && lat === 0) return;
+      // Nếu source đã tồn tại → chỉ update data
+      const existingSource = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
+      if (existingSource) {
+        existingSource.setData(geojson);
+      } else {
+        // Tạo source mới + layers
+        map.addSource(SOURCE_ID, {
+          type: "geojson",
+          data: geojson,
+          cluster: true,
+          clusterMaxZoom: 14,
+          clusterRadius: 50,
+        });
 
-      const statusColor = STATUS_COLORS[room.status] || "#667085";
-      const statusLabel = STATUS_LABELS[room.status] || room.status;
+        // ── Cluster circles ──
+        map.addLayer({
+          id: CLUSTER_LAYER,
+          type: "circle",
+          source: SOURCE_ID,
+          filter: ["has", "point_count"],
+          paint: {
+            "circle-color": [
+              "step",
+              ["get", "point_count"],
+              "#088373",   // < 10: teal
+              10,
+              "#0f5cc7",   // 10-30: blue
+              30,
+              "#003e68",   // 30+: dark blue
+            ],
+            "circle-radius": [
+              "step",
+              ["get", "point_count"],
+              20,    // < 10: radius 20
+              10,
+              25,    // 10-30: radius 25
+              30,
+              32,    // 30+: radius 32
+            ],
+            "circle-stroke-width": 3,
+            "circle-stroke-color": "#ffffff",
+            "circle-opacity": 0.9,
+          },
+        });
 
-      // Custom marker element
-      const el = document.createElement("div");
-      el.className = "room-map-marker";
-      el.style.cssText = `
-        background: ${statusColor};
-        color: white;
-        padding: 4px 10px;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 700;
-        cursor: pointer;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-        white-space: nowrap;
-        transition: transform 0.15s;
-        border: 2px solid white;
-      `;
-      el.textContent = `${formatPrice(room.price)}`;
-      el.addEventListener("mouseenter", () => {
-        el.style.transform = "scale(1.15)";
-        el.style.zIndex = "10";
-      });
-      el.addEventListener("mouseleave", () => {
-        el.style.transform = "scale(1)";
-        el.style.zIndex = "1";
-      });
+        // ── Cluster count text ──
+        map.addLayer({
+          id: CLUSTER_COUNT_LAYER,
+          type: "symbol",
+          source: SOURCE_ID,
+          filter: ["has", "point_count"],
+          layout: {
+            "text-field": ["get", "point_count_abbreviated"],
+            "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
+            "text-size": 13,
+          },
+          paint: {
+            "text-color": "#ffffff",
+          },
+        });
 
-      // Popup
-      const popup = new mapboxgl.Popup({
-        offset: 25,
-        closeButton: true,
-        maxWidth: "280px",
-      }).setHTML(`
-        <div style="padding:8px 4px">
-          <div style="font-weight:800;font-size:0.95rem;color:#101828;margin-bottom:4px">${room.name}</div>
-          <div style="font-size:0.8rem;color:#667085;margin-bottom:6px">📍 ${room.address}</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-            <span style="font-weight:700;color:#003e68">${room.price.toLocaleString("vi-VN")} đ/tháng</span>
-            <span style="font-size:0.7rem;padding:2px 6px;border-radius:4px;background:${statusColor}20;color:${statusColor};font-weight:700">${statusLabel}</span>
-          </div>
-          <a href="/rooms/${room._id}" style="display:block;margin-top:8px;text-align:center;background:#003e68;color:white;padding:6px 12px;border-radius:6px;text-decoration:none;font-size:0.8rem;font-weight:600">Xem chi tiết →</a>
-        </div>
-      `);
+        // ── Unclustered points (individual rooms) ──
+        map.addLayer({
+          id: UNCLUSTERED_LAYER,
+          type: "circle",
+          source: SOURCE_ID,
+          filter: ["!", ["has", "point_count"]],
+          paint: {
+            "circle-color": ["get", "statusColor"],
+            "circle-radius": 8,
+            "circle-stroke-width": 2.5,
+            "circle-stroke-color": "#ffffff",
+          },
+        });
 
-      const marker = new mapboxgl.Marker({ element: el })
-        .setLngLat([lng, lat])
-        .setPopup(popup)
-        .addTo(mapRef.current!);
+        // ── Price labels on unclustered points ──
+        map.addLayer({
+          id: UNCLUSTERED_LABEL,
+          type: "symbol",
+          source: SOURCE_ID,
+          filter: ["!", ["has", "point_count"]],
+          layout: {
+            "text-field": ["get", "priceLabel"],
+            "text-font": ["DIN Offc Pro Bold", "Arial Unicode MS Bold"],
+            "text-size": 11,
+            "text-offset": [0, -1.8],
+            "text-anchor": "bottom",
+          },
+          paint: {
+            "text-color": ["get", "statusColor"],
+            "text-halo-color": "#ffffff",
+            "text-halo-width": 1.5,
+          },
+        });
+      }
 
-      el.addEventListener("click", () => {
-        onMarkerClick?.(room._id);
-      });
+      // Fit bounds
+      const coords = rooms
+        .filter((r) => r.location?.coordinates && !(r.location.coordinates[0] === 0 && r.location.coordinates[1] === 0))
+        .map((r) => r.location.coordinates as [number, number]);
 
-      markersRef.current.push(marker);
-      popupsRef.current.push(popup);
+      if (coords.length > 0) {
+        const bounds = new mapboxgl.LngLatBounds();
+        coords.forEach((c) => bounds.extend(c));
+        map.fitBounds(bounds, {
+          padding: { top: 50, bottom: 50, left: 50, right: 50 },
+          maxZoom: 15,
+          duration: 1000,
+        });
+      }
+    };
 
-      bounds.extend([lng, lat]);
-      hasValidBounds = true;
-    });
-
-    // Fit bounds nếu có markers
-    if (hasValidBounds && mapRef.current) {
-      mapRef.current.fitBounds(bounds, {
-        padding: { top: 50, bottom: 50, left: 50, right: 50 },
-        maxZoom: 15,
-        duration: 1000,
-      });
+    if (mapLoadedRef.current) {
+      applyData();
+    } else {
+      map.on("load", applyData);
     }
-  }, [rooms, clearMarkers, onMarkerClick]);
 
-  // Highlight selected room
+    return () => {
+      // Không remove source ở đây vì sẽ được update
+    };
+  }, [rooms, clearSourceAndLayers]);
+
+  // ── Click handlers cho cluster + unclustered ──────────────
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    // Click cluster → zoom in
+    const handleClusterClick = (e: mapboxgl.MapMouseEvent & { features?: mapboxgl.GeoJSONFeature[] }) => {
+      const features = map.queryRenderedFeatures(e.point, { layers: [CLUSTER_LAYER] });
+      if (!features.length) return;
+
+      const clusterId = features[0].properties?.cluster_id;
+      const source = map.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource;
+      source.getClusterExpansionZoom(clusterId, (err: unknown, zoom: number | null | undefined) => {
+        if (err || zoom == null) return;
+        const geometry = features[0].geometry as GeoJSON.Point;
+        map.easeTo({
+          center: geometry.coordinates as [number, number],
+          zoom: zoom,
+        });
+      });
+    };
+
+    // Click unclustered point → show popup
+    const handlePointClick = (e: mapboxgl.MapMouseEvent & { features?: mapboxgl.GeoJSONFeature[] }) => {
+      const features = map.queryRenderedFeatures(e.point, { layers: [UNCLUSTERED_LAYER] });
+      if (!features.length) return;
+
+      const props = features[0].properties!;
+      const geometry = features[0].geometry as GeoJSON.Point;
+      const coords = geometry.coordinates as [number, number];
+
+      // Notify parent
+      onMarkerClick?.(props.id);
+
+      // FlyTo
+      map.flyTo({ center: coords, zoom: 16, duration: 1200 });
+
+      // Show popup
+      clearPopup();
+
+      const thumbnailHtml = props.thumbnail
+        ? `<img src="${props.thumbnail}" class="map-popup-thumb" alt="${props.name}" />`
+        : `<div class="map-popup-thumb-placeholder">🏠</div>`;
+
+      popupRef.current = new mapboxgl.Popup({
+        offset: 15,
+        closeButton: true,
+        maxWidth: "300px",
+        className: "room-map-popup-wrap",
+      })
+        .setLngLat(coords)
+        .setHTML(`
+          <div class="map-popup">
+            ${thumbnailHtml}
+            <div class="map-popup-body">
+              <div class="map-popup-name">${props.name}</div>
+              <div class="map-popup-address"><RiMapPin2Line size={15} />${props.address}</div>
+              <div class="map-popup-row">
+                <span class="map-popup-price">${props.priceFull}</span>
+                <span class="map-popup-status" style="color:${props.statusColor};background:${props.statusColor}20">${props.statusLabel}</span>
+              </div>
+              <div class="map-popup-meta">${props.area}m² • ${props.type} • ${props.district}</div>
+              <a href="/rooms/${props.id}" class="map-popup-link">Xem chi tiết →</a>
+            </div>
+          </div>
+        `)
+        .addTo(map);
+    };
+
+    // Hover cursors
+    const handleMouseEnterCluster = () => { map.getCanvas().style.cursor = "pointer"; };
+    const handleMouseLeaveCluster = () => { map.getCanvas().style.cursor = ""; };
+    const handleMouseEnterPoint = () => { map.getCanvas().style.cursor = "pointer"; };
+    const handleMouseLeavePoint = () => { map.getCanvas().style.cursor = ""; };
+
+    const setupListeners = () => {
+      map.on("click", CLUSTER_LAYER, handleClusterClick);
+      map.on("click", UNCLUSTERED_LAYER, handlePointClick);
+      map.on("mouseenter", CLUSTER_LAYER, handleMouseEnterCluster);
+      map.on("mouseleave", CLUSTER_LAYER, handleMouseLeaveCluster);
+      map.on("mouseenter", UNCLUSTERED_LAYER, handleMouseEnterPoint);
+      map.on("mouseleave", UNCLUSTERED_LAYER, handleMouseLeavePoint);
+    };
+
+    if (mapLoadedRef.current) {
+      setupListeners();
+    } else {
+      map.on("load", setupListeners);
+    }
+
+    return () => {
+      map.off("click", CLUSTER_LAYER, handleClusterClick);
+      map.off("click", UNCLUSTERED_LAYER, handlePointClick);
+      map.off("mouseenter", CLUSTER_LAYER, handleMouseEnterCluster);
+      map.off("mouseleave", CLUSTER_LAYER, handleMouseLeaveCluster);
+      map.off("mouseenter", UNCLUSTERED_LAYER, handleMouseEnterPoint);
+      map.off("mouseleave", UNCLUSTERED_LAYER, handleMouseLeavePoint);
+    };
+  }, [onMarkerClick, clearPopup]);
+
+  // ── Highlight selected room: flyTo + open popup ──────────────
   useEffect(() => {
     if (!mapRef.current || !selectedRoomId) return;
 
@@ -184,14 +398,45 @@ export default function RoomMap({
       duration: 1200,
     });
 
-    // Open popup for selected room
-    const idx = rooms.findIndex((r) => r._id === selectedRoomId);
-    if (idx >= 0 && markersRef.current[idx]) {
-      markersRef.current[idx].togglePopup();
-    }
-  }, [selectedRoomId, rooms]);
+    // Show popup for selected room
+    clearPopup();
+    const props = {
+      ...selectedRoom,
+      statusLabel: STATUS_LABELS[selectedRoom.status] || selectedRoom.status,
+      statusColor: STATUS_COLORS[selectedRoom.status] || "#667085",
+      priceFull: formatPriceFull(selectedRoom.price),
+    };
+    const thumbnail = (selectedRoom as RoomMapItem & { images?: string[] }).images?.[0] || "";
+    const thumbnailHtml = thumbnail
+      ? `<img src="${thumbnail}" class="map-popup-thumb" alt="${props.name}" />`
+      : `<div class="map-popup-thumb-placeholder">🏠</div>`;
 
-  // User location marker
+    popupRef.current = new mapboxgl.Popup({
+      offset: 15,
+      closeButton: true,
+      maxWidth: "300px",
+      className: "room-map-popup-wrap",
+    })
+      .setLngLat([lng, lat])
+      .setHTML(`
+        <div class="map-popup">
+          ${thumbnailHtml}
+          <div class="map-popup-body">
+            <div class="map-popup-name">${props.name}</div>
+            <div class="map-popup-address">📍 ${props.address}</div>
+            <div class="map-popup-row">
+              <span class="map-popup-price">${props.priceFull}</span>
+              <span class="map-popup-status" style="color:${props.statusColor};background:${props.statusColor}20">${props.statusLabel}</span>
+            </div>
+            <div class="map-popup-meta">${props.area}m² • ${props.type} • ${props.district}</div>
+            <a href="/rooms/${props._id}" class="map-popup-link">Xem chi tiết →</a>
+          </div>
+        </div>
+      `)
+      .addTo(mapRef.current);
+  }, [selectedRoomId, rooms, clearPopup]);
+
+  // ── User location marker ──────────────────────────────────
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -202,6 +447,7 @@ export default function RoomMap({
 
     if (userLocation) {
       const el = document.createElement("div");
+      el.className = "user-location-marker";
       el.style.cssText = `
         width: 16px;
         height: 16px;
@@ -215,10 +461,16 @@ export default function RoomMap({
         .setLngLat([userLocation.lng, userLocation.lat])
         .setPopup(
           new mapboxgl.Popup({ offset: 15 }).setHTML(
-            '<div style="padding:4px 8px;font-weight:600;color:#3b82f6">📍 Vị trí của bạn</div>'
+            '<div style="padding:4px 8px;font-weight:600;color:#3b82f6">Vị trí của bạn</div>'
           )
         )
         .addTo(mapRef.current);
+
+      mapRef.current.flyTo({
+        center: [userLocation.lng, userLocation.lat],
+        zoom: 14,
+        essential: true,
+      });
     }
   }, [userLocation]);
 
@@ -226,7 +478,7 @@ export default function RoomMap({
     <div
       ref={mapContainerRef}
       className="room-map-container"
-      style={{ height, width: "100%" }}
+      style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
     />
   );
 }

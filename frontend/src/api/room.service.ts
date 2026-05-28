@@ -16,6 +16,7 @@ export interface RoomMapItem {
   type: string;
   area: number;
   district: string;
+  images?: string[];
 }
 
 export interface NearbyRoom extends RoomMapItem {

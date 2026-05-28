@@ -4,6 +4,7 @@ import { useNotifications } from '../../contexts/NotificationContext.tsx'
 import {
   FiGrid,        // Tổng quan
   FiHome,        // Phòng
+  FiMap,         // Bản đồ phòng
   FiUsers,       // Người thuê
   FiFileText,    // Hợp đồng
   FiFile,        // Hóa đơn
@@ -36,6 +37,7 @@ export default function AdminLayout() {
   const navItems = [
     { name: 'Dashboard', path: '/admin', exact: true, icon: <FiGrid />, roles: ['admin', 'staff'], badge: 0, notifType: undefined },
     { name: 'Quản lý phòng', path: '/admin/rooms', exact: false, icon: <FiHome />, roles: ['admin', 'staff'], badge: 0, notifType: undefined },
+    { name: 'Bản đồ phòng', path: '/admin/room-map', exact: false, icon: <FiMap />, roles: ['admin', 'staff'], badge: 0, notifType: undefined },
     { name: 'Hợp đồng', path: '/admin/contracts', exact: false, icon: <FiFileText />, roles: ['admin', 'staff'], badge: unreadContractCount, notifType: 'CONTRACT' },
     { name: 'Hóa đơn', path: '/admin/invoices', exact: false, icon: <FiFile />, roles: ['admin', 'staff'], badge: unreadInvoiceCount, notifType: 'INVOICE' },
     { name: 'Lịch hẹn', path: '/admin/appointments', exact: false, icon: <FiCalendar />, roles: ['admin', 'staff'], badge: unreadAppointmentCount, notifType: 'APPOINTMENT' },
@@ -129,7 +131,7 @@ export default function AdminLayout() {
       </aside>
 
       {/* Main Content */}
-      <main className="admin-main-content">
+      <main className={`admin-main-content ${location.pathname.includes('/admin/room-map') ? 'admin-main-content--no-padding' : ''}`}>
         <Outlet />
       </main>
     </div>

@@ -8,19 +8,48 @@ const { hasValidLocation } = require("../utils/geo.util");
 
 /**
  * Lấy danh sách phòng tối ưu cho map marker rendering
- * Chỉ trả về fields cần thiết: _id, name, price, status, location, address, type
- * @param {object} filter - MongoDB filter (optional)
+ * Chỉ trả về fields cần thiết cho markers + popup
+ *
+ * Role-based filtering:
+ * - admin: tất cả rooms
+ * - staff: rooms thuộc managedDistricts
+ * - tenant: rooms status === "available"
+ * - guest (user = null): rooms status === "available"
+ *
+ * @param {object} filter - MongoDB filter từ query params (optional)
+ * @param {object|null} user - User document từ req.user (optional)
  * @returns {Promise<Array>}
  */
-async function getRoomsForMap(filter = {}) {
+async function getRoomsForMap(filter = {}, user = null) {
   // Chỉ lấy phòng có location hợp lệ (không phải [0,0])
   const mapFilter = {
     ...filter,
     "location.coordinates": { $ne: [0, 0] },
   };
 
+  // ── Role-based filtering ──────────────────────────────────────
+  if (user) {
+    if (user.role === "admin") {
+      // Admin: không filter thêm → thấy tất cả
+    } else if (user.role === "staff") {
+      // Staff: chỉ rooms thuộc districts được phân công
+      if (user.managedDistricts && user.managedDistricts.length > 0) {
+        mapFilter.district = { $in: user.managedDistricts };
+      } else {
+        // Staff chưa được phân công → trả mảng rỗng
+        return [];
+      }
+    } else {
+      // Tenant: chỉ rooms available
+      mapFilter.status = "available";
+    }
+  } else {
+    // Guest (chưa đăng nhập): chỉ rooms available
+    mapFilter.status = "available";
+  }
+
   const rooms = await Room.find(mapFilter)
-    .select("_id name price status location address type area district")
+    .select("_id name price status location address type area district images")
     .sort({ createdAt: -1 })
     .lean();
 

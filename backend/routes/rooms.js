@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Room = require("../models/Room");
-const { protect, adminOnly, verifyRole, injectDistrictFilter, checkDistrictPermission } = require("../middleware/auth");
+const { protect, optionalAuth, adminOnly, verifyRole, injectDistrictFilter, checkDistrictPermission } = require("../middleware/auth");
 const { validateLocationInput, isValidCoordinates } = require("../utils/geo.util");
 const { getRoomsForMap, getNearbyRooms, getRoomLocation } = require("../services/room.service");
 
@@ -74,17 +74,27 @@ router.get("/my-district", protect, verifyRole("admin", "staff"), injectDistrict
 
 // ─── MAP APIs (phải đặt TRƯỚC /:id để tránh Express path conflict) ────────
 
-// GET /api/rooms/map — danh sách phòng tối ưu cho map markers (public)
-router.get("/map", async (req, res) => {
+// GET /api/rooms/map — danh sách phòng tối ưu cho map markers
+// Optional auth: có token → role filter, không có → guest (available only)
+router.get("/map", optionalAuth, async (req, res) => {
   try {
     const filter = {};
-    const { district, type, status } = req.query;
+    const { district, type, status, price } = req.query;
     if (district) filter.district = district;
     if (type) filter.type = type;
     if (status) filter.status = status;
 
-    const rooms = await getRoomsForMap(filter);
-    res.json({ success: true, data: rooms });
+    // Price filter
+    if (price === "below-3") {
+      filter.price = { $lt: 3_000_000 };
+    } else if (price === "3-5") {
+      filter.price = { $gte: 3_000_000, $lte: 5_000_000 };
+    } else if (price === "above-5") {
+      filter.price = { $gt: 5_000_000 };
+    }
+
+    const rooms = await getRoomsForMap(filter, req.user || null);
+    res.json({ success: true, message: "Success", data: rooms });
   } catch (err) {
     console.error("Get rooms for map error:", err);
     res.status(500).json({ success: false, message: "Lỗi server." });
