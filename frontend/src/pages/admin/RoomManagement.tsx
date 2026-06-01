@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import { useAuth } from '../../contexts/AuthContext.tsx'
@@ -7,6 +8,7 @@ import { Building, TrendingUp, Key, Wrench, Pencil, Trash2 } from "lucide-react"
 // import { DoorOpen, Bed, User } from "lucide-react"
 import { FiHome, FiTool } from "react-icons/fi";
 import { MdBed } from "react-icons/md";
+import MapPicker from '../../components/map/MapPicker.tsx'
 
 interface Room {
   _id: string
@@ -21,6 +23,10 @@ interface Room {
   amenities?: string[]
   images?: string[]
   maintenanceEndDate?: string
+  location?: {
+    type: string
+    coordinates: [number, number]
+  }
 }
 
 interface ContractInfo {
@@ -32,7 +38,8 @@ interface ContractInfo {
 const EMPTY_FORM = {
   name: '', address: '', district: '', price: '', area: '',
   type: 'Studio', status: 'available' as Room['status'],
-  description: '', amenities: '', images: '', maintenanceEndDate: ''
+  description: '', amenities: '', images: '', maintenanceEndDate: '',
+  locationLat: 0, locationLng: 0
 }
 
 const STATUS_MAP = {
@@ -43,6 +50,7 @@ const STATUS_MAP = {
 
 export default function RoomManagement() {
   const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const isStaff = user?.role === 'staff'
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
@@ -56,8 +64,8 @@ export default function RoomManagement() {
 
   // Filters
   const [filterDistrict, setFilterDistrict] = useState(
-    isStaff && user?.managedDistricts && user.managedDistricts.length > 0 
-      ? user.managedDistricts[0] 
+    isStaff && user?.managedDistricts && user.managedDistricts.length > 0
+      ? user.managedDistricts[0]
       : ''
   )
   const [filterType, setFilterType] = useState('')
@@ -76,10 +84,10 @@ export default function RoomManagement() {
   }
 
   const fetchContracts = () => {
-    api.get('/contracts')
+    api.get('/contracts?limit=1000')
       .then(res => {
         const map: Record<string, ContractInfo> = {}
-        res.data.forEach((c: { room?: { _id: string }; representativeName?: string; tenant?: { name: string }; endDate: string; status: string }) => {
+        res.data.data.forEach((c: { room?: { _id: string }; representativeName?: string; tenant?: { name: string }; endDate: string; status: string }) => {
           if (c.room?._id && (c.status === 'active' || c.status === 'pending')) {
             map[c.room._id] = {
               representativeName: c.representativeName,
@@ -95,14 +103,42 @@ export default function RoomManagement() {
 
   useEffect(() => { fetchRooms(); fetchContracts() }, [])
 
-  const openCreate = () => { 
-    setEditing(null); 
+  // Auto-open edit modal if ?edit=id exists
+  useEffect(() => {
+    const editId = searchParams.get('edit');
+    if (editId && rooms.length > 0) {
+      const r = rooms.find((room) => room._id === editId);
+      if (r) {
+        // Cần dùng openEdit bên dưới, nhưng vì openEdit dùng state setEditing/setForm 
+        // Nên ta đưa logic vào đây hoặc gọi openEdit. Gọi trực tiếp setState luôn cho chắc.
+        setEditing(r);
+        setFormError('');
+        setForm({
+          name: r.name, address: r.address, district: r.district || '',
+          price: String(r.price), area: String(r.area), type: r.type, status: r.status,
+          description: r.description || '',
+          amenities: r.amenities ? r.amenities.join(', ') : '',
+          images: r.images ? r.images.join(', ') : '',
+          maintenanceEndDate: r.maintenanceEndDate ? new Date(r.maintenanceEndDate).toISOString().split('T')[0] : '',
+          locationLat: r.location?.coordinates?.[1] || 0,
+          locationLng: r.location?.coordinates?.[0] || 0
+        });
+        setShowModal(true);
+      }
+      // Xoá tham số edit để tránh mở lại khi reload trang
+      searchParams.delete('edit');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [rooms, searchParams, setSearchParams]);
+
+  const openCreate = () => {
+    setEditing(null);
     setForm({
       ...EMPTY_FORM,
       district: isStaff && user?.managedDistricts && user.managedDistricts.length > 0 ? user.managedDistricts[0] : ''
-    }); 
-    setFormError(''); 
-    setShowModal(true) 
+    });
+    setFormError('');
+    setShowModal(true)
   }
   const openEdit = (r: Room) => {
     setEditing(r)
@@ -113,7 +149,9 @@ export default function RoomManagement() {
       description: r.description || '',
       amenities: r.amenities ? r.amenities.join(', ') : '',
       images: r.images ? r.images.join(', ') : '',
-      maintenanceEndDate: r.maintenanceEndDate ? new Date(r.maintenanceEndDate).toISOString().split('T')[0] : ''
+      maintenanceEndDate: r.maintenanceEndDate ? new Date(r.maintenanceEndDate).toISOString().split('T')[0] : '',
+      locationLat: r.location?.coordinates?.[1] || 0,
+      locationLng: r.location?.coordinates?.[0] || 0
     })
     setShowModal(true)
   }
@@ -122,13 +160,24 @@ export default function RoomManagement() {
     e.preventDefault()
     setFormError('')
     setSaving(true)
-    const payload = {
+    const payload: Record<string, unknown> = {
       ...form,
       price: Number(form.price),
       area: Number(form.area),
       amenities: form.amenities.split(',').map(s => s.trim()).filter(Boolean),
       images: form.images.split(',').map(s => s.trim()).filter(Boolean)
     }
+
+    // Thêm location GeoJSON nếu có tọa độ hợp lệ
+    if (form.locationLat !== 0 || form.locationLng !== 0) {
+      payload.location = {
+        type: 'Point',
+        coordinates: [form.locationLng, form.locationLat]
+      }
+    }
+    // Xóa locationLat/locationLng khỏi payload (chỉ là state nội bộ)
+    delete payload.locationLat
+    delete payload.locationLng
     try {
       if (editing) {
         await api.put(`/rooms/${editing._id}`, payload)
@@ -247,8 +296,8 @@ export default function RoomManagement() {
           </select>
 
           <div style={{ marginLeft: 'auto' }}>
-            <button className="button" onClick={openCreate} style={{ background: '#003e68', color: 'white', padding: '10px 20px', borderRadius: '8px', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, cursor: 'pointer' }}>
-              <span style={{ fontSize: '1.2rem' }}>+</span> THÊM PHÒNG
+            <button className="button button-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1rem' }}>+</span> THÊM PHÒNG
             </button>
           </div>
         </div>
@@ -405,6 +454,12 @@ export default function RoomManagement() {
                   <label htmlFor="f-address">Địa chỉ</label>
                   <input id="f-address" className="form-input" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} required placeholder="128 Đề Thám, Q.1, TP.HCM" />
                 </div>
+                {/* MapPicker — auto geocode khi nhập địa chỉ */}
+                <MapPicker
+                  address={form.address}
+                  value={{ lat: form.locationLat, lng: form.locationLng }}
+                  onChange={(loc) => setForm({ ...form, locationLat: loc.lat, locationLng: loc.lng })}
+                />
                 <div className="form-row">
                   <div className="form-group">
                     <label htmlFor="f-price">Giá thuê (VNĐ/tháng)</label>

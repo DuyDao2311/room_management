@@ -18,7 +18,7 @@ export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  
+
   // Add User Modal State
   const [showModal, setShowModal] = useState(false)
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'tenant' })
@@ -85,7 +85,7 @@ export default function UserManagement() {
           <h1>Quản lý Người dùng</h1>
           <p>Danh sách tài khoản trên hệ thống.</p>
         </div>
-        <button 
+        <button
           className="button button-primary"
           style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           onClick={() => {
@@ -147,9 +147,9 @@ export default function UserManagement() {
                     {u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : '---'}
                   </td>
                   <td className="td-actions">
-                    <button 
-                      className="action-btn delete-btn" 
-                      title="Xóa" 
+                    <button
+                      className="action-btn delete-btn"
+                      title="Xóa"
                       disabled={u.role === 'admin'}
                       onClick={() => handleDelete(u._id, u.name)}
                     >
@@ -164,10 +164,10 @@ export default function UserManagement() {
       </div>
 
       {!loading && totalPages > 1 && (
-        <Pagination 
-          currentPage={currentPage} 
-          totalPages={totalPages} 
-          onPageChange={setCurrentPage} 
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
         />
       )}
 
@@ -189,52 +189,52 @@ export default function UserManagement() {
                   {formError}
                 </div>
               )}
-              
+
               <div className="form-group">
                 <label htmlFor="user-name">Họ và tên</label>
-                <input 
-                  id="user-name" 
-                  className="form-input" 
-                  value={form.name} 
-                  onChange={e => setForm({ ...form, name: e.target.value })} 
-                  required 
-                  placeholder="Nguyễn Văn A" 
+                <input
+                  id="user-name"
+                  className="form-input"
+                  value={form.name}
+                  onChange={e => setForm({ ...form, name: e.target.value })}
+                  required
+                  placeholder="Nguyễn Văn A"
                 />
               </div>
 
               <div className="form-group">
                 <label htmlFor="user-email">Email</label>
-                <input 
-                  id="user-email" 
+                <input
+                  id="user-email"
                   type="email"
-                  className="form-input" 
-                  value={form.email} 
-                  onChange={e => setForm({ ...form, email: e.target.value })} 
-                  required 
-                  placeholder="example@gmail.com" 
+                  className="form-input"
+                  value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                  required
+                  placeholder="example@gmail.com"
                 />
               </div>
 
               <div className="form-group">
                 <label htmlFor="user-password">Mật khẩu</label>
-                <input 
-                  id="user-password" 
+                <input
+                  id="user-password"
                   type="password"
-                  className="form-input" 
-                  value={form.password} 
-                  onChange={e => setForm({ ...form, password: e.target.value })} 
-                  required 
-                  placeholder="••••••••" 
+                  className="form-input"
+                  value={form.password}
+                  onChange={e => setForm({ ...form, password: e.target.value })}
+                  required
+                  placeholder="••••••••"
                   minLength={6}
                 />
               </div>
 
               <div className="form-group">
                 <label htmlFor="user-role">Vai trò</label>
-                <select 
-                  id="user-role" 
-                  className="form-input" 
-                  value={form.role} 
+                <select
+                  id="user-role"
+                  className="form-input"
+                  value={form.role}
                   onChange={e => setForm({ ...form, role: e.target.value })}
                 >
                   <option value="tenant">Khách thuê</option>

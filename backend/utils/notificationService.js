@@ -553,6 +553,7 @@ const checkOverdueInvoices = async () => {
   const overdueInvoices = await Invoice.find({
     status: { $in: ["unpaid", "overdue"] },
     dueDate: { $lt: now },
+    sentAt: { $ne: null },
   });
 
   const results = [];

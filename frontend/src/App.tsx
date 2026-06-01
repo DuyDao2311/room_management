@@ -5,6 +5,7 @@ import Footer from './components/layout/Footer.tsx'
 import Home from './pages/public/Home.tsx'
 import RoomList from './pages/public/RoomList.tsx'
 import RoomDetail from './pages/public/RoomDetail.tsx'
+import RoomMapPage from './pages/public/RoomMapPage.tsx'
 import PaymentCallback from './pages/public/PaymentCallback.tsx'
 import Login from './pages/auth/Login.tsx'
 import Register from './pages/auth/Register.tsx'
@@ -12,6 +13,7 @@ import ForgotPassword from './pages/auth/ForgotPassword.tsx'
 import ResetPassword from './pages/auth/ResetPassword.tsx'
 import VerifyEmail from './pages/auth/VerifyEmail.tsx'
 import Dashboard from './pages/admin/Dashboard.tsx'
+import AdminRoomMapPage from './pages/admin/AdminRoomMapPage.tsx'
 import RoomManagement from './pages/admin/RoomManagement.tsx'
 import ContractManagement from './pages/admin/ContractManagement.tsx'
 import InvoiceManagement from './pages/admin/InvoiceManagement.tsx'
@@ -63,6 +65,7 @@ function AppLayout() {
     location.pathname === '/forgot-password' ||
     location.pathname.startsWith('/reset-password/')
   const isAdminPage = location.pathname.startsWith('/admin')
+  const isMapPage = location.pathname === '/rooms/map'
 
   return (
     <div className="app-root">
@@ -71,6 +74,7 @@ function AppLayout() {
         {/* Public */}
         <Route path="/" element={<Home />} />
         <Route path="/rooms" element={<RoomList />} />
+        <Route path="/rooms/map" element={<RoomMapPage />} />
         <Route path="/rooms/:id" element={<RoomDetail />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/login" element={<Login />} />
@@ -88,6 +92,7 @@ function AppLayout() {
         {/* Admin + Staff — dùng chung AdminLayout */}
         <Route path="/admin" element={<RequireAuth role={["admin", "staff"]}><AdminLayout /></RequireAuth>}>
           <Route index element={<Dashboard />} />
+          <Route path="room-map" element={<AdminRoomMapPage />} />
           <Route path="rooms" element={<RoomManagement />} />
           <Route path="contracts" element={<ContractManagement />} />
           <Route path="invoices" element={<InvoiceManagement />} />
@@ -114,7 +119,7 @@ function AppLayout() {
         {/* 404 fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      {!isAuthPage && !isAdminPage && <Footer />}
+      {!isAuthPage && !isAdminPage && !isMapPage && <Footer />}
       {!isAuthPage && !isAdminPage && <ChatBox />}
     </div>
   )
