@@ -296,8 +296,8 @@ export default function RoomManagement() {
           </select>
 
           <div style={{ marginLeft: 'auto' }}>
-            <button className="button" onClick={openCreate} style={{ background: '#003e68', color: 'white', padding: '10px 20px', borderRadius: '8px', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, cursor: 'pointer' }}>
-              <span style={{ fontSize: '1.2rem' }}>+</span> THÊM PHÒNG
+            <button className="button button-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1rem' }}>+</span> THÊM PHÒNG
             </button>
           </div>
         </div>

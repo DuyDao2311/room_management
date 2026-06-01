@@ -168,14 +168,8 @@ export default function StaffManagement() {
               Phân công khu vực quản lý cho nhân viên.
             </p>
           </div>
-          <button onClick={openAddModal} style={{
-            background: '#003e68', color: 'white', padding: '10px 20px', borderRadius: '8px',
-            border: 'none', display: 'flex', alignItems: 'center', gap: '8px',
-            fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem',
-            transition: 'background 0.2s',
-          }}
-            onMouseEnter={e => (e.currentTarget.style.background = '#002d4d')}
-            onMouseLeave={e => (e.currentTarget.style.background = '#003e68')}
+          <button onClick={openAddModal} className="button button-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             <FiUserPlus size={18} /> Thêm nhân viên
           </button>

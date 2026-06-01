@@ -346,14 +346,8 @@ export default function InvoiceManagement() {
             </h1>
             <button
               onClick={() => { setForm(getDefaultForm()); setFormError(''); setView('create') }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                background: '#003e68', color: '#fff',
-                padding: '10px 20px', borderRadius: '8px',
-                border: 'none', fontWeight: 700, fontSize: '0.9rem',
-                cursor: 'pointer', whiteSpace: 'nowrap',
-                marginLeft: '16px'
-              }}
+              className="button button-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
             >
               <FiPlus /> Tạo hóa đơn mới
             </button>
