@@ -763,9 +763,9 @@ export default function RoomDetail() {
                       <p style={{ margin: '0 0 12px' }}><strong>2. Thời hạn thuê:</strong> Hợp đồng có giá trị trong vòng {leaseTerm || '...'} tháng kể từ ngày ký. Sau khi hết hạn, nếu hai bên có nhu cầu tiếp tục, sẽ tiến hành gia hạn hợp đồng mới.</p>
                       <p style={{ margin: '0 0 8px' }}><strong>3. Giá thuê và phương thức thanh toán:</strong></p>
                       <ul style={{ margin: '0 0 12px', paddingLeft: '20px' }}>
-                        <li>Giá thuê phòng: 5.500.000 VNĐ/tháng.</li>
+                        <li>Giá thuê phòng: {room.price.toLocaleString('vi-VN')} VNĐ/tháng.</li>
                         <li>Tiền điện: 3.500 VNĐ/Kwh.</li>
-                        <li>Tiền nước: 100.000 VNĐ/người/tháng.</li>
+                        <li>Tiền nước: 70.000 VNĐ/người/tháng.</li>
                         <li>Thanh toán từ ngày 1 đến ngày 5 hàng tháng.</li>
                       </ul>
                       <p style={{ margin: '0 0 8px' }}><strong>4. Trách nhiệm của Bên A:</strong> Đảm bảo phòng ốc bàn giao đúng tình trạng thỏa thuận. Hỗ trợ sửa chữa các hư hỏng kết cấu do hao mòn tự nhiên.</p>

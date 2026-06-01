@@ -303,12 +303,12 @@ export default function ContractManagement() {
       await new Promise(r => setTimeout(r, 500))
 
       const opt: any = {
-        margin:       10,
-        filename:     `hop-dong-${selectedContract?._id}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak:    { mode: ['css', 'legacy'], avoid: '.no-break' }
+        margin: 10,
+        filename: `hop-dong-${selectedContract?._id}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'], avoid: '.no-break' }
       };
 
       await html2pdf().set(opt).from(pdfRef.current).save()
@@ -692,7 +692,7 @@ export default function ContractManagement() {
                       <ul style={{ margin: '0 0 12px', paddingLeft: '20px' }}>
                         <li>Giá thuê phòng: {selectedContract.monthlyRent?.toLocaleString('vi-VN')} VNĐ/tháng.</li>
                         <li>Tiền điện: 3.500 VNĐ/Kwh.</li>
-                        <li>Tiền nước: 100.000 VNĐ/người/tháng.</li>
+                        <li>Tiền nước: 70.000 VNĐ/người/tháng.</li>
                         <li>Thanh toán từ ngày 1 đến ngày 5 hàng tháng.</li>
                       </ul>
                       <p style={{ margin: '0 0 8px' }}><strong>4. Trách nhiệm của Bên A:</strong> Đảm bảo phòng ốc bàn giao đúng tình trạng thỏa thuận. Hỗ trợ sửa chữa các hư hỏng kết cấu do hao mòn tự nhiên.</p>
