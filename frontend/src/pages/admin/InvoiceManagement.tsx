@@ -256,12 +256,8 @@ export default function InvoiceManagement() {
   useEffect(() => {
     fetchStats();
     api
-      .get("/contracts", { params: { limit: 1000 } })
-      .then((r) =>
-        setContracts(
-          r.data.data.filter((c: ContractOption) => c.status === "active"),
-        ),
-      )
+      .get("/contracts", { params: { status: "active", limit: 100 } })
+      .then((r) => setContracts(r.data.data))
       .catch((err) => console.error("Lỗi tải danh sách hợp đồng:", err));
   }, [fetchStats]);
 

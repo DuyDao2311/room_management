@@ -1,7 +1,6 @@
 const Invoice      = require("../models/Invoice");
 const Contract     = require("../models/Contract");
 const Room         = require("../models/Room");
-const Notification = require("../models/Notification");
 const Payment      = require("../models/Payment");
 const { checkUserDistrictPermission } = require("../middleware/auth");
 const { notifyTenantInvoiceSent, notifyTenantInvoicePaid, notifyInvoicePaid, sendSocketNotification } = require("../utils/notificationService");

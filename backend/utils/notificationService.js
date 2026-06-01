@@ -421,7 +421,10 @@ const notifyTenantInvoicePaid = async (invoice) => {
   const loaiInvoice = invoice.type === "deposit"
     ? "tiền cọc"
     : `dịch vụ tháng ${invoice.month}/${invoice.year}`;
-  const phuongThuc = invoice.paymentMethod ? ` qua ${invoice.paymentMethod}` : "";
+  const methodLabel = { Cash: "tiền mặt", MoMo: "MoMo", VNPay: "VNPay" };
+  const phuongThuc = invoice.paymentMethod
+    ? ` qua ${methodLabel[invoice.paymentMethod] || invoice.paymentMethod}`
+    : "";
   const title = `✅ Xác nhận thanh toán thành công — ${invoice.roomName}`;
   const message = `Kính gửi Quý khách,\n\nHoá đơn ${loaiInvoice} phòng ${invoice.roomName} của Quý khách (${fmt(invoice.totalAmount)}đ) đã được xác nhận thanh toán${phuongThuc} thành công. Cảm ơn Quý khách đã hoàn tất thanh toán.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
 
