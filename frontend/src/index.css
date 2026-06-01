@@ -3040,6 +3040,7 @@ body:has(.admin-main-content--no-padding) {
   justify-content: space-between;
   padding: 16px 18px 12px;
   border-bottom: 1px solid #f3f4f6;
+  flex-shrink: 0;
 }
 
 .adm-notif-dropdown-title {
@@ -3088,6 +3089,7 @@ body:has(.admin-main-content--no-padding) {
   border-bottom: 1px solid #f3f4f6;
   overflow-x: auto;
   scrollbar-width: none;
+  flex-shrink: 0;
 }
 
 .adm-notif-tabs::-webkit-scrollbar {
