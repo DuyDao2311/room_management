@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 import NotificationBell from '../ui/NotificationBell.tsx'
 import FavoritesDropdown from '../ui/FavoritesDropdown.tsx'
+import logo1 from '../../image/logo1.png'
 
 export default function Header() {
   const { user, logout } = useAuth()
@@ -63,8 +64,11 @@ export default function Header() {
   return (
     <header className="site-header">
       <div className="header-left">
-        <Link to="/" className="brand">
-          <strong>Phòng Trọ</strong> DTT
+        <Link to="/" className="brand" style={{ textDecoration: 'none', marginLeft: '-8px', display: 'flex', alignItems: 'center' }}>
+          <img src={logo1} alt="Logo" style={{ width: 50, height: 50, objectFit: 'contain', marginRight: 6 }} />
+          <span className="adm-header-logo-text">
+            <strong style={{ fontSize: 20 }}>Căn Hộ F4</strong>
+          </span>
         </Link>
       </div>
 

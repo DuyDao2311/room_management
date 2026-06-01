@@ -2,7 +2,7 @@ import { Outlet, NavLink, useNavigate, Link, useLocation } from 'react-router-do
 import AdminHeader from './AdminHeader.tsx'
 import { useAuth } from '../../contexts/AuthContext'
 import { useNotifications } from '../../contexts/NotificationContext.tsx'
-import { Building2 } from 'lucide-react'
+import logo1 from '../../image/logo1.png'
 import {
   FiGrid,        // Tổng quan
   FiHome,        // Phòng
@@ -62,9 +62,9 @@ export default function AdminLayout() {
       <aside className="admin-sidebar">
         <div className="admin-sidebar-header">
           <Link to="/admin" className="adm-header-logo" style={{ textDecoration: 'none', marginLeft: '-8px' }}>
-            <Building2 size={22} className="adm-header-logo-icon" />
+            <img src={logo1} alt="Logo" style={{ width: 50, height: 50, objectFit: 'contain', marginRight: 6 }} />
             <span className="adm-header-logo-text">
-              <strong>Phòng Trọ</strong> DTT
+              <strong style={{ fontSize: 20 }}>Căn Hộ F4</strong>
             </span>
           </Link>
         </div>
