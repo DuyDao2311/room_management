@@ -189,8 +189,8 @@ export default function InvoiceManagement() {
 
   useEffect(() => {
     fetchStats()
-    api.get('/contracts')
-      .then(r => setContracts(r.data.filter((c: ContractOption) => c.status === 'active')))
+    api.get('/contracts?limit=1000')
+      .then(r => setContracts(r.data.data.filter((c: ContractOption) => c.status === 'active')))
       .catch(() => { })
   }, [fetchStats])
 
@@ -346,14 +346,8 @@ export default function InvoiceManagement() {
             </h1>
             <button
               onClick={() => { setForm(getDefaultForm()); setFormError(''); setView('create') }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '8px',
-                background: '#003e68', color: '#fff',
-                padding: '10px 20px', borderRadius: '8px',
-                border: 'none', fontWeight: 700, fontSize: '0.9rem',
-                cursor: 'pointer', whiteSpace: 'nowrap',
-                marginLeft: '16px'
-              }}
+              className="button button-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
             >
               <FiPlus /> Tạo hóa đơn mới
             </button>
@@ -367,7 +361,7 @@ export default function InvoiceManagement() {
                 style={{ background: '#fff', borderRadius: '8px', padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'all 0.2s', transform: filterStatus === '' ? 'translateY(-2px)' : 'none', border: filterStatus === '' ? '1px solid #003e68' : '1px solid #eaecf0' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                  <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 600 }}>Tổng số Hóa đơn</div>
+                  <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600 }}>Tổng số Hóa đơn</div>
                   <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4b5563' }}>
                     <FiFileText size={16} />
                   </div>
@@ -381,7 +375,7 @@ export default function InvoiceManagement() {
                 style={{ background: '#fff', borderRadius: '8px', padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'all 0.2s', transform: filterStatus === 'paid' ? 'translateY(-2px)' : 'none', border: filterStatus === 'paid' ? '1px solid #003e68' : '1px solid #eaecf0' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                  <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 600 }}>Đã thanh toán</div>
+                  <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600 }}>Đã thanh toán</div>
                   <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#ecfdf5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669' }}>
                     <FiCheckCircle size={16} />
                   </div>
@@ -395,7 +389,7 @@ export default function InvoiceManagement() {
                 style={{ background: '#fff', borderRadius: '8px', padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'all 0.2s', transform: filterStatus === 'pending' ? 'translateY(-2px)' : 'none', border: filterStatus === 'pending' ? '1px solid #003e68' : '1px solid #eaecf0' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                  <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 600 }}>Chờ thanh toán</div>
+                  <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600 }}>Chờ thanh toán</div>
                   <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ea580c' }}>
                     <FiClock size={16} />
                   </div>
@@ -409,7 +403,7 @@ export default function InvoiceManagement() {
                 style={{ background: '#fff', borderRadius: '8px', padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', cursor: 'pointer', transition: 'all 0.2s', transform: filterStatus === 'overdue' ? 'translateY(-2px)' : 'none', border: filterStatus === 'overdue' ? '1px solid #003e68' : '1px solid #eaecf0' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                  <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 600 }}>Quá hạn</div>
+                  <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600 }}>Quá hạn</div>
                   <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626' }}>
                     <FiAlertTriangle size={16} />
                   </div>
@@ -422,7 +416,7 @@ export default function InvoiceManagement() {
                 style={{ background: '#fff', borderRadius: '8px', padding: '24px', position: 'relative', display: 'flex', flexDirection: 'column', border: '1px solid #eaecf0' }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
-                  <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 600 }}>Doanh thu dự kiến</div>
+                  <div style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600 }}>Doanh thu dự kiến</div>
                   <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0369a1' }}>
                     <FiDollarSign size={16} />
                   </div>

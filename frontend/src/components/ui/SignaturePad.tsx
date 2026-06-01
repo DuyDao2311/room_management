@@ -33,6 +33,8 @@ interface SignaturePadProps {
   onClear: () => void
   /** Màu viền accent (mặc định #0f5cc7) */
   accentColor?: string
+  /** Chỉ xem (ẩn nút xoá/lưu), dùng khi hợp đồng đã phê duyệt */
+  readOnly?: boolean
 }
 
 export default function SignaturePad({
@@ -42,6 +44,7 @@ export default function SignaturePad({
   onSave,
   onClear,
   accentColor = '#0f5cc7',
+  readOnly = false,
 }: SignaturePadProps) {
   // Ref trỏ đến instance của react-signature-canvas
   const sigCanvasRef = useRef<SignatureCanvas>(null)
@@ -145,24 +148,81 @@ export default function SignaturePad({
   //   onSave(dataURL)
   // }
   const isDrawingRef = useRef(false)
+
+  /**
+   * Trim khoảng trắng xung quanh nét vẽ trên canvas.
+   * Thay thế cho getTrimmedCanvas() bị lỗi ESM/CJS với trim-canvas@0.1.2.
+   */
+  const trimCanvasManual = (sourceCanvas: HTMLCanvasElement): HTMLCanvasElement => {
+    const ctx = sourceCanvas.getContext('2d')
+    if (!ctx) return sourceCanvas
+
+    const w = sourceCanvas.width
+    const h = sourceCanvas.height
+    const imageData = ctx.getImageData(0, 0, w, h).data
+
+    // Hàm kiểm tra pixel có alpha > 0 không
+    const getAlpha = (x: number, y: number) => imageData[(y * w + x) * 4 + 3]
+
+    // Tìm biên trên (top)
+    let top = 0
+    topLoop: for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (getAlpha(x, y)) { top = y; break topLoop }
+      }
+    }
+
+    // Tìm biên dưới (bottom)
+    let bottom = h - 1
+    bottomLoop: for (let y = h - 1; y >= 0; y--) {
+      for (let x = 0; x < w; x++) {
+        if (getAlpha(x, y)) { bottom = y; break bottomLoop }
+      }
+    }
+
+    // Tìm biên trái (left)
+    let left = 0
+    leftLoop: for (let x = 0; x < w; x++) {
+      for (let y = 0; y < h; y++) {
+        if (getAlpha(x, y)) { left = x; break leftLoop }
+      }
+    }
+
+    // Tìm biên phải (right)
+    let right = w - 1
+    rightLoop: for (let x = w - 1; x >= 0; x--) {
+      for (let y = 0; y < h; y++) {
+        if (getAlpha(x, y)) { right = x; break rightLoop }
+      }
+    }
+
+    const trimmedWidth = right - left + 1
+    const trimmedHeight = bottom - top + 1
+
+    const trimmed = document.createElement('canvas')
+    trimmed.width = trimmedWidth
+    trimmed.height = trimmedHeight
+    trimmed.getContext('2d')!.putImageData(
+      ctx.getImageData(left, top, trimmedWidth, trimmedHeight),
+      0, 0,
+    )
+
+    return trimmed
+  }
+
   const handleSave = () => {
-    console.log('CLICK SAVE')
+    if (!sigCanvasRef.current) return
+    if (sigCanvasRef.current.isEmpty()) return
 
-    if (!sigCanvasRef.current) {
-      console.log('Canvas null')
-      return
-    }
+    // Lấy canvas gốc, copy sang canvas mới rồi trim thủ công
+    const original = sigCanvasRef.current.getCanvas()
+    const copy = document.createElement('canvas')
+    copy.width = original.width
+    copy.height = original.height
+    copy.getContext('2d')!.drawImage(original, 0, 0)
 
-    if (sigCanvasRef.current.isEmpty()) {
-      console.log('Canvas empty')
-      return
-    }
-
-    const dataURL = sigCanvasRef.current
-      .getTrimmedCanvas()
-      .toDataURL('image/png')
-
-    console.log('SAVE OK', dataURL)
+    const trimmed = trimCanvasManual(copy)
+    const dataURL = trimmed.toDataURL('image/png')
 
     onSave(dataURL)
   }
@@ -197,16 +257,18 @@ export default function SignaturePad({
             <div className="sig-pad-saved-badge">✓ Đã ký</div>
           </div>
 
-          {/* Nút xóa để ký lại */}
-          <div className="sig-pad-actions">
-            <button
-              type="button"
-              className="sig-btn sig-btn-clear"
-              onClick={handleClear}
-            >
-              🗑 Xóa và ký lại
-            </button>
-          </div>
+          {/* Nút xóa để ký lại - ẩn nếu readOnly */}
+          {!readOnly && (
+            <div className="sig-pad-actions">
+              <button
+                type="button"
+                className="sig-btn sig-btn-clear"
+                onClick={handleClear}
+              >
+                🗑 Xóa và ký lại
+              </button>
+            </div>
+          )}
         </>
       ) : (
         <>
@@ -250,25 +312,27 @@ export default function SignaturePad({
             />
           </div>
 
-          {/* ── Nút hành động ── */}
-          <div className="sig-pad-actions">
-            <button
-              type="button"
-              className="sig-btn sig-btn-clear"
-              onClick={handleClear}
-            >
-              🗑 Xóa
-            </button>
-            <button
-              type="button"
-              className="sig-btn sig-btn-save"
-              onClick={handleSave}
-              disabled={false}
-              title={isEmpty ? 'Vui lòng ký trước khi lưu' : 'Lưu chữ ký'}
-            >
-              💾 Lưu chữ ký
-            </button>
-          </div>
+          {/* ── Nút hành động - ẩn nếu readOnly ── */}
+          {!readOnly && (
+            <div className="sig-pad-actions">
+              <button
+                type="button"
+                className="sig-btn sig-btn-clear"
+                onClick={handleClear}
+              >
+                🗑 Xóa
+              </button>
+              <button
+                type="button"
+                className="sig-btn sig-btn-save"
+                onClick={handleSave}
+                disabled={false}
+                title={isEmpty ? 'Vui lòng ký trước khi lưu' : 'Lưu chữ ký'}
+              >
+                💾 Lưu chữ ký
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

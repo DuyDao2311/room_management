@@ -142,13 +142,14 @@ invoiceSchema.pre("save", function () {
   }
 
   // 4. Tự chuyển sang overdue nếu quá hạn mà chưa trả
+  //    Và ngược lại, nếu đang overdue mà được dời hạn thì chuyển lại thành unpaid
   //    (Không chuyển overdue khi đang pending — đang chờ thu tiền mặt)
-  if (
-    this.status === "unpaid" &&
-    this.dueDate &&
-    new Date() > new Date(this.dueDate)
-  ) {
-    this.status = "overdue";
+  if (this.status === "unpaid" || this.status === "overdue") {
+    if (this.dueDate && new Date() > new Date(this.dueDate)) {
+      this.status = "overdue";
+    } else {
+      this.status = "unpaid";
+    }
   }
 });
 

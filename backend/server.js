@@ -18,6 +18,8 @@ const chatRoutes = require("./routes/chat");
 const notificationRoutes = require("./routes/notifications");
 const feedbackRoutes = require("./routes/feedback");
 const favoriteRoutes = require("./routes/favorites");
+const adminRoomMapRoutes = require("./routes/adminRoomMap.routes");
+const searchRoutes = require("./routes/search");
 const { checkExpiringContracts, checkOverdueInvoices } = require("./utils/notificationService");
 
 const app = express();
@@ -103,6 +105,8 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/favorites", favoriteRoutes);
+app.use("/api/admin/rooms", adminRoomMapRoutes);
+app.use("/api/search", searchRoutes);
 
 // ─── Health check ─────────────────────────────────────────────
 app.get("/api/health", (_, res) => res.json({ status: "OK", timestamp: new Date() }));
