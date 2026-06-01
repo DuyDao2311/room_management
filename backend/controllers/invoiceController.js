@@ -4,7 +4,7 @@ const Room         = require("../models/Room");
 const Notification = require("../models/Notification");
 const Payment      = require("../models/Payment");
 const { checkUserDistrictPermission } = require("../middleware/auth");
-const { notifyTenantInvoiceSent, sendSocketNotification } = require("../utils/notificationService");
+const { notifyTenantInvoiceSent, notifyTenantInvoicePaid, notifyInvoicePaid, sendSocketNotification } = require("../utils/notificationService");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -702,18 +702,8 @@ const collectCash = async (req, res) => {
       },
     });
 
-    // Format số tiền thủ công
-    const fmt = (n) => (n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    
-    // 6. Tạo Notification cho tenant
-    const notification = await Notification.create({
-      userId: invoice.tenantId,
-      tenantId: invoice.tenantId,
-      type: "INVOICE",
-      title: "Hóa đơn đã được xác nhận thanh toán",
-      message: `Hóa đơn phòng ${invoice.roomName} đã được xác nhận thanh toán tiền mặt (${fmt(invoice.totalAmount)}đ)`,
-      invoiceId: invoice._id,
-    });
+    // 6. Tạo Notification + gửi email cho tenant (qua dispatcher → có cả in-app lẫn email)
+    const notifs = await notifyTenantInvoicePaid(invoice);
 
     // 7. Emit Socket.IO cho tenant
     const io = req.app.get("io");
@@ -726,7 +716,15 @@ const collectCash = async (req, res) => {
         message: "Hóa đơn của bạn đã được xác nhận thanh toán",
       });
 
-      io.to(`tenant_${invoice.tenantId.toString()}`).emit("new_notification", notification);
+      if (notifs.length > 0) {
+        io.to(`tenant_${invoice.tenantId.toString()}`).emit("new_notification", notifs[0]);
+      }
+    }
+
+    // 8. Báo cho staff khu vực + admin biết hoá đơn đã thanh toán (tránh đòi tiền trùng)
+    const staffNotifs = await notifyInvoicePaid(invoice);
+    if (io && staffNotifs.length > 0) {
+      staffNotifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
     }
 
     res.json({

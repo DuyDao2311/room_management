@@ -3,7 +3,7 @@ const contractModel = require('../models/Contract');
 const userModel = require('../models/User');
 const paymentModel = require('../models/Payment');
 const { checkUserDistrictPermission } = require('../middleware/auth');
-const { notifyInvoicePaid, sendSocketNotification } = require('../utils/notificationService');
+const { notifyInvoicePaid, notifyTenantInvoicePaid, sendSocketNotification } = require('../utils/notificationService');
 
 const { NotFoundError, BadRequestError, ForbiddenError } = require('../core/error.response');
 const { Created, OK } = require('../core/success.response');
@@ -314,6 +314,8 @@ class PaymentController {
 
             // Gửi thông báo đến staff/admin
             const notifs = await notifyInvoicePaid(invoice);
+            // Gửi email + in-app xác nhận thanh toán cho tenant
+            await notifyTenantInvoicePaid(invoice);
             const io = req.app ? req.app.get('io') : null;
             if (io && notifs.length > 0) {
               notifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));
@@ -410,6 +412,8 @@ class PaymentController {
 
             // Gửi thông báo đến staff/admin (Không có req.app ở đây, ghi log thôi)
             await notifyInvoicePaid(invoice);
+            // Gửi email + in-app xác nhận thanh toán cho tenant
+            await notifyTenantInvoicePaid(invoice);
 
             // Cập nhật Payment record → success
             if (paymentRecord) {
@@ -639,6 +643,8 @@ class PaymentController {
 
             // 3. Gửi thông báo đến staff/admin
             const notifs = await notifyInvoicePaid(invoice);
+            // Gửi email + in-app xác nhận thanh toán cho tenant
+            await notifyTenantInvoicePaid(invoice);
             const io = req.app.get('io');
             if (io && notifs.length > 0) {
               notifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));

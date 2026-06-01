@@ -411,6 +411,34 @@ const notifyTenantInvoiceSent = async (invoice) => {
 };
 
 /**
+ * Hoá đơn được xác nhận đã thanh toán → email + in-app cho tenant (như một biên lai).
+ * Dùng cho mọi luồng paid: tiền mặt (collectCash / payInvoiceWithCash) + online (MoMo/VNPay).
+ */
+const notifyTenantInvoicePaid = async (invoice) => {
+  const tenant = await User.findById(invoice.tenantId).select("_id email name");
+  if (!tenant) return [];
+
+  const loaiInvoice = invoice.type === "deposit"
+    ? "tiền cọc"
+    : `dịch vụ tháng ${invoice.month}/${invoice.year}`;
+  const phuongThuc = invoice.paymentMethod ? ` qua ${invoice.paymentMethod}` : "";
+  const title = `✅ Xác nhận thanh toán thành công — ${invoice.roomName}`;
+  const message = `Kính gửi Quý khách,\n\nHoá đơn ${loaiInvoice} phòng ${invoice.roomName} của Quý khách (${fmt(invoice.totalAmount)}đ) đã được xác nhận thanh toán${phuongThuc} thành công. Cảm ơn Quý khách đã hoàn tất thanh toán.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+
+  return dispatch({
+    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
+    data: {
+      type: "INVOICE",
+      title,
+      message,
+      invoiceId: invoice._id,
+    },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/tenant/invoices"),
+  });
+};
+
+/**
  * Lịch hẹn được duyệt (status='confirmed') → email cho khách (có thể là guest).
  * @param {Object} appointment - Appointment doc
  * @param {Object} opts
@@ -593,6 +621,7 @@ module.exports = {
   notifyTenantContractApproved,
   notifyTenantContractEnded,
   notifyTenantInvoiceSent,
+  notifyTenantInvoicePaid,
   notifyTenantAppointmentConfirmed,
   notifyTenantAppointmentCancelled,
   // Cron
