@@ -1,9 +1,12 @@
-import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, Link, useLocation } from 'react-router-dom'
+import AdminHeader from './AdminHeader.tsx'
 import { useAuth } from '../../contexts/AuthContext'
 import { useNotifications } from '../../contexts/NotificationContext.tsx'
+import { Building2 } from 'lucide-react'
 import {
   FiGrid,        // Tổng quan
   FiHome,        // Phòng
+  FiMap,         // Bản đồ phòng
   FiUsers,       // Người thuê
   FiFileText,    // Hợp đồng
   FiFile,        // Hóa đơn
@@ -11,19 +14,21 @@ import {
   FiUserCheck,   // Quản lý nhân viên
   FiStar         // Đánh giá
 } from "react-icons/fi";
+import { MdOutlineLogout } from "react-icons/md";
 
 export default function AdminLayout() {
   const { user, logout } = useAuth()
   const { unreadAppointmentCount, unreadContractCount, unreadFeedbackCount, unreadInvoiceCount, markAllAsRead } = useNotifications()
   const navigate = useNavigate()
+  const location = useLocation()
 
   const handleLogout = () => {
     logout()
     navigate('/')
   }
 
-  const isAdmin = user?.role === 'admin'
-  const isStaff = user?.role === 'staff'
+  // const isAdmin = user?.role === 'admin'
+  // const isStaff = user?.role === 'staff'
 
   // Khi click vào nav item, đánh dấu thông báo theo loại đã đọc
   const handleNavClick = (type?: string) => {
@@ -36,6 +41,7 @@ export default function AdminLayout() {
   const navItems = [
     { name: 'Dashboard', path: '/admin', exact: true, icon: <FiGrid />, roles: ['admin', 'staff'], badge: 0, notifType: undefined },
     { name: 'Quản lý phòng', path: '/admin/rooms', exact: false, icon: <FiHome />, roles: ['admin', 'staff'], badge: 0, notifType: undefined },
+    { name: 'Bản đồ phòng', path: '/admin/room-map', exact: false, icon: <FiMap />, roles: ['admin', 'staff'], badge: 0, notifType: undefined },
     { name: 'Hợp đồng', path: '/admin/contracts', exact: false, icon: <FiFileText />, roles: ['admin', 'staff'], badge: unreadContractCount, notifType: 'CONTRACT' },
     { name: 'Hóa đơn', path: '/admin/invoices', exact: false, icon: <FiFile />, roles: ['admin', 'staff'], badge: unreadInvoiceCount, notifType: 'INVOICE' },
     { name: 'Lịch hẹn', path: '/admin/appointments', exact: false, icon: <FiCalendar />, roles: ['admin', 'staff'], badge: unreadAppointmentCount, notifType: 'APPOINTMENT' },
@@ -48,18 +54,19 @@ export default function AdminLayout() {
   const visibleItems = navItems.filter(item => item.roles.includes(user?.role || ''))
 
   // Role label
-  const roleLabel = isAdmin ? 'Quản trị viên' : isStaff ? 'Nhân viên' : 'Người dùng'
+  // const roleLabel = isAdmin ? 'Quản trị viên' : isStaff ? 'Nhân viên' : 'Người dùng'
 
   return (
     <div className="admin-layout-container">
       {/* Sidebar */}
       <aside className="admin-sidebar">
         <div className="admin-sidebar-header">
-          <div className="brand" style={{ fontSize: '1.2rem', marginBottom: 0 }}>
-            <Link to="/" className="brand">
+          <Link to="/admin" className="adm-header-logo" style={{ textDecoration: 'none', marginLeft: '-8px' }}>
+            <Building2 size={22} className="adm-header-logo-icon" />
+            <span className="adm-header-logo-text">
               <strong>Phòng Trọ</strong> DTT
-            </Link>
-          </div>
+            </span>
+          </Link>
         </div>
 
         <nav className="admin-sidebar-nav">
@@ -71,67 +78,58 @@ export default function AdminLayout() {
               onClick={() => handleNavClick(item.notifType)}
               className={({ isActive }) => `admin-nav-link ${isActive ? 'active' : ''}`}
             >
-                <span className="admin-nav-icon">{item.icon}</span>
-                {item.name}
-                {item.badge > 0 && (
-                  <span className="admin-nav-badge">{item.badge > 9 ? '9+' : item.badge}</span>
-                )}
-              </NavLink>
+              <span className="admin-nav-icon">{item.icon}</span>
+              {item.name}
+              {item.badge > 0 && (
+                <span className="admin-nav-badge">{item.badge > 9 ? '9+' : item.badge}</span>
+              )}
+            </NavLink>
           ))}
         </nav>
 
         <div className="admin-sidebar-footer">
-          {/* District banner cho staff */}
-          {isStaff && user?.managedDistricts && user.managedDistricts.length > 0 && (
-            <div style={{
-              background: 'rgba(255,255,255,0.08)',
-              borderRadius: '8px',
-              padding: '10px 12px',
-              marginBottom: '12px',
-            }}>
-              <div style={{ fontSize: '0.65rem', color: '#8b9dc3', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
-                Khu vực quản lý
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                {user.managedDistricts.map(d => (
-                  <span key={d} style={{
-                    background: 'rgba(8,131,115,0.2)',
-                    color: '#5cdbbd',
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    fontSize: '0.7rem',
-                    fontWeight: 600,
-                  }}>
-                    {d}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
 
-          <div className="admin-user-info">
-            <span className="admin-user-avatar">
-              {user?.avatar ? (
-                <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-              ) : (
-                user?.name?.charAt(0).toUpperCase()
-              )}
+          {/* <div className="admin-profile-header">
+              <span className="admin-profile-avatar">
+                {user?.avatar ? (
+                  <img src={user.avatar} alt="" />
+                ) : (
+                  user?.name?.charAt(0).toUpperCase()
+                )}
+              </span>
+              <div className="admin-profile-details">
+                <span className="admin-profile-name">{user?.name}</span>
+                <span className="admin-profile-role">{roleLabel}</span>
+              </div>
+            </div> */}
+
+          {/* {isStaff && user?.managedDistricts && user.managedDistricts.length > 0 && (
+              <div className="admin-profile-districts">
+                <div className="admin-profile-districts-title">Khu vực quản lý</div>
+                <div className="admin-profile-districts-list">
+                  {user.managedDistricts.map(d => (
+                    <span key={d} className="admin-profile-district-tag">
+                      {d}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )} */}
+          <button className="admin-profile-logout" onClick={handleLogout}>
+            <span className="admin-nav-icon" style={{ display: 'flex', alignItems: 'center' }}>
+              <MdOutlineLogout size={20} />
             </span>
-            <div className="admin-user-details">
-              <span className="admin-user-name">{user?.name}</span>
-              <span className="admin-user-role">{roleLabel}</span>
-            </div>
-          </div>
-          <button className="admin-logout-btn" onClick={handleLogout}>
             Đăng xuất
           </button>
         </div>
       </aside>
-
-      {/* Main Content */}
-      <main className="admin-main-content">
-        <Outlet />
-      </main>
+      {/* Right side: Header + Main Content */}
+      <div className="admin-right-panel">
+        <AdminHeader />
+        <main className={`admin-main-content admin-main-wrapper ${location.pathname.includes('/admin/room-map') ? 'admin-main-content--no-padding' : ''}`}>
+          <Outlet />
+        </main>
+      </div>
     </div>
   )
 }

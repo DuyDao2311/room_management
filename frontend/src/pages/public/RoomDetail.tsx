@@ -5,6 +5,7 @@ import Spinner from '../../components/ui/Spinner.tsx'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 import { RiMapPin2Line } from "react-icons/ri";
 import FavoriteHeartButton from '../../components/ui/FavoriteHeartButton.tsx'
+import MapView from '../../components/map/MapView.tsx'
 import { LiaRulerHorizontalSolid } from "react-icons/lia";
 import { MdOutlineBedroomParent, MdSecurity, MdOutlinePerson, MdOutlinePhone, MdOutlineMoreTime } from "react-icons/md";
 import { FaWifi } from "react-icons/fa";
@@ -27,6 +28,10 @@ interface Room {
   amenities: string[]
   images: string[]
   viewCount: number
+  location?: {
+    type: string
+    coordinates: [number, number]
+  }
 }
 
 const STATUS_MAP = {
@@ -169,7 +174,7 @@ export default function RoomDetail() {
 
   const handleRentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!startDate) {
       setRentError('Hãy chọn ngày bắt đầu hợp đồng')
       return
@@ -395,6 +400,17 @@ export default function RoomDetail() {
               <p className="rd-desc">{room.description}</p>
             </div>
           )}
+
+          {/* Map Location */}
+          {room.location?.coordinates &&
+            (room.location.coordinates[0] !== 0 || room.location.coordinates[1] !== 0) && (
+              <MapView
+                lat={room.location.coordinates[1]}
+                lng={room.location.coordinates[0]}
+                address={room.address}
+                roomName={room.name}
+              />
+            )}
         </div>
 
         {/* RIGHT: Booking form */}
@@ -747,9 +763,9 @@ export default function RoomDetail() {
                       <p style={{ margin: '0 0 12px' }}><strong>2. Thời hạn thuê:</strong> Hợp đồng có giá trị trong vòng {leaseTerm || '...'} tháng kể từ ngày ký. Sau khi hết hạn, nếu hai bên có nhu cầu tiếp tục, sẽ tiến hành gia hạn hợp đồng mới.</p>
                       <p style={{ margin: '0 0 8px' }}><strong>3. Giá thuê và phương thức thanh toán:</strong></p>
                       <ul style={{ margin: '0 0 12px', paddingLeft: '20px' }}>
-                        <li>Giá thuê phòng: 5.500.000 VNĐ/tháng.</li>
+                        <li>Giá thuê phòng: {room.price.toLocaleString('vi-VN')} VNĐ/tháng.</li>
                         <li>Tiền điện: 3.500 VNĐ/Kwh.</li>
-                        <li>Tiền nước: 100.000 VNĐ/người/tháng.</li>
+                        <li>Tiền nước: 70.000 VNĐ/người/tháng.</li>
                         <li>Thanh toán từ ngày 1 đến ngày 5 hàng tháng.</li>
                       </ul>
                       <p style={{ margin: '0 0 8px' }}><strong>4. Trách nhiệm của Bên A:</strong> Đảm bảo phòng ốc bàn giao đúng tình trạng thỏa thuận. Hỗ trợ sửa chữa các hư hỏng kết cấu do hao mòn tự nhiên.</p>

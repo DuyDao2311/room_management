@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import api from '../../api/axios'
 import { MdOutlineDeleteOutline } from "react-icons/md";
-// import { FiHome } from "react-icons/fi";
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Message {
   id: string
@@ -24,7 +24,7 @@ interface RoomSuggestion {
 
 const QUICK_SUGGESTIONS = [
   '🏠 Tìm phòng giá rẻ dưới 3 triệu',
-  '📍 Phòng gần trung tâm thành phố',
+  '📍 Tìm phòng gần vị trí của tôi',
   '🛋️ Phòng full nội thất',
   '👥 Phòng cho 2 người ở',
 ]
@@ -106,6 +106,7 @@ function ChatMessage({ msg }: { msg: Message }) {
 }
 
 export default function ChatBox() {
+  const { user } = useAuth()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -155,6 +156,7 @@ export default function ChatBox() {
       const res = await api.post('/chat', {
         message: content,
         history: newHistory,
+        userAddress: user?.address || null,
       })
 
       const aiMsg: Message = {
