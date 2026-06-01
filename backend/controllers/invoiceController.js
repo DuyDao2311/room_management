@@ -4,6 +4,7 @@ const Room         = require("../models/Room");
 const Notification = require("../models/Notification");
 const Payment      = require("../models/Payment");
 const { checkUserDistrictPermission } = require("../middleware/auth");
+const { notifyTenantInvoiceSent, sendSocketNotification } = require("../utils/notificationService");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -513,25 +514,15 @@ const sendInvoice = async (req, res) => {
     invoice.tenantId = tenantId;
     await invoice.save();
 
-    // Format số tiền thủ công (tránh lỗi locale)
-    const fmt = (n) => (n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    
-    // 6. Tạo Notification document (bao gồm cả userId cho model mới)
-    const notification = await Notification.create({
-      userId:    tenantId,
-      tenantId,  // alias để tương thích
-      type:      "INVOICE",
-      title:     `Hoá đơn mới — ${invoice.roomName}`,
-      message:   invoice.type === "deposit"
-        ? `Hoá đơn tiền cọc: ${fmt(invoice.totalAmount)}đ`
-        : `Hoá đơn tháng ${invoice.month}/${invoice.year}: ${fmt(invoice.totalAmount)}đ`,
-      invoiceId: invoice._id,
-    });
-
-    // 7. Emit realtime event tới room của tenant
-    const io = req.app.get("io");
-    if (io) {
-      io.to(`tenant_${tenantId.toString()}`).emit("new_notification", notification);
+    // 6. Gửi notification (in-app + email) cho tenant qua dispatcher
+    try {
+      const tenantNotifs = await notifyTenantInvoiceSent(invoice);
+      const io = req.app.get("io");
+      if (io && tenantNotifs && tenantNotifs.length > 0) {
+        tenantNotifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
+      }
+    } catch (notifyErr) {
+      console.error("notifyTenantInvoiceSent error:", notifyErr.message);
     }
 
     res.json({ success: true });

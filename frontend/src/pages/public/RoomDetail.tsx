@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext.tsx'
 import { RiMapPin2Line } from "react-icons/ri";
 import FavoriteHeartButton from '../../components/ui/FavoriteHeartButton.tsx'
 import { LiaRulerHorizontalSolid } from "react-icons/lia";
-import { MdOutlineBedroomParent, MdSecurity, MdOutlinePerson, MdOutlinePhone, MdOutlineMoreTime } from "react-icons/md";
+import { MdOutlineBedroomParent, MdSecurity, MdOutlinePerson, MdOutlinePhone, MdOutlineMoreTime, MdOutlineEmail } from "react-icons/md";
 import { FaWifi } from "react-icons/fa";
 import { LuCalendarDays } from "react-icons/lu";
 import { MdOutlinePeopleAlt, MdDeleteOutline, MdCheckCircleOutline, MdOutlineBusiness, MdOutlineGavel, MdOutlineMeetingRoom, MdPictureAsPdf } from "react-icons/md";
@@ -109,6 +109,7 @@ export default function RoomDetail() {
   // Booking form state
   const [bookName, setBookName] = useState('')
   const [bookPhone, setBookPhone] = useState('')
+  const [bookEmail, setBookEmail] = useState('')
   const [bookDate, setBookDate] = useState('')
   const [bookTime, setBookTime] = useState('')
   const [bookNote, setBookNote] = useState('')
@@ -256,6 +257,7 @@ export default function RoomDetail() {
       await api.post('/appointments', {
         name: bookName,
         phone: bookPhone,
+        email: bookEmail,
         date: bookDate,
         time: bookTime,
         note: bookNote,
@@ -423,6 +425,18 @@ export default function RoomDetail() {
                       value={bookPhone}
                       onChange={e => setBookPhone(e.target.value)}
                       required
+                    />
+                  </div>
+                </div>
+                <div className="rd-field">
+                  <label>Email (không bắt buộc)</label>
+                  <div className="rd-input-wrap">
+                    <span className="rd-input-icon" style={{ paddingTop: "8px" }}><MdOutlineEmail size={20} color="#647885ff" /></span>
+                    <input
+                      type="email"
+                      placeholder="Nhận email xác nhận khi lịch hẹn được duyệt"
+                      value={bookEmail}
+                      onChange={e => setBookEmail(e.target.value)}
                     />
                   </div>
                 </div>

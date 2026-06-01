@@ -8,6 +8,8 @@ const { protect, adminOnly, verifyRole, injectDistrictFilter } = require("../mid
 const { signContract, clearSignature } = require("../controllers/contractController");
 const {
   notifyNewContract,
+  notifyTenantContractApproved,
+  notifyTenantContractEnded,
   sendSocketNotification,
 } = require("../utils/notificationService");
 
@@ -428,11 +430,33 @@ router.put("/:id", protect, verifyRole("admin", "staff"), async (req, res) => {
           createdBy:           req.user._id,
         });
       }
+
+      // Gửi notification (email + in-app) cho tenant về việc hợp đồng được duyệt.
+      try {
+        const tenantNotifs = await notifyTenantContractApproved(contract);
+        const io = req.app.get("io");
+        if (io && tenantNotifs.length > 0) {
+          tenantNotifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
+        }
+      } catch (notifyErr) {
+        // KHÔNG để lỗi notify chặn response — log và tiếp tục.
+        console.error("notifyTenantContractApproved error:", notifyErr.message);
+      }
     }
 
-    // ── Khi chấm dứt / hết hạn → trả phòng về available ─────────────────────
+    // ── Khi chấm dứt / hết hạn → trả phòng về available + email tenant ─────
     if (req.body.status === "terminated" || req.body.status === "expired") {
       await Room.findByIdAndUpdate(contract.room._id, { status: "available" });
+
+      try {
+        const tenantNotifs = await notifyTenantContractEnded(contract, { reason: req.body.status });
+        const io = req.app.get("io");
+        if (io && tenantNotifs.length > 0) {
+          tenantNotifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
+        }
+      } catch (notifyErr) {
+        console.error("notifyTenantContractEnded error:", notifyErr.message);
+      }
     }
 
     res.json(contract);
