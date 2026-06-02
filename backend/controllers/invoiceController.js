@@ -1,9 +1,9 @@
 const Invoice      = require("../models/Invoice");
 const Contract     = require("../models/Contract");
 const Room         = require("../models/Room");
-const Notification = require("../models/Notification");
 const Payment      = require("../models/Payment");
 const { checkUserDistrictPermission } = require("../middleware/auth");
+const { notifyTenantInvoiceSent, notifyTenantInvoicePaid, notifyInvoicePaid, sendSocketNotification } = require("../utils/notificationService");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -513,25 +513,15 @@ const sendInvoice = async (req, res) => {
     invoice.tenantId = tenantId;
     await invoice.save();
 
-    // Format số tiền thủ công (tránh lỗi locale)
-    const fmt = (n) => (n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    
-    // 6. Tạo Notification document (bao gồm cả userId cho model mới)
-    const notification = await Notification.create({
-      userId:    tenantId,
-      tenantId,  // alias để tương thích
-      type:      "INVOICE",
-      title:     `Hoá đơn mới — ${invoice.roomName}`,
-      message:   invoice.type === "deposit"
-        ? `Hoá đơn tiền cọc: ${fmt(invoice.totalAmount)}đ`
-        : `Hoá đơn tháng ${invoice.month}/${invoice.year}: ${fmt(invoice.totalAmount)}đ`,
-      invoiceId: invoice._id,
-    });
-
-    // 7. Emit realtime event tới room của tenant
-    const io = req.app.get("io");
-    if (io) {
-      io.to(`tenant_${tenantId.toString()}`).emit("new_notification", notification);
+    // 6. Gửi notification (in-app + email) cho tenant qua dispatcher
+    try {
+      const tenantNotifs = await notifyTenantInvoiceSent(invoice);
+      const io = req.app.get("io");
+      if (io && tenantNotifs && tenantNotifs.length > 0) {
+        tenantNotifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
+      }
+    } catch (notifyErr) {
+      console.error("notifyTenantInvoiceSent error:", notifyErr.message);
     }
 
     res.json({ success: true });
@@ -711,18 +701,8 @@ const collectCash = async (req, res) => {
       },
     });
 
-    // Format số tiền thủ công
-    const fmt = (n) => (n || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    
-    // 6. Tạo Notification cho tenant
-    const notification = await Notification.create({
-      userId: invoice.tenantId,
-      tenantId: invoice.tenantId,
-      type: "INVOICE",
-      title: "Hóa đơn đã được xác nhận thanh toán",
-      message: `Hóa đơn phòng ${invoice.roomName} đã được xác nhận thanh toán tiền mặt (${fmt(invoice.totalAmount)}đ)`,
-      invoiceId: invoice._id,
-    });
+    // 6. Tạo Notification + gửi email cho tenant (qua dispatcher → có cả in-app lẫn email)
+    const notifs = await notifyTenantInvoicePaid(invoice);
 
     // 7. Emit Socket.IO cho tenant
     const io = req.app.get("io");
@@ -735,7 +715,15 @@ const collectCash = async (req, res) => {
         message: "Hóa đơn của bạn đã được xác nhận thanh toán",
       });
 
-      io.to(`tenant_${invoice.tenantId.toString()}`).emit("new_notification", notification);
+      if (notifs.length > 0) {
+        io.to(`tenant_${invoice.tenantId.toString()}`).emit("new_notification", notifs[0]);
+      }
+    }
+
+    // 8. Báo cho staff khu vực + admin biết hoá đơn đã thanh toán (tránh đòi tiền trùng)
+    const staffNotifs = await notifyInvoicePaid(invoice);
+    if (io && staffNotifs.length > 0) {
+      staffNotifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
     }
 
     res.json({

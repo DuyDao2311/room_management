@@ -20,7 +20,7 @@ const feedbackRoutes = require("./routes/feedback");
 const favoriteRoutes = require("./routes/favorites");
 const adminRoomMapRoutes = require("./routes/adminRoomMap.routes");
 const searchRoutes = require("./routes/search");
-const { checkExpiringContracts, checkOverdueInvoices } = require("./utils/notificationService");
+const { checkExpiringContracts, checkOverdueInvoices, checkDueSoonInvoices } = require("./utils/notificationService");
 
 const app = express();
 
@@ -146,6 +146,16 @@ const runPeriodicChecks = async () => {
         io?.to(`tenant_${n.userId}`).emit('new_notification', n);
       });
       console.log(`📨 Đã gửi ${overdueNotifs.length} thông báo hóa đơn quá hạn`);
+    }
+
+    console.log('🔍 Kiểm tra hóa đơn sắp đến hạn (5 ngày)...');
+    const dueSoonNotifs = await checkDueSoonInvoices();
+    if (dueSoonNotifs.length > 0) {
+      const io = app.get('io');
+      dueSoonNotifs.forEach((n) => {
+        io?.to(`tenant_${n.userId}`).emit('new_notification', n);
+      });
+      console.log(`📨 Đã gửi ${dueSoonNotifs.length} thông báo hóa đơn sắp đến hạn`);
     }
   } catch (err) {
     console.error('Periodic check error:', err.message);

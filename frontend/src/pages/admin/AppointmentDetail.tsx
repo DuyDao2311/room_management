@@ -12,6 +12,7 @@ interface AppointmentDetailObj {
   _id: string
   name: string
   phone: string
+  email?: string
   date: string
   time: string
   note: string
@@ -170,7 +171,7 @@ export default function AppointmentDetail() {
                 alignItems: 'center',
                 gap: '8px',
               }}>
-                <MdEmail size={15} /><p> {apt.user?.email || apt.name.toLowerCase().replace(/\s/g, '') + '@email.com'}</p>
+                <MdEmail size={15} /><p> {apt.email || apt.user?.email || '—'}</p>
               </div>
             </div>
 
