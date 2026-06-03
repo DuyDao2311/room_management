@@ -179,15 +179,34 @@ export default function InvoiceManagement() {
 
   // ─── URL Sync ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (currentPage > 1) params.set("page", currentPage.toString());
-    if (filterSearch) params.set("search", filterSearch);
-    if (filterType) params.set("type", filterType);
-    if (filterMethod) params.set("paymentMethod", filterMethod);
-    if (filterStatus) params.set("status", filterStatus);
-    if (filterFromDate) params.set("fromDate", filterFromDate);
-    if (filterToDate) params.set("toDate", filterToDate);
-    setSearchParams(params, { replace: true });
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (currentPage > 1) next.set("page", currentPage.toString());
+        else next.delete("page");
+
+        if (filterSearch) next.set("search", filterSearch);
+        else next.delete("search");
+
+        if (filterType) next.set("type", filterType);
+        else next.delete("type");
+
+        if (filterMethod) next.set("paymentMethod", filterMethod);
+        else next.delete("paymentMethod");
+
+        if (filterStatus) next.set("status", filterStatus);
+        else next.delete("status");
+
+        if (filterFromDate) next.set("fromDate", filterFromDate);
+        else next.delete("fromDate");
+
+        if (filterToDate) next.set("toDate", filterToDate);
+        else next.delete("toDate");
+
+        return next;
+      },
+      { replace: true }
+    );
   }, [
     currentPage,
     filterSearch,
@@ -260,6 +279,29 @@ export default function InvoiceManagement() {
       .then((r) => setContracts(r.data.data))
       .catch((err) => console.error("Lỗi tải danh sách hợp đồng:", err));
   }, [fetchStats]);
+
+  // ─── Xử lý highlight parameter từ notification ─────────────────────────────
+  useEffect(() => {
+    const highlightId = searchParams.get("highlight");
+    if (highlightId) {
+      api
+        .get(`/invoices/${highlightId}`)
+        .then((r) => {
+          const inv = r.data?.data || r.data;
+          if (inv) handleRowClick(inv);
+          
+          setSearchParams(
+            (prev) => {
+              const next = new URLSearchParams(prev);
+              next.delete("highlight");
+              return next;
+            },
+            { replace: true }
+          );
+        })
+        .catch((err) => console.error("Lỗi lấy hóa đơn highlight:", err));
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleCashPayment = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();

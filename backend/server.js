@@ -20,7 +20,9 @@ const feedbackRoutes = require("./routes/feedback");
 const favoriteRoutes = require("./routes/favorites");
 const adminRoomMapRoutes = require("./routes/adminRoomMap.routes");
 const searchRoutes = require("./routes/search");
+const cronRoutes = require("./routes/cron");
 const { checkExpiringContracts, checkOverdueInvoices, checkDueSoonInvoices } = require("./utils/notificationService");
+const { initCronJobs } = require("./utils/cronJobs");
 
 const app = express();
 
@@ -107,6 +109,7 @@ app.use("/api/feedback", feedbackRoutes);
 app.use("/api/favorites", favoriteRoutes);
 app.use("/api/admin/rooms", adminRoomMapRoutes);
 app.use("/api/search", searchRoutes);
+app.use("/api/cron", cronRoutes);
 
 // ─── Health check ─────────────────────────────────────────────
 app.get("/api/health", (_, res) => res.json({ status: "OK", timestamp: new Date() }));
@@ -172,4 +175,7 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`✅ Server đang chạy tại http://localhost:${PORT}`);
   console.log(`🔌 Socket.io đã sẵn sàng`);
+
+  // Khởi tạo cronjob kiểm tra gia hạn hợp đồng hàng ngày
+  initCronJobs(io);
 });

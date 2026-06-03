@@ -584,6 +584,7 @@ const checkDueSoonInvoices = async () => {
   const dueSoon = await Invoice.find({
     status: "unpaid",
     dueDate: { $gte: now, $lte: fiveDaysLater },
+    sentAt: { $ne: null },
   });
 
   const results = [];
@@ -607,6 +608,94 @@ const sendSocketNotification = (io, eventType, notification) => {
   io.to(`tenant_${notification.userId}`).emit(eventType, notification);
 };
 
+// ─── Extension notification helpers ──────────────────────────────────────────
+
+/** Admin gửi yêu cầu gia hạn → email + in-app cho tenant. */
+const notifyTenantExtensionRequest = async (contract) => {
+  const populated = await Contract.findById(contract._id)
+    .populate("tenant", "_id email name")
+    .populate("room", "name");
+  const tenant = populated?.tenant;
+  if (!tenant) return [];
+
+  const title = "📋 Yêu cầu gia hạn hợp đồng";
+  const message = `Kính gửi Quý khách,\n\nHợp đồng thuê phòng ${populated.room?.name || ""} của Quý khách sắp hết hạn vào ngày ${fmtDate(populated.endDate)}. Chủ trọ muốn hỏi ý kiến Quý khách về việc gia hạn hợp đồng. Vui lòng đăng nhập ứng dụng để phản hồi.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+
+  return dispatch({
+    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
+    data: {
+      type: "CONTRACT",
+      title,
+      message,
+      contractId: populated._id,
+      roomId: populated.room?._id,
+    },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/tenant/my-room"),
+  });
+};
+
+/** Tenant đồng ý gia hạn → thông báo admin/staff. */
+const notifyAdminTenantAgreedExtension = async (contract) => {
+  const room = await Room.findById(contract.room).select("name district");
+  const tenant = await User.findById(contract.tenant).select("name");
+
+  const title = "✅ Khách thuê đồng ý gia hạn hợp đồng";
+  const message = `Khách thuê ${tenant?.name || ""} — phòng ${room?.name || ""} đã đồng ý gia hạn hợp đồng${contract.extensionRequestedMonths ? ` (${contract.extensionRequestedMonths} tháng)` : ""}. Vui lòng tạo hợp đồng gia hạn.`;
+
+  return await notifyStaffByDistrict(room?.district || "", {
+    type: "CONTRACT",
+    title,
+    message,
+    contractId: contract._id,
+    roomId: contract.room,
+    actionUrl: buildFrontendUrl("/admin/contracts"),
+  });
+};
+
+/** Tenant từ chối gia hạn → thông báo admin/staff. */
+const notifyAdminTenantDeclinedExtension = async (contract) => {
+  const room = await Room.findById(contract.room).select("name district");
+  const tenant = await User.findById(contract.tenant).select("name");
+
+  const title = "❌ Khách thuê từ chối gia hạn hợp đồng";
+  const message = `Khách thuê ${tenant?.name || ""} — phòng ${room?.name || ""} đã từ chối gia hạn hợp đồng. Hợp đồng sẽ tự động chấm dứt khi hết hạn.`;
+
+  return await notifyStaffByDistrict(room?.district || "", {
+    type: "CONTRACT",
+    title,
+    message,
+    contractId: contract._id,
+    roomId: contract.room,
+    actionUrl: buildFrontendUrl("/admin/contracts"),
+  });
+};
+
+/** Admin tạo hợp đồng gia hạn → thông báo tenant ký. */
+const notifyTenantExtensionCreated = async (newContract) => {
+  const populated = await Contract.findById(newContract._id)
+    .populate("tenant", "_id email name")
+    .populate("room", "name");
+  const tenant = populated?.tenant;
+  if (!tenant) return [];
+
+  const title = "📝 Hợp đồng gia hạn đã được tạo — Vui lòng ký xác nhận";
+  const message = `Kính gửi Quý khách,\n\nChủ trọ đã tạo hợp đồng gia hạn cho phòng ${populated.room?.name || ""} (từ ${fmtDate(populated.startDate)} đến ${fmtDate(populated.endDate)}, giá thuê ${fmt(populated.monthlyRent)}đ/tháng). Vui lòng đăng nhập ứng dụng để xem chi tiết và ký xác nhận.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+
+  return dispatch({
+    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
+    data: {
+      type: "CONTRACT",
+      title,
+      message,
+      contractId: populated._id,
+      roomId: populated.room?._id,
+    },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/tenant/my-room"),
+  });
+};
+
 module.exports = {
   // Dispatcher (export để test)
   dispatch,
@@ -628,6 +717,11 @@ module.exports = {
   notifyTenantInvoicePaid,
   notifyTenantAppointmentConfirmed,
   notifyTenantAppointmentCancelled,
+  // Extension
+  notifyTenantExtensionRequest,
+  notifyAdminTenantAgreedExtension,
+  notifyAdminTenantDeclinedExtension,
+  notifyTenantExtensionCreated,
   // Cron
   checkExpiringContracts,
   checkOverdueInvoices,
