@@ -517,7 +517,7 @@ const notifyTenantAppointmentCancelled = async (appointment) => {
 // ─── Cron periodic checks ────────────────────────────────────────────────────
 /**
  * Hợp đồng sắp hết hạn — staff + tenant.
- * Dedup: cùng contractId trong 7 ngày → skip cả staff lẫn tenant.
+ * Dedup: cùng contractId trong 1 ngày → skip cả staff lẫn tenant.
  */
 const checkExpiringContracts = async () => {
   const now = new Date();
@@ -533,7 +533,7 @@ const checkExpiringContracts = async () => {
     const existingNotif = await Notification.findOne({
       type: "CONTRACT",
       contractId: contract._id,
-      createdAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
+      createdAt: { $gte: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000) },
     });
     if (!existingNotif) {
       const staffNotifs = await notifyContractExpiring(contract);
