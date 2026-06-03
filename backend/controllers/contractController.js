@@ -93,9 +93,26 @@ const signContract = async (req, res) => {
     if (ownerSigned && tenantSigned) {
       update.signedAt = new Date();
 
-      // Chỉ chuyển sang active nếu đang ở pending
+      // Chỉ chuyển trạng thái nếu đang ở pending
       if (contract.status === "pending") {
-        update.status = "active";
+        // Nếu là hợp đồng gia hạn (có parentContract)
+        if (contract.parentContract) {
+          const parentContract = await Contract.findById(contract.parentContract);
+          const now = new Date();
+          // Nếu hợp đồng chính vẫn active VÀ ngày bắt đầu HĐ gia hạn chưa tới
+          if (parentContract && parentContract.status === "active" && new Date(contract.startDate) > now) {
+            update.status = "renewal"; // Chờ kích hoạt khi đến ngày
+          } else {
+            // HĐ chính đã hết hạn hoặc ngày bắt đầu đã qua → active ngay
+            update.status = "active";
+            // Chuyển HĐ chính sang renewed nếu vẫn active
+            if (parentContract && parentContract.status === "active") {
+              await Contract.findByIdAndUpdate(parentContract._id, { status: "renewed" });
+            }
+          }
+        } else {
+          update.status = "active";
+        }
       }
     }
 
@@ -108,8 +125,8 @@ const signContract = async (req, res) => {
       .populate("room", "name address price area type")
       .populate("tenant", "name email");
 
-    // ── 8. Nếu vừa active → cập nhật phòng + tạo hóa đơn cọc ─────
-    if (update.status === "active") {
+    // ── 8. Nếu vừa active (hợp đồng mới, không phải gia hạn) → cập nhật phòng + tạo hóa đơn cọc
+    if (update.status === "active" && !contract.parentContract) {
       await Room.findByIdAndUpdate(updated.room._id, { status: "occupied" });
 
       const hasDeposit = await Invoice.findOne({
@@ -137,7 +154,9 @@ const signContract = async (req, res) => {
     return res.json({
       message: update.status === "active"
         ? "Cả hai bên đã ký! Hợp đồng chính thức có hiệu lực."
-        : "Lưu chữ ký thành công.",
+        : update.status === "renewal"
+          ? "Cả hai bên đã ký! Hợp đồng gia hạn đang chờ đến ngày có hiệu lực."
+          : "Lưu chữ ký thành công.",
       contract: updated,
       // Alias cho phép frontend dùng trực tiếp response.data
       ...updated.toObject(),

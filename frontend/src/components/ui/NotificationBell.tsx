@@ -82,16 +82,42 @@ export default function NotificationBell() {
     // Điều hướng theo loại thông báo
     switch (n.type) {
       case 'APPOINTMENT':
-        navigate('/appointments')
+        if (isStaff) {
+          navigate(n.appointmentId ? `/admin/appointments/${n.appointmentId}` : '/admin/appointments')
+        } else {
+          navigate('/appointments')
+        }
         break
       case 'CONTRACT':
-        navigate('/contracts')
+        if (isStaff) {
+          // Nếu có contractId, điều hướng đến trang hợp đồng với param để mở chi tiết
+          navigate(n.contractId ? `/admin/contracts?highlight=${n.contractId}` : '/admin/contracts')
+        } else {
+          // Tenant: điều hướng về MyRoom với section tương ứng tiêu đề thông báo
+          if (n.title?.includes('được tạo') || n.title?.includes('vui lòng ký')) {
+            navigate('/my-room?section=contract')
+          } else if (n.title?.includes('gia hạn')) {
+            navigate('/my-room?section=extension')
+          } else if (n.title?.includes('hết hạn') || n.title?.includes('sắp hết hạn')) {
+            navigate('/my-room?section=contract')
+          } else if (n.title?.includes('phê duyệt') || n.title?.includes('được duyệt')) {
+            navigate('/my-room?section=contract')
+          } else if (n.title?.includes('chấm dứt') || n.title?.includes('đã kết thúc')) {
+            navigate('/my-room?section=contract')
+          } else {
+            navigate('/my-room')
+          }
+        }
         break
       case 'FEEDBACK':
-        navigate('/feedback')
+        navigate(isStaff ? '/admin/feedback' : '/feedback')
         break
       case 'INVOICE':
-        navigate('/my-invoices')
+        if (isStaff) {
+          navigate(n.invoiceId ? `/admin/invoices?highlight=${n.invoiceId}` : '/admin/invoices')
+        } else {
+          navigate(n.invoiceId ? `/my-invoices?highlight=${n.invoiceId}` : '/my-invoices')
+        }
         break
       default:
         navigate('/notifications')

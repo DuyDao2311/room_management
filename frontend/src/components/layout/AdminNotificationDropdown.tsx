@@ -106,13 +106,25 @@ export default function AdminNotificationDropdown({ onClose }: Props) {
     onClose()
     switch (n.type) {
       case 'APPOINTMENT':
-        navigate('/admin/appointments')
+        if (n.appointmentId) {
+          navigate(`/admin/appointments/${n.appointmentId}`)
+        } else {
+          navigate('/admin/appointments')
+        }
         break
       case 'CONTRACT':
-        navigate('/admin/contracts')
+        if (n.contractId) {
+          navigate(`/admin/contracts?highlight=${n.contractId}`)
+        } else {
+          navigate('/admin/contracts')
+        }
         break
       case 'INVOICE':
-        navigate('/admin/invoices')
+        if (n.invoiceId) {
+          navigate(`/admin/invoices?highlight=${n.invoiceId}`)
+        } else {
+          navigate('/admin/invoices')
+        }
         break
       case 'FEEDBACK':
         navigate('/admin/feedback')

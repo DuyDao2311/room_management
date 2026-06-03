@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import { createPayment, redirectToPayment, requestCashPayment } from '../../api/payment.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
@@ -49,6 +50,7 @@ export default function MyInvoices() {
   const [paymentMethod, setPaymentMethod] = useState<'momo' | 'vnpay' | 'cash'>('momo')
   const [cashModal, setCashModal] = useState(false)
   const { socket } = useNotifications()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = 9
@@ -83,6 +85,31 @@ export default function MyInvoices() {
       .catch(() => setError('Không thể tải hóa đơn của bạn.'))
       .finally(() => setLoading(false))
   }, [])
+
+  // Handle highlight from notification
+  useEffect(() => {
+    const highlightId = searchParams.get('highlight')
+    if (highlightId && !loading && invoices.length > 0) {
+      const found = invoices.find(inv => inv._id === highlightId)
+      if (found) {
+        setSelectedInvoice(found)
+      } else {
+        // Invoice might not be in current page, fetch it directly
+        api.get(`/invoices/${highlightId}`)
+          .then(r => {
+            const inv = r.data?.data || r.data
+            if (inv) setSelectedInvoice(inv)
+          })
+          .catch(err => console.error('Lỗi lấy hóa đơn highlight:', err))
+      }
+      // Remove highlight param
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev)
+        next.delete('highlight')
+        return next
+      }, { replace: true })
+    }
+  }, [loading, invoices, searchParams, setSearchParams])
 
   const handlePay = async (id: string) => {
     if (!paymentMethod) {
