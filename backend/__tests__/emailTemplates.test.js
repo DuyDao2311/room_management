@@ -3,6 +3,7 @@
 const {
   passwordResetTemplate,
   passwordChangedTemplate,
+  notificationEmailTemplate,
   escapeHtml,
 } = require("../utils/emailTemplates");
 
@@ -46,6 +47,60 @@ describe("passwordResetTemplate", () => {
 
     expect(text).toContain("https://x.com/r/abc");
     expect(text).toContain("Alice");
+  });
+});
+
+describe("notificationEmailTemplate", () => {
+  test("escape heading + message khỏi XSS trong HTML", () => {
+    const { html } = notificationEmailTemplate({
+      heading: "<script>alert(1)</script>",
+      message: "<img src=x onerror=alert(1)>",
+    });
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain("<img src=x");
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).toContain("&lt;img");
+  });
+
+  test("text version chứa heading + message raw (không cần escape)", () => {
+    const { text } = notificationEmailTemplate({
+      heading: "💰 Hóa đơn đã thanh toán",
+      message: "Hóa đơn phòng A101 — 1.500.000đ đã thanh toán",
+    });
+    expect(text).toContain("💰 Hóa đơn đã thanh toán");
+    expect(text).toContain("1.500.000đ");
+  });
+
+  test("không có actionUrl → KHÔNG render nút 'Xem chi tiết'", () => {
+    const { html, text } = notificationEmailTemplate({
+      heading: "Test",
+      message: "Body",
+    });
+    expect(html).not.toContain("Xem chi tiết");
+    expect(text).not.toContain("Xem chi tiết");
+  });
+
+  test("có actionUrl → render link + label trong cả html lẫn text", () => {
+    const { html, text } = notificationEmailTemplate({
+      heading: "Test",
+      message: "Body",
+      actionUrl: "https://app.example.com/invoices/abc",
+      actionLabel: "Mở hóa đơn",
+    });
+    expect(html).toContain("https://app.example.com/invoices/abc");
+    expect(html).toContain("Mở hóa đơn");
+    expect(text).toContain("Mở hóa đơn: https://app.example.com/invoices/abc");
+  });
+
+  test("actionUrl chứa ký tự nguy hiểm → bị escape trong HTML", () => {
+    const { html } = notificationEmailTemplate({
+      heading: "Test",
+      message: "Body",
+      actionUrl: 'javascript:alert(1)"<>',
+    });
+    // Không cho phép href thoát ra ngoài attribute
+    expect(html).not.toContain('"<>');
+    expect(html).toContain("&quot;&lt;&gt;");
   });
 });
 

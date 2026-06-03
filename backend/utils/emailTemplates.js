@@ -26,6 +26,52 @@ function wrapText({ heading, body }) {
   return `${heading}\n\n${body}\n\n---\nEmail tự động, vui lòng không trả lời.`;
 }
 
+/**
+ * Template generic dùng cho mọi notification email (staff + tenant).
+ * Tái dùng wrapHtml/wrapText/escapeHtml — không lặp lại logic shell.
+ *
+ * @param {Object} opts
+ * @param {string} opts.heading      Tiêu đề (đã có emoji nếu cần, vd: "💰 Hóa đơn đã thanh toán")
+ * @param {string} opts.message      Nội dung dạng plain text — sẽ tự escape khi render HTML
+ * @param {string} [opts.actionUrl]  Link tới trang chi tiết (vd: trang hóa đơn). Optional.
+ * @param {string} [opts.actionLabel] Label nút bấm. Default "Xem chi tiết".
+ * @returns {{ html: string, text: string }}
+ */
+function notificationEmailTemplate({ heading, message, actionUrl, actionLabel }) {
+  const safeHeading = escapeHtml(heading || "");
+  const safeMessage = escapeHtml(message || "");
+  const safeUrl = actionUrl ? escapeHtml(actionUrl) : null;
+  const safeLabel = escapeHtml(actionLabel || "Xem chi tiết");
+
+  const actionBlockHtml = safeUrl
+    ? `
+      <p style="text-align: center; margin: 0 0 24px;">
+        <a href="${safeUrl}"
+           style="background: #0f67e3; color: #fff; padding: 12px 32px;
+                  text-decoration: none; border-radius: 6px; display: inline-block;
+                  font-weight: 600;">
+          ${safeLabel}
+        </a>
+      </p>
+    `
+    : "";
+
+  const bodyHtml = `
+    <p style="margin: 0 0 16px; font-size: 15px; white-space: pre-line;">${safeMessage}</p>
+    ${actionBlockHtml}
+  `;
+
+  const actionBlockText = actionUrl
+    ? `\n\n${actionLabel || "Xem chi tiết"}: ${actionUrl}`
+    : "";
+  const body = `${message || ""}${actionBlockText}`;
+
+  return {
+    html: wrapHtml({ heading: safeHeading, bodyHtml }),
+    text: wrapText({ heading, body }),
+  };
+}
+
 function passwordResetTemplate({ userName, resetUrl, requestedAt }) {
   const safeName = escapeHtml(userName);
   const safeUrl = escapeHtml(resetUrl);
@@ -131,5 +177,6 @@ Vui lòng liên hệ quản trị viên hệ thống ngay.`;
 module.exports = {
   passwordResetTemplate,
   passwordChangedTemplate,
+  notificationEmailTemplate,
   escapeHtml,
 };

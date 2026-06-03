@@ -9,6 +9,14 @@ const appointmentSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  // Optional — nếu khách điền email lúc đặt lịch, hệ thống sẽ gửi email
+  // xác nhận khi staff/admin duyệt lịch hẹn. Bỏ trống thì skip email.
+  email: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    default: "",
+  },
   date: {
     type: Date,
     required: true,
