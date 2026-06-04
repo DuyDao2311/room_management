@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../../api/axios.ts'
-import consultImg from '../../image/z7729713217703_c59b94e924d550ee4e1ea6ef86b3baba.jpg'
 import news1Img from '../../image/tin tức 1.png'
 import news2Img from '../../image/tin tức 2.png'
 import { RiMapPin2Line } from "react-icons/ri";
@@ -293,7 +292,7 @@ export default function Home() {
               <p>Chúng tôi luôn sẵn sàng hỗ trợ bạn tìm kiếm không gian sống phù hợp nhất với phong cách và ngân sách của bạn.</p>
               <div className="design-cta-actions">
                 <Link to="https://www.facebook.com/duy.ao.397869/" className="design-btn-primary" target="_blank" rel="noreferrer">LIÊN HỆ NGAY</Link>
-                <a href={consultImg} target="_blank" rel="noreferrer" className="design-btn-outline">NHẬN TƯ VẤN MIỄN PHÍ</a>
+                <a href="https://zalo.me/0869188512" target="_blank" rel="noreferrer" className="design-btn-outline">NHẬN TƯ VẤN MIỄN PHÍ</a>
               </div>
             </div>
           </section>

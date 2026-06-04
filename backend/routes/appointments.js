@@ -80,7 +80,7 @@ router.get("/:id", protect, verifyRole("admin", "staff"), async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id)
       .populate("room", "name address price type images district")
-      .populate("user", "name email");
+      .populate("user", "name email avatar");
     if (!appointment) return res.status(404).json({ message: "Không tìm thấy lịch hẹn" });
 
     // Staff: kiểm tra lịch hẹn thuộc district
@@ -152,7 +152,7 @@ router.put("/:id/status", protect, verifyRole("admin", "staff"), async (req, res
     // Lấy lại dữ liệu kèm populate để trả về frontend
     const updatedAppointment = await Appointment.findById(req.params.id)
       .populate("room", "name address images district")
-      .populate("user", "name email");
+      .populate("user", "name email avatar");
 
     res.json(updatedAppointment);
   } catch (err) {
