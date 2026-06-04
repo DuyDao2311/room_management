@@ -220,10 +220,41 @@ const createUser = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. Xóa người dùng (admin only)
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * DELETE /api/admin/users/:id
+ * Quyền: admin only
+ */
+const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "Không tìm thấy người dùng." });
+    }
+
+    if (user.role === "admin") {
+      return res.status(400).json({ message: "Không thể xóa quản trị viên." });
+    }
+
+    if (user._id.toString() === req.user._id.toString()) {
+      return res.status(400).json({ message: "Không thể tự xóa chính mình." });
+    }
+
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: "Xóa người dùng thành công." });
+  } catch (err) {
+    console.error("Delete user error:", err);
+    res.status(500).json({ message: "Lỗi server." });
+  }
+};
+
 module.exports = {
   getStaffList,
   updateUserRole,
   updateManagedDistricts,
   getAvailableDistricts,
   createUser,
+  deleteUser,
 };
