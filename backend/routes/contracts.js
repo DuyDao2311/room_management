@@ -56,7 +56,7 @@ router.get("/stats", protect, verifyRole("admin", "staff"), async (req, res) => 
       Contract.countDocuments({ ...filter, startDate: { $lte: endOfLastMonth } }),
       Contract.countDocuments({ ...filter, startDate: { $gte: startOfThisMonth } }),
       Contract.countDocuments({ ...filter, startDate: { $gte: startOfLastMonth, $lte: endOfLastMonth } }),
-      Contract.countDocuments({ ...filter, status: "active", endDate: { $gte: now, $lte: next30Days } }),
+      Contract.countDocuments({ ...filter, status: "active", endDate: { $gte: now, $lte: next30Days }, extensionStatus: { $in: ["none", null] } }),
       Contract.countDocuments({ ...filter, status: "terminated" })
     ]);
 
@@ -442,28 +442,48 @@ router.put("/:id", protect, verifyRole("admin", "staff"), async (req, res) => {
 
     // ── Khi admin/staff PHÊ DUYỆT hợp đồng (pending → active) ──────────────────────
     if (prevContract.status === "pending" && req.body.status === "active") {
+      // Xử lý hợp đồng gia hạn (có parentContract)
+      if (prevContract.parentContract) {
+        const parentContract = await Contract.findById(prevContract.parentContract);
+        const now = new Date();
+        // Nếu hợp đồng chính vẫn active VÀ ngày bắt đầu HĐ gia hạn chưa tới
+        if (parentContract && parentContract.status === "active" && new Date(contract.startDate) > now) {
+          // Chuyển sang trạng thái renewal (chờ kích hoạt khi đến ngày)
+          await Contract.findByIdAndUpdate(contract._id, { status: "renewal" });
+          contract.status = "renewal";
+        } else {
+          // HĐ chính đã hết hạn hoặc ngày bắt đầu đã qua → active ngay
+          if (parentContract && parentContract.status === "active") {
+            await Contract.findByIdAndUpdate(parentContract._id, { status: "renewed" });
+          }
+        }
+      }
+
       // Cập nhật trạng thái phòng → occupied
       await Room.findByIdAndUpdate(contract.room._id, { status: "occupied" });
 
       // Tự động tạo hóa đơn deposit nếu chưa có
-      const hasDeposit = await Invoice.findOne({ contract: contract._id, type: "deposit" });
-      if (!hasDeposit) {
-        // Hạn thanh toán = ngày phê duyệt + 1 ngày
-        const depositDueDate = new Date();
-        depositDueDate.setDate(depositDueDate.getDate() + 1);
+      // Chú ý: Chỉ tạo nếu là hợp đồng mới HOẶC hợp đồng gia hạn có thu thêm tiền cọc (> 0)
+      if (!contract.parentContract || contract.depositAmount > 0) {
+        const hasDeposit = await Invoice.findOne({ contract: contract._id, type: "deposit" });
+        if (!hasDeposit) {
+          // Hạn thanh toán = ngày phê duyệt + 1 ngày
+          const depositDueDate = new Date();
+          depositDueDate.setDate(depositDueDate.getDate() + 1);
 
-        await Invoice.create({
-          contract:            contract._id,
-          type:                "deposit",
-          representativeName:  contract.representativeName,
-          representativePhone: contract.representativePhone,
-          roomName:            contract.room.name,
-          rentAmount:          contract.monthlyRent,
-          depositAmount:       contract.depositAmount || contract.monthlyRent,
-          dueDate:             depositDueDate,
-          notes:               "Hóa đơn đặt cọc tự động khi phê duyệt hợp đồng.",
-          createdBy:           req.user._id,
-        });
+          await Invoice.create({
+            contract:            contract._id,
+            type:                "deposit",
+            representativeName:  contract.representativeName,
+            representativePhone: contract.representativePhone,
+            roomName:            contract.room.name,
+            rentAmount:          contract.monthlyRent,
+            depositAmount:       contract.depositAmount || contract.monthlyRent,
+            dueDate:             depositDueDate,
+            notes:               "Hóa đơn đặt cọc tự động khi phê duyệt hợp đồng.",
+            createdBy:           req.user._id,
+          });
+        }
       }
 
       // Gửi notification (email + in-app) cho tenant về việc hợp đồng được duyệt.
@@ -549,10 +569,11 @@ router.post("/:id/send-extension-request", protect, verifyRole("admin", "staff")
       return res.status(400).json({ message: "Chỉ có thể gửi yêu cầu gia hạn cho hợp đồng đang hiệu lực." });
     }
 
-    // Cập nhật trạng thái
+    // Cập nhật trạng thái + ghi chú gia hạn
+    const { note } = req.body;
     const updated = await Contract.findByIdAndUpdate(
       req.params.id,
-      { extensionStatus: "sent_to_tenant" },
+      { extensionStatus: "sent_to_tenant", extensionNote: note || "" },
       { new: true }
     )
       .populate("room", "name address price area type district")

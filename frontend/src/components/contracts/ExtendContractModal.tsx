@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import api from '../../api/axios.ts'
+import 'react-datepicker/dist/react-datepicker.css'
+
 
 interface Contract {
   _id: string
@@ -28,14 +30,18 @@ export default function ExtendContractModal({ contract, onClose, onSuccess }: Pr
   const defaultEnd = new Date(newStart)
   defaultEnd.setMonth(defaultEnd.getMonth() + defaultMonths)
 
-  const formatDateISO = (d: Date) => d.toISOString().split('T')[0]
+  const formatDateISO = (d: Date) => {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
 
-  const [endDate, setEndDate] = useState(formatDateISO(defaultEnd))
+  const [endDate] = useState(formatDateISO(defaultEnd))
   const [monthlyRent, setMonthlyRent] = useState(String(contract.monthlyRent))
   const [depositAmount, setDepositAmount] = useState(contract.depositAmount?.toString() || '0')
   const [notes, setNotes] = useState(`Gia hạn từ hợp đồng ${contract._id}`)
   const [loading, setLoading] = useState(false)
-  const [isDateFocused, setIsDateFocused] = useState(false)
   const [error, setError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -154,23 +160,10 @@ export default function ExtendContractModal({ contract, onClose, onSuccess }: Pr
             <div>
               <label style={labelStyle}>Ngày kết thúc mới</label>
               <input
-                type={isDateFocused || endDate ? 'date' : 'text'}
-                value={!isDateFocused && endDate ? endDate.split('-').reverse().join('/') : endDate}
-                onFocus={() => setIsDateFocused(true)}
-                onBlur={() => setIsDateFocused(false)}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  // Nếu input là text (khi chưa support date), có thể user gõ dd/mm/yyyy
-                  if (val.includes('/')) {
-                    const parts = val.split('/');
-                    if (parts.length === 3) setEndDate(`${parts[2]}-${parts[1]}-${parts[0]}`);
-                  } else {
-                    setEndDate(val);
-                  }
-                }}
-                style={inputStyle}
-                placeholder="dd/mm/yyyy"
-                required
+                type="text"
+                value={endDate ? endDate.split('-').reverse().join('/') : ''}
+                readOnly
+                style={{ ...inputStyle, background: '#f3f4f6', cursor: 'default' }}
               />
             </div>
             <div>

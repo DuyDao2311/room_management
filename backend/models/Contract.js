@@ -75,6 +75,11 @@ const contractSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    /** Ghi chú của admin khi gửi yêu cầu gia hạn (VD: thay đổi giá, dịch vụ) */
+    extensionNote: {
+      type: String,
+      default: "",
+    },
 
     // ── Chữ ký điện tử ────────────────────────────────────────────
     /** Chữ ký Bên A (chủ trọ) – lưu dưới dạng base64 PNG */

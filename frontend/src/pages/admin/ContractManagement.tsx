@@ -115,6 +115,8 @@ export default function ContractManagement() {
   // ── Extension state ────────────────────────────────────────────────────────
   const [showExtendModal, setShowExtendModal] = useState(false)
   const [extensionSending, setExtensionSending] = useState(false)
+  const [showExtensionNoteModal, setShowExtensionNoteModal] = useState(false)
+  const [extensionNote, setExtensionNote] = useState('')
 
   // ─── Filter state (đồng bộ URL) ────────────────────────────────────────────
   const currentPage = parseInt(searchParams.get('page') || '1')
@@ -339,12 +341,15 @@ export default function ContractManagement() {
   // ── Extension handlers ─────────────────────────────────────────────────────
   const handleSendExtensionRequest = async () => {
     if (!selectedContract) return
-    if (!confirm('Bạn có chắc muốn gửi yêu cầu gia hạn cho khách thuê?')) return
     try {
       setExtensionSending(true)
-      const { data } = await api.post(`/contracts/${selectedContract._id}/send-extension-request`)
+      const { data } = await api.post(`/contracts/${selectedContract._id}/send-extension-request`, {
+        note: extensionNote,
+      })
       setSelectedContract(data.contract)
       setContracts(prev => prev.map(c => c._id === data.contract._id ? data.contract : c))
+      setShowExtensionNoteModal(false)
+      setExtensionNote('')
       alert('Đã gửi yêu cầu gia hạn cho khách thuê thành công!')
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -655,7 +660,7 @@ export default function ContractManagement() {
                           </div>
                           <div className="contract-field">
                             <label>Ngày sinh</label>
-                            <input className="contract-input" type="date" value={selectedContract.representativeDob || ''} readOnly />
+                            <input className="contract-input" type="text" value={formatDDMMYYYY(selectedContract.representativeDob || '')} readOnly />
                           </div>
                           <div className="contract-field">
                             <label>Số CCCD/CMND</label>
@@ -848,7 +853,7 @@ export default function ContractManagement() {
                         type="button"
                         className="btn-confirm"
                         style={{ background: '#d97706' }}
-                        onClick={handleSendExtensionRequest}
+                        onClick={() => { setExtensionNote(''); setShowExtensionNoteModal(true) }}
                         disabled={extensionSending}
                       >
                         {extensionSending ? 'Đang gửi...' : '📨 Hỏi ý kiến gia hạn'}
@@ -903,6 +908,83 @@ export default function ContractManagement() {
           onClose={() => setShowExtendModal(false)}
           onSuccess={handleExtendSuccess}
         />
+      )}
+
+      {/* Modal Ghi chú gia hạn */}
+      {showExtensionNoteModal && selectedContract && (
+        <div className="rent-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setShowExtensionNoteModal(false) }}>
+          <div className="rent-modal" style={{ maxWidth: '520px', borderRadius: '16px', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+              padding: '24px 28px',
+              color: '#fff',
+            }}>
+              <h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>
+                📨 Hỏi ý kiến gia hạn hợp đồng
+              </h2>
+              <p style={{ margin: '8px 0 0', fontSize: '0.85rem', opacity: 0.9 }}>
+                Phòng {selectedContract.room?.name} — {selectedContract.tenant?.name}
+              </p>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '24px 28px' }}>
+              <p style={{ fontSize: '0.9rem', color: '#374151', marginBottom: '16px', lineHeight: 1.6 }}>
+                Ghi chú bên dưới sẽ được gửi kèm trong thông báo/email đến khách thuê, giúp họ nắm được các thay đổi (nếu có) trước khi quyết định gia hạn.
+              </p>
+              <label style={{
+                display: 'block', fontSize: '0.8rem', fontWeight: 700,
+                color: '#374151', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.03em'
+              }}>
+                Ghi chú cho khách thuê (tuỳ chọn)
+              </label>
+              <textarea
+                value={extensionNote}
+                onChange={(e) => setExtensionNote(e.target.value)}
+                placeholder={"Ví dụ:\n• Tiền nhà tăng từ 3.000.000đ lên 3.500.000đ\n• Tiền điện giữ nguyên 3.500đ/kWh\n• Tiền nước tăng từ 25.000đ lên 30.000đ/người"}
+                rows={5}
+                style={{
+                  width: '100%', padding: '12px 16px', borderRadius: '8px',
+                  border: '1px solid #d1d5db', fontSize: '0.9rem', fontFamily: 'inherit',
+                  outline: 'none', resize: 'vertical', lineHeight: 1.6,
+                  transition: 'border-color 0.2s',
+                }}
+                onFocus={(e) => (e.target.style.borderColor = '#d97706')}
+                onBlur={(e) => (e.target.style.borderColor = '#d1d5db')}
+              />
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #e5e7eb' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowExtensionNoteModal(false)}
+                  style={{
+                    padding: '10px 24px', borderRadius: '8px', border: '1px solid #d1d5db',
+                    background: '#fff', color: '#374151', fontWeight: 700, fontSize: '0.9rem',
+                    cursor: 'pointer', transition: 'all 0.2s',
+                  }}
+                >
+                  Huỷ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendExtensionRequest}
+                  disabled={extensionSending}
+                  style={{
+                    padding: '10px 28px', borderRadius: '8px', border: 'none',
+                    background: extensionSending ? '#9ca3af' : '#d97706', color: '#fff',
+                    fontWeight: 700, fontSize: '0.9rem',
+                    cursor: extensionSending ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {extensionSending ? '⏳ Đang gửi...' : '📨 Gửi yêu cầu'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )

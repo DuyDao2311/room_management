@@ -34,6 +34,7 @@ interface Contract {
   status: 'pending' | 'active' | 'expired' | 'terminated' | 'renewal' | 'renewed'
   extensionStatus?: 'none' | 'sent_to_tenant' | 'tenant_agreed' | 'tenant_declined' | 'extended'
   extensionRequestedMonths?: number
+  extensionNote?: string
   signatureB?: string
   isSignedByTenant?: boolean
 }
@@ -279,6 +280,22 @@ export default function MyRoom() {
               <div style={{ fontSize: '0.9rem', color: '#78350f' }}>
                 Chủ trọ muốn hỏi ý kiến của bạn về việc gia hạn hợp đồng phòng {room.name}. Hợp đồng hiện tại sẽ hết hạn vào ngày {new Date(contract.endDate).toLocaleDateString('vi-VN')}.
               </div>
+
+              {/* Ghi chú từ chủ trọ */}
+              {contract.extensionNote && (
+                <div style={{
+                  marginTop: '12px', padding: '12px 16px',
+                  background: '#fffbeb', border: '1px solid #f59e0b',
+                  borderRadius: '10px', borderLeft: '4px solid #d97706',
+                }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#92400e', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.03em' }}>
+                    📌 Thông tin từ chủ trọ
+                  </div>
+                  <div style={{ fontSize: '0.88rem', color: '#78350f', whiteSpace: 'pre-line', lineHeight: 1.6 }}>
+                    {contract.extensionNote}
+                  </div>
+                </div>
+              )}
 
               {/* Chọn số tháng khi đồng ý gia hạn */}
               {showExtensionMonths && (
