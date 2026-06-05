@@ -12,6 +12,7 @@ import FeedbackForm from '../../components/ui/FeedbackForm.tsx'
 import { getMyFeedback, checkEligibility, type Feedback } from '../../api/feedback.ts'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 import TenantContractModal from '../../components/contracts/TenantContractModal.tsx'
+import Incident from '../../components/tenant/IncidentReportPage.tsx'
 
 interface Room {
   _id: string
@@ -69,6 +70,9 @@ export default function MyRoom() {
 
   // Contract Modal state
   const [modalContract, setModalContract] = useState<Contract | null>(null)
+
+  // Report Issue Modal State
+  const [showReportModal, setShowReportModal] = useState(false)
 
   // Extension state
   const [extensionLoading, setExtensionLoading] = useState(false)
@@ -543,7 +547,7 @@ export default function MyRoom() {
                 <div style={{ color: '#6b7280', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '24px' }}>
                   Báo cáo các sự cố về điện, nước, hoặc thiết bị trong phòng để được xử lý nhanh chóng.
                 </div>
-                <button style={{ width: '100%', background: '#fff', border: '1px solid #fca5a5', color: '#ef4444', padding: '12px', borderRadius: '6px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}>
+                <button onClick={() => setShowReportModal(true)} style={{ width: '100%', background: '#fff', border: '1px solid #fca5a5', color: '#ef4444', padding: '12px', borderRadius: '6px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}>
                   <MdOutlineConstruction size={18} /> BÁO CÁO SỰ CỐ
                 </button>
               </div>
@@ -632,6 +636,13 @@ export default function MyRoom() {
           }}
         />
       )}
+
+      {/* Report Issue Modal */}
+      <Incident
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        room={room}
+      />
     </div>
   )
 }

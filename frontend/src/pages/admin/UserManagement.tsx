@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import { useAuth } from '../../contexts/AuthContext.tsx'
@@ -34,10 +35,27 @@ export default function UserManagement() {
 
   const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = 9
+  
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [highlightId, setHighlightId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchUsers()
   }, [])
+
+  useEffect(() => {
+    const id = searchParams.get('highlight');
+    if (id && users.length > 0) {
+      const idx = users.findIndex(u => u._id === id);
+      if (idx !== -1) {
+        setCurrentPage(Math.ceil((idx + 1) / ITEMS_PER_PAGE));
+        setHighlightId(id);
+        setTimeout(() => setHighlightId(null), 3000);
+      }
+      searchParams.delete('highlight');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [users, searchParams, setSearchParams]);
 
   const fetchUsers = async () => {
     try {
@@ -138,7 +156,7 @@ export default function UserManagement() {
               </tr>
             ) : (
               currentUsers.map(u => (
-                <tr key={u._id}>
+                <tr key={u._id} style={highlightId === u._id ? { backgroundColor: '#fef08a', transition: 'background-color 0.5s ease' } : { transition: 'background-color 0.5s ease' }}>
                   <td className="td-name">{u.name}</td>
                   <td className="td-muted">{u.email}</td>
                   <td>

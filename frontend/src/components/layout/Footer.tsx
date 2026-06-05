@@ -51,7 +51,7 @@ export default function Footer() {
         {/* Cột 4: Văn phòng */}
         <div className="footer-contact-col">
           <h4 className="footer-col-title">VĂN PHÒNG CHÍNH</h4>
-          <p>Tòa nhà DTT Center, Vạn Phúc, Quận Hà Đông, TP. Hà Nội</p>
+          <p>Tòa nhà F4 Center, Vạn Phúc, Quận Hà Đông, TP. Hà Nội</p>
           <p className="footer-contact-info">Hotline: <strong>0869 188 512</strong></p>
           <p className="footer-contact-info">Email: <strong>duykmhd2311@gmail.com</strong></p>
         </div>
@@ -59,7 +59,7 @@ export default function Footer() {
       </div>
 
       <div className="footer-bottom">
-        <p>© 2026 Phòng Trọ DTT. Bảo lưu mọi quyền.</p>
+        <p>© 2026 Căn hộ F4. Bảo lưu mọi quyền.</p>
       </div>
     </footer>
   )

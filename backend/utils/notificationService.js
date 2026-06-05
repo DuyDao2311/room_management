@@ -543,9 +543,11 @@ const checkExpiringContracts = async () => {
  */
 const checkOverdueInvoices = async () => {
   const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
   const overdueInvoices = await Invoice.find({
     status: { $in: ["unpaid", "overdue"] },
-    dueDate: { $lt: now },
+    dueDate: { $lt: startOfToday },
     sentAt: { $ne: null },
     tenantId: { $ne: null },
   });
@@ -578,11 +580,12 @@ const checkOverdueInvoices = async () => {
  */
 const checkDueSoonInvoices = async () => {
   const now = new Date();
-  const fiveDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const fiveDaysLater = new Date(startOfToday.getTime() + 3 * 24 * 60 * 60 * 1000);
 
   const dueSoon = await Invoice.find({
     status: "unpaid",
-    dueDate: { $gte: now, $lte: fiveDaysLater },
+    dueDate: { $gte: startOfToday, $lte: fiveDaysLater },
     sentAt: { $ne: null },
     tenantId: { $ne: null },
   });

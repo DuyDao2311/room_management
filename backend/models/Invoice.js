@@ -145,10 +145,17 @@ invoiceSchema.pre("save", function () {
   //    Và ngược lại, nếu đang overdue mà được dời hạn thì chuyển lại thành unpaid
   //    (Không chuyển overdue khi đang pending — đang chờ thu tiền mặt)
   if (this.status === "unpaid" || this.status === "overdue") {
-    if (this.dueDate && new Date() > new Date(this.dueDate)) {
-      this.status = "overdue";
-    } else {
-      this.status = "unpaid";
+    if (this.dueDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dueDate = new Date(this.dueDate);
+      dueDate.setHours(0, 0, 0, 0);
+      
+      if (today > dueDate) {
+        this.status = "overdue";
+      } else {
+        this.status = "unpaid";
+      }
     }
   }
 });

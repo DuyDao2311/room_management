@@ -14,6 +14,8 @@ const {
   notifyTenantContractExpiring,
   notifyTenantContractEnded,
   sendSocketNotification,
+  checkDueSoonInvoices,
+  checkOverdueInvoices,
 } = require("./notificationService");
 
 const runDailyCronJobs = async (io) => {
@@ -23,7 +25,18 @@ const runDailyCronJobs = async (io) => {
     await warnExpiringContracts(io);
     await autoExpireContracts(io);
     await autoTerminateContracts(io);
-    console.log("✅ [CronJob] Hoàn tất kiểm tra hợp đồng.");
+
+    console.log("⏰ [CronJob] Bắt đầu kiểm tra hóa đơn hàng ngày...");
+    const overdueNotifs = await checkOverdueInvoices();
+    const dueSoonNotifs = await checkDueSoonInvoices();
+
+    if (io) {
+      [...overdueNotifs, ...dueSoonNotifs].forEach((n) => {
+        sendSocketNotification(io, "new_notification", n);
+      });
+    }
+
+    console.log("✅ [CronJob] Hoàn tất kiểm tra hợp đồng và hóa đơn.");
   } catch (err) {
     console.error("❌ [CronJob] Lỗi:", err.message);
     throw err;
@@ -118,11 +131,12 @@ const warnExpiringContracts = async (io) => {
 
 // ─── 2. Tự động chuyển hợp đồng quá hạn sang "expired" ─────────────────────────
 const autoExpireContracts = async (io) => {
-  const now = new Date();
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
 
   const expiredContracts = await Contract.find({
     status: "active",
-    endDate: { $lt: now },
+    endDate: { $lt: startOfToday },
   });
 
   if (expiredContracts.length === 0) {
