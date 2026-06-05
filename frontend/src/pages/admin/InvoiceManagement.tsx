@@ -22,7 +22,9 @@ import { MdOutlineWaterDrop, MdReceiptLong, MdHouse } from "react-icons/md";
 import SendInvoiceButton from "../../components/ui/SendInvoiceButton.tsx";
 import { collectCashPayment } from "../../api/payment.ts";
 import Pagination from "../../components/ui/Pagination.tsx";
-
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { vi } from "date-fns/locale";
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 interface Invoice {
   _id: string;
@@ -289,7 +291,7 @@ export default function InvoiceManagement() {
         .then((r) => {
           const inv = r.data?.data || r.data;
           if (inv) handleRowClick(inv);
-          
+
           setSearchParams(
             (prev) => {
               const next = new URLSearchParams(prev);
@@ -1100,20 +1102,20 @@ export default function InvoiceManagement() {
                   border: "none",
                   background:
                     filterSearch ||
-                    filterType ||
-                    filterMethod ||
-                    filterStatus ||
-                    filterFromDate ||
-                    filterToDate
+                      filterType ||
+                      filterMethod ||
+                      filterStatus ||
+                      filterFromDate ||
+                      filterToDate
                       ? "#fee2e2"
                       : "#f1f5f9",
                   color:
                     filterSearch ||
-                    filterType ||
-                    filterMethod ||
-                    filterStatus ||
-                    filterFromDate ||
-                    filterToDate
+                      filterType ||
+                      filterMethod ||
+                      filterStatus ||
+                      filterFromDate ||
+                      filterToDate
                       ? "#ef4444"
                       : "#6b7280",
                   fontWeight: 600,
@@ -1546,11 +1548,21 @@ export default function InvoiceManagement() {
                 >
                   Hạn thanh toán
                 </label>
-                <input
+                <DatePicker
                   className="form-input"
-                  type="date"
-                  value={form.dueDate}
-                  onChange={(e) => sf("dueDate", e.target.value)}
+                  selected={form.dueDate ? new Date(form.dueDate) : null}
+                  onChange={(date: Date | null) => {
+                    if (date) {
+                      const tzOffset = date.getTimezoneOffset() * 60000;
+                      const localISOTime = new Date(date.getTime() - tzOffset).toISOString().split("T")[0];
+                      sf("dueDate", localISOTime);
+                    } else {
+                      sf("dueDate", "");
+                    }
+                  }}
+                  dateFormat="dd/MM/yyyy"
+                  locale={vi}
+                  placeholderText="dd/mm/yyyy"
                 />
               </div>
 
@@ -1952,11 +1964,21 @@ export default function InvoiceManagement() {
                 >
                   Hạn thanh toán
                 </label>
-                <input
+                <DatePicker
                   className="form-input"
-                  type="date"
-                  value={form.dueDate}
-                  onChange={(e) => sf("dueDate", e.target.value)}
+                  selected={form.dueDate ? new Date(form.dueDate) : null}
+                  onChange={(date: Date | null) => {
+                    if (date) {
+                      const tzOffset = date.getTimezoneOffset() * 60000;
+                      const localISOTime = new Date(date.getTime() - tzOffset).toISOString().split("T")[0];
+                      sf("dueDate", localISOTime);
+                    } else {
+                      sf("dueDate", "");
+                    }
+                  }}
+                  dateFormat="dd/MM/yyyy"
+                  locale={vi}
+                  placeholderText="dd/mm/yyyy"
                 />
               </div>
 

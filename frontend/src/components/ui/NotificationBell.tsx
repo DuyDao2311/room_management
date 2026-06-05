@@ -112,6 +112,7 @@ export default function NotificationBell() {
       case 'FEEDBACK':
         navigate(isStaff ? '/admin/feedback' : '/feedback')
         break
+      case 'REMINDER':
       case 'INVOICE':
         if (isStaff) {
           navigate(n.invoiceId ? `/admin/invoices?highlight=${n.invoiceId}` : '/admin/invoices')

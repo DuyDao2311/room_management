@@ -11,6 +11,7 @@ const {
   updateManagedDistricts,
   getAvailableDistricts,
   createUser,
+  deleteUser,
 } = require("../controllers/staffController");
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -169,6 +170,9 @@ router.get("/users", protect, adminOnly, async (req, res) => {
 
 // POST /api/admin/users — tạo tài khoản mới
 router.post("/users", protect, adminOnly, createUser);
+
+// DELETE /api/admin/users/:id — xóa tài khoản
+router.delete("/users/:id", protect, adminOnly, deleteUser);
 
 // ═════════════════════════════════════════════════════════════════════════════
 // STAFF MANAGEMENT (admin only)

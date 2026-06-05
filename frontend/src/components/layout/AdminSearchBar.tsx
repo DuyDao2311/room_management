@@ -213,7 +213,7 @@ export default function AdminSearchBar() {
                     <button
                       key={room._id}
                       className="adm-search-result-item"
-                      onClick={() => go('/admin/rooms')}
+                      onClick={() => go(`/admin/rooms?edit=${room._id}`)}
                     >
                       <div className="adm-search-result-icon adm-search-result-icon--room">
                         <Home size={16} />
@@ -244,7 +244,7 @@ export default function AdminSearchBar() {
                     <button
                       key={tenant._id}
                       className="adm-search-result-item"
-                      onClick={() => go('/admin/users')}
+                      onClick={() => go(`/admin/users?highlight=${tenant._id}`)}
                     >
                       <div className="adm-search-result-icon adm-search-result-icon--tenant">
                         <Users size={16} />
@@ -269,7 +269,7 @@ export default function AdminSearchBar() {
                     <button
                       key={c._id}
                       className="adm-search-result-item"
-                      onClick={() => go('/admin/contracts')}
+                      onClick={() => go(`/admin/contracts?highlight=${c._id}`)}
                     >
                       <div className="adm-search-result-icon adm-search-result-icon--contract">
                         <FileText size={16} />
@@ -298,7 +298,7 @@ export default function AdminSearchBar() {
                     <button
                       key={inv._id}
                       className="adm-search-result-item"
-                      onClick={() => go('/admin/invoices')}
+                      onClick={() => go(`/admin/invoices?highlight=${inv._id}`)}
                     >
                       <div className="adm-search-result-icon adm-search-result-icon--invoice">
                         <Receipt size={16} />
@@ -330,7 +330,7 @@ export default function AdminSearchBar() {
                     <button
                       key={apt._id}
                       className="adm-search-result-item"
-                      onClick={() => go('/admin/appointments')}
+                      onClick={() => go(`/admin/appointments/${apt._id}`)}
                     >
                       <div className="adm-search-result-icon adm-search-result-icon--appointment">
                         <Calendar size={16} />

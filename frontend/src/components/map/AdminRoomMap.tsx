@@ -3,7 +3,7 @@
  * Dùng GeoJSON source + layers cho clustering và performance tối ưu
  */
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import type { AdminRoomMapItem } from "../../api/adminRoomMap.service";
 
@@ -92,7 +92,7 @@ export default function AdminRoomMap({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const popupRef = useRef<mapboxgl.Popup | null>(null);
-  const mapLoadedRef = useRef(false);
+  const [mapLoaded, setMapLoaded] = useState(false);
 
   // Cleanup popup
   const clearPopup = useCallback(() => {
@@ -117,7 +117,7 @@ export default function AdminRoomMap({
     map.addControl(new mapboxgl.FullscreenControl(), "top-right");
 
     map.on("load", () => {
-      mapLoadedRef.current = true;
+      setMapLoaded(true);
 
       // Add source
       map.addSource(SOURCE_ID, {
@@ -243,7 +243,7 @@ export default function AdminRoomMap({
     mapRef.current = map;
 
     return () => {
-      mapLoadedRef.current = false;
+      setMapLoaded(false);
       map.remove();
       mapRef.current = null;
     };
@@ -252,17 +252,17 @@ export default function AdminRoomMap({
 
   // ── Update data when rooms change ─────────────────────────────────────────
   useEffect(() => {
-    if (!mapRef.current || !mapLoadedRef.current) return;
+    if (!mapRef.current || !mapLoaded) return;
     const source = mapRef.current.getSource(SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
     if (source) {
       source.setData(buildGeoJSON(rooms));
     }
-  }, [rooms]);
+  }, [rooms, mapLoaded]);
 
   // ── Popup on selectedRoomId ───────────────────────────────────────────────
   useEffect(() => {
     clearPopup();
-    if (!selectedRoomId || !mapRef.current || !mapLoadedRef.current) return;
+    if (!selectedRoomId || !mapRef.current || !mapLoaded) return;
 
     const room = rooms.find((r) => r._id === selectedRoomId);
     if (!room || !room.location?.coordinates) return;

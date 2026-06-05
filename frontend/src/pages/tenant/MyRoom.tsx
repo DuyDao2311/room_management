@@ -12,6 +12,7 @@ import FeedbackForm from '../../components/ui/FeedbackForm.tsx'
 import { getMyFeedback, checkEligibility, type Feedback } from '../../api/feedback.ts'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 import TenantContractModal from '../../components/contracts/TenantContractModal.tsx'
+import Incident from '../../components/tenant/IncidentReportPage.tsx'
 
 interface Room {
   _id: string
@@ -34,6 +35,7 @@ interface Contract {
   status: 'pending' | 'active' | 'expired' | 'terminated' | 'renewal' | 'renewed'
   extensionStatus?: 'none' | 'sent_to_tenant' | 'tenant_agreed' | 'tenant_declined' | 'extended'
   extensionRequestedMonths?: number
+  extensionNote?: string
   signatureB?: string
   isSignedByTenant?: boolean
 }
@@ -68,6 +70,9 @@ export default function MyRoom() {
 
   // Contract Modal state
   const [modalContract, setModalContract] = useState<Contract | null>(null)
+
+  // Report Issue Modal State
+  const [showReportModal, setShowReportModal] = useState(false)
 
   // Extension state
   const [extensionLoading, setExtensionLoading] = useState(false)
@@ -279,6 +284,22 @@ export default function MyRoom() {
               <div style={{ fontSize: '0.9rem', color: '#78350f' }}>
                 Chủ trọ muốn hỏi ý kiến của bạn về việc gia hạn hợp đồng phòng {room.name}. Hợp đồng hiện tại sẽ hết hạn vào ngày {new Date(contract.endDate).toLocaleDateString('vi-VN')}.
               </div>
+
+              {/* Ghi chú từ chủ trọ */}
+              {contract.extensionNote && (
+                <div style={{
+                  marginTop: '12px', padding: '12px 16px',
+                  background: '#fffbeb', border: '1px solid #f59e0b',
+                  borderRadius: '10px', borderLeft: '4px solid #d97706',
+                }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#92400e', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.03em' }}>
+                    📌 Thông tin từ chủ trọ
+                  </div>
+                  <div style={{ fontSize: '0.88rem', color: '#78350f', whiteSpace: 'pre-line', lineHeight: 1.6 }}>
+                    {contract.extensionNote}
+                  </div>
+                </div>
+              )}
 
               {/* Chọn số tháng khi đồng ý gia hạn */}
               {showExtensionMonths && (
@@ -526,7 +547,7 @@ export default function MyRoom() {
                 <div style={{ color: '#6b7280', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '24px' }}>
                   Báo cáo các sự cố về điện, nước, hoặc thiết bị trong phòng để được xử lý nhanh chóng.
                 </div>
-                <button style={{ width: '100%', background: '#fff', border: '1px solid #fca5a5', color: '#ef4444', padding: '12px', borderRadius: '6px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}>
+                <button onClick={() => setShowReportModal(true)} style={{ width: '100%', background: '#fff', border: '1px solid #fca5a5', color: '#ef4444', padding: '12px', borderRadius: '6px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}>
                   <MdOutlineConstruction size={18} /> BÁO CÁO SỰ CỐ
                 </button>
               </div>
@@ -615,6 +636,13 @@ export default function MyRoom() {
           }}
         />
       )}
+
+      {/* Report Issue Modal */}
+      <Incident
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        room={room}
+      />
     </div>
   )
 }
