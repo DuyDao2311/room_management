@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import api from "../../api/axios.ts";
-import Spinner from "../../components/ui/Spinner.tsx";
-import Badge from "../../components/ui/Badge.tsx";
+import api from '../../api/axios';
+import Spinner from '../../components/ui/Spinner';
+import Badge from '../../components/ui/Badge';
 import {
   FiInfo,
   FiZap,
@@ -19,9 +19,9 @@ import {
   FiTrendingUp,
 } from "react-icons/fi";
 import { MdOutlineWaterDrop, MdReceiptLong, MdHouse } from "react-icons/md";
-import SendInvoiceButton from "../../components/ui/SendInvoiceButton.tsx";
-import { collectCashPayment } from "../../api/payment.ts";
-import Pagination from "../../components/ui/Pagination.tsx";
+import SendInvoiceButton from '../../components/ui/SendInvoiceButton';
+import { collectCashPayment } from '../../api/payment';
+import Pagination from '../../components/ui/Pagination';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { vi } from "date-fns/locale";
@@ -510,7 +510,7 @@ export default function InvoiceManagement() {
             <h1
               style={{
                 color: "#003e68",
-                fontSize: "1.5rem",
+                fontSize: "2rem",
                 fontWeight: 700,
                 margin: 0,
                 paddingBottom: "16px",

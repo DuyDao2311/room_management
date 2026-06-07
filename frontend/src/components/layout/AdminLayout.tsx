@@ -12,7 +12,8 @@ import {
   FiFile,        // Hóa đơn
   FiCalendar,
   FiUserCheck,   // Quản lý nhân viên
-  FiStar         // Đánh giá
+  FiStar,        // Đánh giá
+  FiTool         // Sự cố
 } from "react-icons/fi";
 import { MdOutlineLogout } from "react-icons/md";
 
@@ -45,6 +46,7 @@ export default function AdminLayout() {
     { name: 'Hợp đồng', path: '/admin/contracts', exact: false, icon: <FiFileText />, roles: ['admin', 'staff'], badge: unreadContractCount, notifType: 'CONTRACT' },
     { name: 'Hóa đơn', path: '/admin/invoices', exact: false, icon: <FiFile />, roles: ['admin', 'staff'], badge: unreadInvoiceCount, notifType: 'INVOICE' },
     { name: 'Lịch hẹn', path: '/admin/appointments', exact: false, icon: <FiCalendar />, roles: ['admin', 'staff'], badge: unreadAppointmentCount, notifType: 'APPOINTMENT' },
+    { name: 'Quản lý sự cố', path: '/admin/incidents', exact: false, icon: <FiTool />, roles: ['admin', 'staff'], badge: 0, notifType: 'INCIDENT' },
     { name: 'Đánh giá phòng', path: '/admin/feedback', exact: false, icon: <FiStar />, roles: ['admin', 'staff'], badge: unreadFeedbackCount, notifType: 'FEEDBACK' },
     { name: 'Người dùng', path: '/admin/users', exact: false, icon: <FiUsers />, roles: ['admin'], badge: 0, notifType: undefined },
     { name: 'Quản lý nhân viên', path: '/admin/staff', exact: false, icon: <FiUserCheck />, roles: ['admin'], badge: 0, notifType: undefined },

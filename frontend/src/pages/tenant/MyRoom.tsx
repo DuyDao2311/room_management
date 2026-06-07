@@ -547,9 +547,12 @@ export default function MyRoom() {
                 <div style={{ color: '#6b7280', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '24px' }}>
                   Báo cáo các sự cố về điện, nước, hoặc thiết bị trong phòng để được xử lý nhanh chóng.
                 </div>
-                <button onClick={() => setShowReportModal(true)} style={{ width: '100%', background: '#fff', border: '1px solid #fca5a5', color: '#ef4444', padding: '12px', borderRadius: '6px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}>
+                <button onClick={() => setShowReportModal(true)} style={{ width: '100%', background: '#fff', border: '1px solid #fca5a5', color: '#ef4444', padding: '12px', borderRadius: '6px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s', marginBottom: '12px' }}>
                   <MdOutlineConstruction size={18} /> BÁO CÁO SỰ CỐ
                 </button>
+                <Link to="/my-incidents" style={{ width: '100%', background: '#003e68', border: '1px solid #003e68', color: '#fff', padding: '12px', borderRadius: '6px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s', textDecoration: 'none' }}>
+                  <MdHistory size={18} /> SỰ CỐ CỦA TÔI
+                </Link>
               </div>
 
             </div>
@@ -642,6 +645,7 @@ export default function MyRoom() {
         isOpen={showReportModal}
         onClose={() => setShowReportModal(false)}
         room={room}
+        contractId={contract._id}
       />
     </div>
   )
