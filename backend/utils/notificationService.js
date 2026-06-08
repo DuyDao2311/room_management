@@ -204,6 +204,21 @@ const notifyInvoicePaid = async (invoice) => {
   });
 };
 
+/** Khách yêu cầu thanh toán tiền mặt → in-app + email cho staff/admin quản lý khu vực. */
+const notifyStaffCashPaymentRequest = async (invoice) => {
+  const district = await getInvoiceDistrict(invoice);
+  const title = "💵 Khách yêu cầu thanh toán tiền mặt";
+  const message = `Khách ${invoice.representativeName} — phòng ${invoice.roomName} (${fmt(invoice.totalAmount)}đ) yêu cầu thanh toán bằng tiền mặt. Vui lòng liên hệ để thu tiền.`;
+
+  return await notifyStaffByDistrict(district, {
+    type: "INVOICE",
+    title,
+    message,
+    invoiceId: invoice._id,
+    actionUrl: buildFrontendUrl("/admin/invoices"),
+  });
+};
+
 const notifyInvoiceOverdue = async (invoice) => {
   const district = await getInvoiceDistrict(invoice);
   const title = "⚠️ Hóa đơn quá hạn thanh toán";
@@ -711,6 +726,7 @@ module.exports = {
   notifyNewAppointment,
   notifyNewContract,
   notifyInvoicePaid,
+  notifyStaffCashPaymentRequest,
   notifyInvoiceOverdue,
   notifyContractExpiring,
   // Tenant

@@ -3,7 +3,7 @@ const Contract     = require("../models/Contract");
 const Room         = require("../models/Room");
 const Payment      = require("../models/Payment");
 const { checkUserDistrictPermission } = require("../middleware/auth");
-const { notifyTenantInvoiceSent, notifyTenantInvoicePaid, notifyInvoicePaid, sendSocketNotification } = require("../utils/notificationService");
+const { notifyTenantInvoiceSent, notifyTenantInvoicePaid, notifyInvoicePaid, notifyStaffCashPaymentRequest, sendSocketNotification } = require("../utils/notificationService");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -635,6 +635,13 @@ const requestCashPayment = async (req, res) => {
       if (contract?.room?.district) {
         io.to(`district_${contract.room.district}`).emit("cash_payment_requested", eventData);
       }
+    }
+
+    // 6b. Lưu notification + gửi email cho staff/admin (không chặn response nếu lỗi)
+    try {
+      await notifyStaffCashPaymentRequest(invoice);
+    } catch (notifyErr) {
+      console.error("notifyStaffCashPaymentRequest error:", notifyErr.message);
     }
 
     // 7. Trả response
