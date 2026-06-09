@@ -88,12 +88,9 @@ export default function AppointmentManagement() {
   const currentAppointments = appointments.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
 
   return (
-    <div className="admin-page">
-      <div className="admin-page-header">
-        <div>
-          <h1>Quản lý Lịch hẹn</h1>
-        </div>
-      </div>
+    <div className="page-shell">
+      <div className="admin-page">
+        <h1 className="admin-page-title">Quản lý lịch hẹn</h1>
 
       {error && <div className="alert alert-error mb-4">{error}</div>}
 
@@ -196,6 +193,7 @@ export default function AppointmentManagement() {
           onPageChange={setCurrentPage} 
         />
       )}
+    </div>
     </div>
   )
 }

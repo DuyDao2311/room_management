@@ -35,7 +35,7 @@ const invoiceSchema = new mongoose.Schema(
     // ── Loại hóa đơn ─────────────────────────────────────────────────────────
     type: {
       type: String,
-      enum: ["deposit", "service"],
+      enum: ["deposit", "service", "repair"],
       required: true,
     },
 
@@ -47,6 +47,10 @@ const invoiceSchema = new mongoose.Schema(
 
     // ── Chỉ dùng cho hóa đơn "deposit" ───────────────────────────────────────
     depositAmount: { type: Number, default: 0, min: 0 },
+
+    // ── Chỉ dùng cho hóa đơn "repair" ────────────────────────────────────────
+    repairAmount: { type: Number, default: 0, min: 0 },
+    incidentId: { type: mongoose.Schema.Types.ObjectId, ref: "Incident" },
 
     // ── Chỉ dùng cho hóa đơn "service" ───────────────────────────────────────
     month: { type: Number, min: 1, max: 12 },   // 1-12
@@ -131,6 +135,8 @@ invoiceSchema.pre("save", function () {
     const wtr = this.water?.amount || 0;
     const extraTotal = (this.extraFees || []).reduce((sum, f) => sum + f.amount, 0);
     this.totalAmount = (this.rentAmount || 0) + elec + wtr + extraTotal;
+  } else if (this.type === "repair") {
+    this.totalAmount = this.repairAmount || 0;
   }
 
   // 3. Ghi nhận thời điểm thanh toán

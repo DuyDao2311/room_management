@@ -11,6 +11,7 @@ import {
   Bell,
   CheckCheck,
   Trash2,
+  Wrench,
 } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -58,6 +59,11 @@ const notifConfig: Record<string, { icon: React.ReactNode; color: string; bg: st
     color: '#6b7280',
     bg: 'rgba(107, 114, 128, 0.1)',
   },
+  INCIDENT: {
+    icon: <Wrench size={18} />,
+    color: '#ef4444',
+    bg: 'rgba(239, 68, 68, 0.1)',
+  },
 }
 
 interface Props {
@@ -76,6 +82,7 @@ export default function AdminNotificationDropdown({ onClose }: Props) {
     unreadContractCount,
     unreadFeedbackCount,
     unreadInvoiceCount,
+    unreadIncidentCount,
     markAsRead,
     markAllAsRead,
     deleteNotification,
@@ -91,6 +98,7 @@ export default function AdminNotificationDropdown({ onClose }: Props) {
     { key: 'CONTRACT', label: 'Hợp đồng', count: unreadContractCount },
     { key: 'INVOICE', label: 'Hóa đơn', count: unreadInvoiceCount },
     { key: 'FEEDBACK', label: 'Đánh giá', count: unreadFeedbackCount },
+    { key: 'INCIDENT', label: 'Sự cố', count: unreadIncidentCount || 0 },
   ]
 
   const [filter, setFilter] = useState('all')
@@ -128,6 +136,13 @@ export default function AdminNotificationDropdown({ onClose }: Props) {
         break
       case 'FEEDBACK':
         navigate('/admin/feedback')
+        break
+      case 'INCIDENT':
+        if (n.incidentId) {
+          navigate(`/admin/incidents?highlight=${n.incidentId}`)
+        } else {
+          navigate('/admin/incidents')
+        }
         break
       default:
         navigate('/admin')

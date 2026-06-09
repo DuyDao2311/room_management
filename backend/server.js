@@ -21,6 +21,7 @@ const favoriteRoutes = require("./routes/favorites");
 const adminRoomMapRoutes = require("./routes/adminRoomMap.routes");
 const searchRoutes = require("./routes/search");
 const cronRoutes = require("./routes/cron");
+const incidentRoutes = require("./routes/incidents");
 const { checkExpiringContracts, checkOverdueInvoices, checkDueSoonInvoices } = require("./utils/notificationService");
 const { initCronJobs } = require("./utils/cronJobs");
 
@@ -110,6 +111,7 @@ app.use("/api/favorites", favoriteRoutes);
 app.use("/api/admin/rooms", adminRoomMapRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/cron", cronRoutes);
+app.use("/api/incidents", incidentRoutes);
 
 // ─── Health check ─────────────────────────────────────────────
 app.get("/api/health", (_, res) => res.json({ status: "OK", timestamp: new Date() }));

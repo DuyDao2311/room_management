@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
-import api from "../../api/axios.ts";
-import Spinner from "../../components/ui/Spinner.tsx";
-import Badge from "../../components/ui/Badge.tsx";
+import { useSearchParams, Link } from "react-router-dom";
+import api from '../../api/axios';
+import Spinner from '../../components/ui/Spinner';
+import Badge from '../../components/ui/Badge';
 import {
   FiInfo,
   FiZap,
@@ -17,11 +17,12 @@ import {
   FiAlertTriangle,
   FiDollarSign,
   FiTrendingUp,
+  FiTool,
 } from "react-icons/fi";
 import { MdOutlineWaterDrop, MdReceiptLong, MdHouse } from "react-icons/md";
-import SendInvoiceButton from "../../components/ui/SendInvoiceButton.tsx";
-import { collectCashPayment } from "../../api/payment.ts";
-import Pagination from "../../components/ui/Pagination.tsx";
+import SendInvoiceButton from '../../components/ui/SendInvoiceButton';
+import { collectCashPayment } from '../../api/payment';
+import Pagination from '../../components/ui/Pagination';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { vi } from "date-fns/locale";
@@ -29,11 +30,28 @@ import { vi } from "date-fns/locale";
 interface Invoice {
   _id: string;
   contract: string;
-  type: "deposit" | "service";
+  type: "deposit" | "service" | "repair";
   representativeName: string;
   roomName: string;
   rentAmount: number;
   totalAmount: number;
+  repairAmount?: number;
+  incidentId?: {
+    _id: string;
+    ticketCode?: string;
+    category?: string;
+    resolutionNote?: string;
+    assignedStaff?: {
+      _id: string;
+      name: string;
+      role: string;
+    };
+  };
+  confirmedBy?: {
+    _id: string;
+    name: string;
+    role: string;
+  };
   month?: number;
   year?: number;
   status: "unpaid" | "pending" | "paid" | "overdue";
@@ -97,9 +115,10 @@ const STATUS_MAP: Record<
   overdue: { label: "Quá hạn", variant: "danger" },
 };
 
-const TYPE_MAP = {
+const TYPE_MAP: Record<string, { label: string; color: string; bg: string }> = {
   deposit: { label: "Đặt cọc", color: "#7c3aed", bg: "#ede9fe" },
   service: { label: "Dịch vụ/tháng", color: "#0369a1", bg: "#e0f2fe" },
+  repair: { label: "Sửa chữa", color: "#b45309", bg: "#fef3c7" },
 };
 
 // ─── Default Form State ───────────────────────────────────────────────────────
@@ -117,6 +136,7 @@ const getDefaultForm = () => ({
   extraFees: [] as ExtraFee[],
   dueDate: "",
   notes: "",
+  repairAmount: 0,
 });
 
 // ─── Components ───────────────────────────────────────────────────────────────
@@ -395,6 +415,7 @@ export default function InvoiceManagement() {
         ? new Date(inv.dueDate).toISOString().split("T")[0]
         : "",
       notes: inv.notes || "",
+      repairAmount: inv.repairAmount || 0,
     });
     setFormError("");
     setView("edit");
@@ -510,7 +531,7 @@ export default function InvoiceManagement() {
             <h1
               style={{
                 color: "#003e68",
-                fontSize: "1.5rem",
+                fontSize: "2rem",
                 fontWeight: 700,
                 margin: 0,
                 paddingBottom: "16px",
@@ -972,6 +993,7 @@ export default function InvoiceManagement() {
                 <option value="">Loại HĐ</option>
                 <option value="deposit">Đặt cọc</option>
                 <option value="service">Dịch vụ</option>
+                <option value="repair">Sửa chữa</option>
               </select>
 
               <select
@@ -1321,6 +1343,8 @@ export default function InvoiceManagement() {
   }
 
   // ─── View: Tạo / Sửa hóa đơn ───────────────────────────────────────────────
+  const currentInvoice = view === "edit" ? invoices.find((inv) => inv._id === editingId) : null;
+
   return (
     <div className="invoice-create-container">
       <div className="invoice-header">
@@ -1408,6 +1432,7 @@ export default function InvoiceManagement() {
                 >
                   <option value="service">Hóa đơn dịch vụ (Hàng tháng)</option>
                   <option value="deposit">Tiền cọc</option>
+                  <option value="repair" disabled={view !== "edit"}>Hóa đơn sửa chữa (Tự động)</option>
                 </select>
               </div>
               <div
@@ -1437,7 +1462,37 @@ export default function InvoiceManagement() {
               </div>
             </div>
 
-            {selectedContract && (
+            {form.type === "repair" && currentInvoice?.incidentId ? (
+              <div className="invoice-info-box" style={{ background: "#fff", border: "1px solid #e5e7eb", display: "block" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                  <div style={{ fontWeight: 600, color: "#111827", fontSize: "1.05rem" }}>
+                    {currentInvoice.incidentId.category} phòng {selectedContract?.room?.name}
+                  </div>
+                  <Link
+                    to={`/admin/incidents`}
+                    style={{ fontSize: "0.85rem", color: "#2563eb", textDecoration: "none", display: "flex", alignItems: "center", gap: 4 }}
+                  >
+                    Xem báo cáo sự cố <span>&rarr;</span>
+                  </Link>
+                </div>
+                <div style={{ display: "flex", gap: "24px" }}>
+                  <div className="invoice-info-col" style={{ flex: 1 }}>
+                    <span className="invoice-info-label" style={{ textTransform: "uppercase" }}>ĐƠN VỊ THI CÔNG</span>
+                    <span className="invoice-info-val">
+                      {currentInvoice.incidentId.assignedStaff?.name || "Công ty TNHH Kỹ thuật Xanh"}
+                    </span>
+                  </div>
+                  <div className="invoice-info-col" style={{ flex: 1 }}>
+                    <span className="invoice-info-label" style={{ textTransform: "uppercase" }}>NGƯỜI XÁC NHẬN</span>
+                    <span className="invoice-info-val">
+                      {currentInvoice.confirmedBy?.name
+                        ? `${currentInvoice.confirmedBy.name} (${currentInvoice.confirmedBy.role === 'admin' ? 'Ban Quản lý' : 'Nhân viên'})`
+                        : "Ban Quản lý"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : selectedContract && (
               <div className="invoice-info-box">
                 <div
                   className="invoice-info-col"
@@ -1584,6 +1639,108 @@ export default function InvoiceManagement() {
                 </div>
                 <div className="invoice-total-val">
                   {(rentCost * 2).toLocaleString("vi-VN")} đ
+                </div>
+              </div>
+            </div>
+          ) : form.type === "repair" ? (
+            <div className="invoice-section">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "24px",
+                }}
+              >
+                <div
+                  className="invoice-section-title"
+                  style={{ margin: 0 }}
+                >
+                  <FiTool size={20} /> Chi tiết sửa chữa
+                </div>
+              </div>
+
+              <div
+                style={{
+                  background: "#f9fafb",
+                  borderRadius: 8,
+                  padding: "18px 24px",
+                  marginBottom: 12,
+                  border: "1px solid #e5e7eb",
+                }}
+              >
+                <div style={{ color: "#374151", marginBottom: 12 }}>
+                  <span style={{ fontWeight: 600 }}>Ghi chú sửa chữa:</span>{" "}
+                  {currentInvoice?.incidentId?.resolutionNote || <span style={{ fontStyle: "italic", color: "#6b7280" }}>Không có ghi chú</span>}
+                </div>
+                
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 16, borderTop: "1px solid #e5e7eb" }}>
+                  <span style={{ color: "#374151", fontWeight: 500 }}>
+                    Chi phí sửa chữa
+                  </span>
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      color: "#111827",
+                      fontSize: "1.05rem",
+                    }}
+                  >
+                    {form.repairAmount ? form.repairAmount.toLocaleString("vi-VN") : 0} đ
+                  </span>
+                </div>
+              </div>
+
+              <div
+                className="form-group"
+                style={{ maxWidth: 280 }}
+              >
+                <label
+                  style={{
+                    fontWeight: 600,
+                    fontSize: "0.85rem",
+                    color: "#374151",
+                    marginBottom: 8,
+                    display: "block",
+                  }}
+                >
+                  Hạn thanh toán
+                </label>
+                <DatePicker
+                  className="form-input"
+                  selected={form.dueDate ? new Date(form.dueDate) : null}
+                  onChange={(date: Date | null) => {
+                    if (date) {
+                      const tzOffset = date.getTimezoneOffset() * 60000;
+                      const localISOTime = new Date(date.getTime() - tzOffset).toISOString().split("T")[0];
+                      sf("dueDate", localISOTime);
+                    } else {
+                      sf("dueDate", "");
+                    }
+                  }}
+                  dateFormat="dd/MM/yyyy"
+                  locale={vi}
+                  placeholderText="dd/mm/yyyy"
+                />
+              </div>
+
+              <div
+                className="invoice-summary"
+                style={{ marginTop: 24 }}
+              >
+                <div>
+                  <div className="invoice-total-label">Tổng tiền</div>
+                  <div
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#6b7280",
+                      marginTop: 4,
+                    }}
+                  >
+                    Chi phí sửa chữa sự cố
+                  </div>
+                </div>
+                <div className="invoice-total-val">
+                  {form.repairAmount ? form.repairAmount.toLocaleString("vi-VN") : 0} đ
                 </div>
               </div>
             </div>

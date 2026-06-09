@@ -1,36 +1,38 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { useAuth } from './contexts/AuthContext.tsx'
-import Header from './components/layout/Header.tsx'
-import Footer from './components/layout/Footer.tsx'
-import Home from './pages/public/Home.tsx'
-import RoomList from './pages/public/RoomList.tsx'
-import RoomDetail from './pages/public/RoomDetail.tsx'
-import RoomMapPage from './pages/public/RoomMapPage.tsx'
-import PaymentCallback from './pages/public/PaymentCallback.tsx'
-import Login from './pages/auth/Login.tsx'
-import Register from './pages/auth/Register.tsx'
-import ForgotPassword from './pages/auth/ForgotPassword.tsx'
-import ResetPassword from './pages/auth/ResetPassword.tsx'
-import VerifyEmail from './pages/auth/VerifyEmail.tsx'
-import Dashboard from './pages/admin/Dashboard.tsx'
-import AdminRoomMapPage from './pages/admin/AdminRoomMapPage.tsx'
-import RoomManagement from './pages/admin/RoomManagement.tsx'
-import ContractManagement from './pages/admin/ContractManagement.tsx'
-import InvoiceManagement from './pages/admin/InvoiceManagement.tsx'
-import AppointmentManagement from './pages/admin/AppointmentManagement.tsx'
-import AppointmentDetail from './pages/admin/AppointmentDetail.tsx'
-import UserManagement from './pages/admin/UserManagement.tsx'
-import StaffManagement from './pages/admin/StaffManagement.tsx'
-import MyInvoices from './pages/tenant/MyInvoices.tsx'
-import MyRoom from './pages/tenant/MyRoom.tsx'
-import AdminLayout from './components/layout/AdminLayout.tsx'
-import ChatBox from './components/ui/ChatBox.tsx'
-import FeedbackManagement from './pages/admin/FeedbackManagement.tsx'
-import FavoritesPage from './pages/public/FavoritesPage.tsx'
-import Profile from './pages/profile/Profile.tsx'
-import UserProfileLayout from './pages/profile/UserProfileLayout.tsx'
-import Payment from './pages/profile/Payment.tsx'
-import Security from './pages/profile/Security.tsx'
+import { useAuth } from './contexts/AuthContext'
+import Header from './components/layout/Header'
+import Footer from './components/layout/Footer'
+import Home from './pages/public/Home'
+import RoomList from './pages/public/RoomList'
+import RoomDetail from './pages/public/RoomDetail'
+import RoomMapPage from './pages/public/RoomMapPage'
+import PaymentCallback from './pages/public/PaymentCallback'
+import Login from './pages/auth/Login'
+import Register from './pages/auth/Register'
+import ForgotPassword from './pages/auth/ForgotPassword'
+import ResetPassword from './pages/auth/ResetPassword'
+import VerifyEmail from './pages/auth/VerifyEmail'
+import Dashboard from './pages/admin/Dashboard'
+import AdminRoomMapPage from './pages/admin/AdminRoomMapPage'
+import RoomManagement from './pages/admin/RoomManagement'
+import ContractManagement from './pages/admin/ContractManagement'
+import InvoiceManagement from './pages/admin/InvoiceManagement'
+import AppointmentManagement from './pages/admin/AppointmentManagement'
+import AppointmentDetail from './pages/admin/AppointmentDetail'
+import UserManagement from './pages/admin/UserManagement'
+import StaffManagement from './pages/admin/StaffManagement'
+import MyInvoices from './pages/tenant/MyInvoices'
+import MyRoom from './pages/tenant/MyRoom'
+import MyIncidents from './pages/tenant/MyIncidents'
+import IncidentManagement from './pages/admin/IncidentManagement'
+import AdminLayout from './components/layout/AdminLayout'
+import ChatBox from './components/ui/ChatBox'
+import FeedbackManagement from './pages/admin/FeedbackManagement'
+import FavoritesPage from './pages/public/FavoritesPage'
+import Profile from './pages/profile/Profile'
+import UserProfileLayout from './pages/profile/UserProfileLayout'
+import Payment from './pages/profile/Payment'
+import Security from './pages/profile/Security'
 
 /**
  * RequireAuth — Route protection component
@@ -98,6 +100,7 @@ function AppLayout() {
           <Route path="invoices" element={<InvoiceManagement />} />
           <Route path="appointments" element={<AppointmentManagement />} />
           <Route path="appointments/:id" element={<AppointmentDetail />} />
+          <Route path="incidents" element={<IncidentManagement />} />
           {/* Admin only routes */}
           <Route path="users" element={<RequireAuth role="admin"><UserManagement /></RequireAuth>} />
           <Route path="staff" element={<RequireAuth role="admin"><StaffManagement /></RequireAuth>} />
@@ -115,6 +118,7 @@ function AppLayout() {
         {/* Tenant only */}
         <Route path="/my-room" element={<RequireAuth role="tenant"><MyRoom /></RequireAuth>} />
         <Route path="/my-invoices" element={<RequireAuth role="tenant"><MyInvoices /></RequireAuth>} />
+        <Route path="/my-incidents" element={<RequireAuth role="tenant"><MyIncidents /></RequireAuth>} />
 
         {/* 404 fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

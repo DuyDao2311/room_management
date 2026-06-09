@@ -68,6 +68,7 @@ const dispatch = async ({
         feedbackId: data.feedbackId,
         roomId: data.roomId,
         invoiceId: data.invoiceId,
+        incidentId: data.incidentId,
         isRead: false,
       }));
       notifications = await Notification.insertMany(docs);
@@ -175,6 +176,42 @@ const notifyNewContract = async (contract) => {
     contractId: contract._id,
     roomId: contract.room,
     actionUrl: buildFrontendUrl("/admin/contracts"),
+  });
+};
+
+const notifyNewIncident = async (incident) => {
+  const room = await Room.findById(incident.room).select("name district");
+  const tenant = await User.findById(incident.tenant).select("name");
+
+  const district = room?.district;
+  const title = "🛠️ Báo cáo sự cố mới";
+  const message = `Khách thuê ${tenant?.name || ""} báo cáo sự cố (${incident.category}) tại phòng ${room?.name || ""}. Mức độ: ${incident.priority}.`;
+
+  return await notifyStaffByDistrict(district, {
+    type: "INCIDENT",
+    title,
+    message,
+    incidentId: incident._id,
+    roomId: incident.room,
+    actionUrl: buildFrontendUrl("/admin/incidents"),
+  });
+};
+
+const notifyStaffIncidentRated = async (incident) => {
+  const room = await Room.findById(incident.room).select("name district");
+  const tenant = await User.findById(incident.tenant).select("name");
+
+  const district = room?.district;
+  const title = "⭐ Khách thuê đã đánh giá sự cố";
+  const message = `Khách thuê ${tenant?.name || ""} đã đánh giá ${incident.rating} sao cho sự cố tại phòng ${room?.name || ""}.`;
+
+  return await notifyStaffByDistrict(district, {
+    type: "INCIDENT",
+    title,
+    message,
+    incidentId: incident._id,
+    roomId: incident.room,
+    actionUrl: buildFrontendUrl("/admin/incidents"),
   });
 };
 
@@ -382,9 +419,11 @@ const notifyTenantInvoiceSent = async (invoice) => {
   const tenant = contract?.tenant;
   if (!tenant) return [];
 
-  const loaiInvoice = invoice.type === "deposit"
-    ? "tiền cọc"
-    : `dịch vụ tháng ${invoice.month}/${invoice.year}`;
+  let loaiInvoice = "";
+  if (invoice.type === "deposit") loaiInvoice = "tiền cọc";
+  else if (invoice.type === "repair") loaiInvoice = "chi phí sửa chữa";
+  else loaiInvoice = `dịch vụ tháng ${invoice.month}/${invoice.year}`;
+  
   const title = `🧾 Hoá đơn mới — ${invoice.roomName}`;
   const dueText = invoice.dueDate ? ` Hạn thanh toán: ${fmtDate(invoice.dueDate)}.` : "";
   const message = `Kính gửi Quý khách,\n\nHoá đơn ${loaiInvoice} phòng ${invoice.roomName} của Quý khách (${fmt(invoice.totalAmount)}đ) vừa được phát hành.${dueText} Vui lòng truy cập hệ thống để xem chi tiết và hoàn tất thanh toán đúng hạn.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
@@ -410,9 +449,10 @@ const notifyTenantInvoicePaid = async (invoice) => {
   const tenant = await User.findById(invoice.tenantId).select("_id email name");
   if (!tenant) return [];
 
-  const loaiInvoice = invoice.type === "deposit"
-    ? "tiền cọc"
-    : `dịch vụ tháng ${invoice.month}/${invoice.year}`;
+  let loaiInvoice = "";
+  if (invoice.type === "deposit") loaiInvoice = "tiền cọc";
+  else if (invoice.type === "repair") loaiInvoice = "chi phí sửa chữa";
+  else loaiInvoice = `dịch vụ tháng ${invoice.month}/${invoice.year}`;
   const methodLabel = { Cash: "tiền mặt", MoMo: "MoMo", VNPay: "VNPay" };
   const phuongThuc = invoice.paymentMethod
     ? ` qua ${methodLabel[invoice.paymentMethod] || invoice.paymentMethod}`
@@ -430,6 +470,51 @@ const notifyTenantInvoicePaid = async (invoice) => {
     },
     channels: ["inapp", "email"],
     actionUrl: buildFrontendUrl("/my-invoices"),
+  });
+};
+
+/** Thông báo sự cố cập nhật trạng thái cho tenant */
+const notifyTenantIncidentStatus = async (incident, status, note) => {
+  const room = await Room.findById(incident.room).select("name");
+  const tenant = await User.findById(incident.tenant).select("_id email name");
+  if (!tenant) return [];
+
+  let statusText = status;
+  let title = "🛠️ Cập nhật trạng thái sự cố";
+  
+  switch(status) {
+    case "assigned":
+      statusText = "đã được tiếp nhận";
+      title = "🛠️ Sự cố đã được tiếp nhận";
+      break;
+    case "in_progress":
+      statusText = "đang được xử lý";
+      title = "🛠️ Sự cố đang được xử lý";
+      break;
+    case "resolved":
+      statusText = "đã được xử lý xong";
+      title = "✅ Sự cố đã xử lý xong";
+      break;
+    case "rejected":
+      statusText = "đã bị từ chối";
+      title = "❌ Sự cố bị từ chối";
+      break;
+  }
+
+  const noteMsg = note ? `\nGhi chú: ${note}` : "";
+  const message = `Kính gửi Quý khách,\n\nSự cố tại phòng ${room?.name || ""} ${statusText}.${noteMsg}\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+
+  return dispatch({
+    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
+    data: {
+      type: "INCIDENT",
+      title,
+      message,
+      incidentId: incident._id,
+      roomId: incident.room,
+    },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/my-room"),
   });
 };
 
@@ -710,6 +795,8 @@ module.exports = {
   notifyStaffByDistrict,
   notifyNewAppointment,
   notifyNewContract,
+  notifyNewIncident,
+  notifyStaffIncidentRated,
   notifyInvoicePaid,
   notifyInvoiceOverdue,
   notifyContractExpiring,
@@ -723,6 +810,7 @@ module.exports = {
   notifyTenantInvoicePaid,
   notifyTenantAppointmentConfirmed,
   notifyTenantAppointmentCancelled,
+  notifyTenantIncidentStatus,
   // Extension
   notifyTenantExtensionRequest,
   notifyAdminTenantAgreedExtension,
