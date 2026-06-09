@@ -68,6 +68,7 @@ export interface Incident {
   rating?: number;
   ratingComment?: string;
   ratedAt?: string;
+  monthsRented?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -147,13 +148,15 @@ export const updateIncidentStatus = async (
   note?: string, 
   repairCost?: number, 
   resolutionNote?: string, 
-  afterImages?: File[]
+  afterImages?: File[],
+  costPayer?: string
 ): Promise<Incident> => {
   const formData = new FormData();
   formData.append("status", status);
   if (note) formData.append("note", note);
   if (repairCost !== undefined) formData.append("repairCost", repairCost.toString());
   if (resolutionNote) formData.append("resolutionNote", resolutionNote);
+  if (costPayer) formData.append("costPayer", costPayer);
 
   if (afterImages && afterImages.length > 0) {
     afterImages.forEach((image) => {

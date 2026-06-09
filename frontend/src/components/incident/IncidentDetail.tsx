@@ -67,6 +67,17 @@ export default function IncidentDetail({ incident, onClose, userRole }: Incident
   const [repairCost, setRepairCost] = useState("");
   const [resolutionNote, setResolutionNote] = useState("");
   const [afterImages, setAfterImages] = useState<File[]>([]);
+  const [costPayer, setCostPayer] = useState("landlord");
+
+  // Use monthsRented from backend if available, otherwise calculate locally as fallback
+  const getMonthsRented = () => {
+    if (localIncident.monthsRented !== undefined) return localIncident.monthsRented;
+    if (!localIncident.contract || !localIncident.contract.startDate) return 0;
+    const start = new Date(localIncident.contract.startDate);
+    const now = new Date();
+    return (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  };
+  const monthsRented = getMonthsRented();
 
   useEffect(() => {
     fetchTimeline();
@@ -100,7 +111,7 @@ export default function IncidentDetail({ incident, onClose, userRole }: Incident
         costNum = parseFloat(repairCost) || 0;
       }
 
-      await updateIncidentStatus(incident._id, status, note, costNum, resolutionNote, afterImages);
+      await updateIncidentStatus(incident._id, status, note, costNum, resolutionNote, afterImages, costPayer);
       onClose(); // Close modal on success
     } catch (err: any) {
       setError(err.response?.data?.message || "Cập nhật thất bại");
@@ -119,7 +130,7 @@ export default function IncidentDetail({ incident, onClose, userRole }: Incident
       setError("");
       const updatedIncident = await rateIncident(localIncident._id, { rating, comment: ratingComment });
       setLocalIncident(updatedIncident);
-      
+
       // Có thể thêm tính năng tự động chuyển state sang closed ở đây nếu cần gọi updateIncidentStatus, 
       // nhưng backend rateIncident không tự động update status. Có thể gọi cập nhật nếu cần.
     } catch (err: any) {
@@ -137,7 +148,7 @@ export default function IncidentDetail({ incident, onClose, userRole }: Incident
 
   return (
     <div className="incident-modal-overlay">
-      <div className="incident-modal-content" style={userRole === 'tenant' ? { maxWidth: '600px', background: '#f8fafc', padding: 0, position: 'relative', overflow: 'hidden' } : {}}>
+      <div className={`incident-modal-content ${userRole === 'tenant' ? 'incident-tenant-modal' : ''}`}>
 
         {/* Modal Header Actions for Admin/Staff */}
         {userRole !== 'tenant' && (
@@ -148,11 +159,11 @@ export default function IncidentDetail({ incident, onClose, userRole }: Incident
           </div>
         )}
         {userRole === 'tenant' && (
-          <div style={{ position: 'absolute', right: '12px', top: '12px', zIndex: 20 }}>
-            <button 
-              onClick={onClose} 
-              disabled={actionLoading} 
-              style={{ background: 'transparent', color: '#6b7280', border: 'none', padding: '4px', cursor: 'pointer', display: 'flex' }}
+          <div className="incident-tenant-close-wrap">
+            <button
+              onClick={onClose}
+              disabled={actionLoading}
+              className="incident-tenant-close-btn"
             >
               <FiX size={24} />
             </button>
@@ -160,45 +171,45 @@ export default function IncidentDetail({ incident, onClose, userRole }: Incident
         )}
 
         {userRole === "tenant" ? (
-          <div style={{ padding: '40px 24px 24px 24px', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div className="incident-tenant-body">
             {/* Staff Card */}
             {incident.assignedStaff ? (
-              <div style={{ background: '#fff', borderRadius: '16px', padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px', borderLeft: '4px solid #003e68', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <img src={incident.assignedStaff.avatar || "https://ui-avatars.com/api/?name=" + encodeURIComponent(incident.assignedStaff.name)} alt="avatar" style={{ width: '48px', height: '48px', borderRadius: '8px', objectFit: 'cover' }} />
+              <div className="incident-staff-info-card">
+                <div className="incident-flex-center-16">
+                  <img src={incident.assignedStaff.avatar || "https://ui-avatars.com/api/?name=" + encodeURIComponent(incident.assignedStaff.name)} alt="avatar" className="incident-staff-info-avatar" />
                   <div>
-                    <div style={{ fontWeight: 700, color: '#111827', fontSize: '1rem', marginBottom: '4px' }}>{incident.assignedStaff.name}</div>
-                    <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Nhân viên bảo trì được phân công</div>
+                    <div className="incident-staff-info-name">{incident.assignedStaff.name}</div>
+                    <div className="incident-staff-info-role">Nhân viên bảo trì được phân công</div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button style={{ width: '36px', height: '36px', borderRadius: '8px', border: '1px solid #e5e7eb', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#003e68' }} onClick={() => window.location.href = `tel:${incident.assignedStaff?.phone}`}>
+                <div className="incident-flex-8">
+                  <button className="incident-staff-action-btn" onClick={() => window.location.href = `tel:${incident.assignedStaff?.phone}`}>
                     <FiPhone size={18} />
                   </button>
-                  <button style={{ width: '36px', height: '36px', borderRadius: '8px', border: '1px solid #e5e7eb', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#003e68' }} onClick={() => window.open(`https://zalo.me/${incident.assignedStaff?.phone}`, '_blank')}>
+                  <button className="incident-staff-action-btn" onClick={() => window.open(`https://zalo.me/${incident.assignedStaff?.phone}`, '_blank')}>
                     <FiMessageSquare size={18} />
                   </button>
                 </div>
               </div>
             ) : (
-              <div style={{ background: '#fff', borderRadius: '16px', padding: '16px', display: 'flex', alignItems: 'center', marginBottom: '32px', borderLeft: '4px solid #f59e0b', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', color: '#b45309', fontWeight: 600 }}>
+              <div className="incident-tenant-waiting-card">
                 Đang chờ phân công nhân viên bảo trì...
               </div>
             )}
 
             {/* Rating Section for Tenant */}
             {(localIncident.status === "resolved" || localIncident.status === "closed") && (
-              <div style={{ background: '#fff', borderRadius: '16px', padding: '32px', marginBottom: '32px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#003e68', marginBottom: '24px', marginTop: 0 }}>Đánh giá dịch vụ sửa chữa</h2>
-                
+              <div className="incident-rating-section">
+                <h2 className="incident-rating-title">Đánh giá dịch vụ sửa chữa</h2>
+
                 {localIncident.rating ? (
-                  <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-                      <div style={{ fontWeight: 600, color: '#334155' }}>Đánh giá của bạn:</div>
+                  <div className="incident-rating-display-box">
+                    <div className="incident-rating-display-header">
+                      <div className="incident-rating-label">Đánh giá của bạn:</div>
                       <StarRating value={localIncident.rating} size="lg" />
                     </div>
                     {localIncident.ratingComment && (
-                      <div style={{ fontStyle: 'italic', color: '#475569', background: '#fff', padding: '16px', borderRadius: '8px', borderLeft: '3px solid #cbd5e1' }}>
+                      <div className="incident-rating-comment-box">
                         "{localIncident.ratingComment}"
                       </div>
                     )}
@@ -206,24 +217,24 @@ export default function IncidentDetail({ incident, onClose, userRole }: Incident
                 ) : (
                   <div>
                     {error && <div className="incident-error-msg" style={{ marginBottom: '16px' }}>{error}</div>}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                    <div className="incident-rating-input-group">
                       <div>
-                        <div style={{ marginBottom: '12px', fontWeight: 600, color: '#334155' }}>Chất lượng phục vụ:</div>
+                        <div className="incident-form-label-dark mb-12">Chất lượng phục vụ:</div>
                         <StarRating value={rating} onChange={setRating} size="lg" />
                       </div>
                       <div>
-                        <div style={{ marginBottom: '8px', fontWeight: 600, color: '#334155' }}>Nhận xét (Tùy chọn):</div>
+                        <div className="incident-form-label-dark">Nhận xét (Tùy chọn):</div>
                         <textarea
                           value={ratingComment}
                           onChange={(e) => setRatingComment(e.target.value)}
                           placeholder="Nhân viên nhiệt tình, xử lý nhanh..."
-                          style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1', minHeight: '80px', fontFamily: 'inherit' }}
+                          className="incident-rating-textarea"
                         />
                       </div>
-                      <button 
-                        onClick={handleRate} 
+                      <button
+                        onClick={handleRate}
                         disabled={actionLoading || rating === 0}
-                        style={{ background: rating > 0 ? '#10b981' : '#94a3b8', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '8px', fontWeight: 600, cursor: rating > 0 ? 'pointer' : 'not-allowed', alignSelf: 'flex-start', transition: 'all 0.2s' }}
+                        className="incident-rating-submit-btn"
                       >
                         {actionLoading ? 'Đang gửi...' : 'GỬI ĐÁNH GIÁ'}
                       </button>
@@ -234,8 +245,8 @@ export default function IncidentDetail({ incident, onClose, userRole }: Incident
             )}
 
             {/* Timeline */}
-            <div style={{ background: '#fff', borderRadius: '16px', padding: '32px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-              <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#003e68', marginBottom: '32px', marginTop: 0 }}>Lịch sử (Timeline)</h2>
+            <div className="incident-tenant-timeline-box">
+              <h2 className="incident-rating-title mb-32">Lịch sử (Timeline)</h2>
 
               {loading ? (
                 <div className="incident-loading-text">Đang tải...</div>
@@ -249,19 +260,19 @@ export default function IncidentDetail({ incident, onClose, userRole }: Incident
                       <div key={entry._id} className="incident-timeline-item" style={{ paddingBottom: isLast ? '0' : '32px' }}>
                         <div className="incident-timeline-dot" style={{ background: statusConfig.color }}></div>
 
-                        <div className="incident-timeline-time" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', color: '#6b7280', marginBottom: '6px' }}>
+                        <div className="incident-timeline-time-tenant">
                           <FiClock size={12} /> {formatDateTime(entry.createdAt)}
                         </div>
 
-                        <div style={{ fontWeight: 700, color: statusConfig.color, fontSize: '0.95rem', marginBottom: '4px' }}>
+                        <div className="incident-timeline-tenant-status" style={{ color: statusConfig.color }}>
                           {statusConfig.label}
                         </div>
-                        <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: entry.note ? '12px' : '0' }}>
+                        <div className={`incident-timeline-tenant-role ${entry.note ? 'with-note' : ''}`}>
                           {entry.createdBy?.name || "Hệ thống"} {entry.createdBy?.role ? `(${entry.createdBy.role === 'admin' || entry.createdBy.role === 'staff' ? 'BQL' : entry.createdBy.role === 'tenant' ? 'Người thuê' : 'Nhân viên bảo trì'})` : '(Tự động phân công)'}
                         </div>
 
                         {entry.note && (
-                          <div className="incident-timeline-bubble" style={{ background: '#f9fafb', border: '1px solid #f3f4f6', padding: '16px', borderRadius: '8px', fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.5, position: 'relative' }}>
+                          <div className="incident-timeline-tenant-bubble">
                             {entry.note}
                           </div>
                         )}
@@ -405,11 +416,11 @@ export default function IncidentDetail({ incident, onClose, userRole }: Incident
                       </div>
                       <div className="incident-image-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))' }}>
                         {localIncident.videos.map((vid, i) => (
-                          <video 
-                            key={i} 
-                            src={vid} 
-                            controls 
-                            style={{ width: '100%', borderRadius: '8px', border: '1px solid #e5e7eb', maxHeight: '200px', objectFit: 'cover' }} 
+                          <video
+                            key={i}
+                            src={vid}
+                            controls
+                            className="incident-video-preview"
                           />
                         ))}
                       </div>
@@ -418,17 +429,17 @@ export default function IncidentDetail({ incident, onClose, userRole }: Incident
 
                   {/* Rating Card for Admin/Staff View */}
                   {localIncident.rating && userRole !== "tenant" && (
-                    <div className="incident-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+                    <div className="incident-card incident-admin-rating-card">
                       <div className="incident-card-header">
                         Đánh giá từ người thuê
                       </div>
                       <div style={{ marginTop: '16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                          <span style={{ fontWeight: 600, color: '#334155' }}>Mức độ hài lòng:</span>
+                        <div className="incident-rating-display-header mb-12">
+                          <span className="incident-rating-label">Mức độ hài lòng:</span>
                           <StarRating value={localIncident.rating} size="md" />
                         </div>
                         {localIncident.ratingComment && (
-                          <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', borderLeft: '3px solid #cbd5e1', fontStyle: 'italic', color: '#475569', fontSize: '0.9rem' }}>
+                          <div className="incident-rating-comment-box small-bg">
                             "{localIncident.ratingComment}"
                           </div>
                         )}
@@ -570,34 +581,57 @@ export default function IncidentDetail({ incident, onClose, userRole }: Incident
                         />
                       </div>
                     </div>
-                    <div>
+                    {parseFloat(repairCost) > 0 && (
+                      <div style={{ marginTop: '16px' }}>
+                        <div className="incident-form-label">
+                          Thời gian thuê: <strong>{monthsRented} tháng</strong>
+                        </div>
+                        {monthsRented < 3 ? (
+                          <div style={{ padding: '8px', background: '#f0fdf4', color: '#166534', borderRadius: '4px', fontSize: '14px', marginTop: '4px' }}>
+                            Khách thuê dưới 3 tháng. Chủ trọ (F4) sẽ chịu chi phí sửa chữa này.
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: '8px' }}>
+                            <label className="incident-form-label">Ai chịu chi phí?</label>
+                            <select
+                              value={costPayer}
+                              onChange={(e) => setCostPayer(e.target.value)}
+                              style={{
+                                width: '100%',
+                                padding: '10px 12px',
+                                borderRadius: '6px',
+                                border: '1px solid #d0d5dd',
+                                fontSize: '14px',
+                                color: '#344054',
+                                backgroundColor: '#fff',
+                                outline: 'none',
+                                boxShadow: '0 1px 2px rgba(16, 24, 40, 0.05)',
+                                marginTop: '6px',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                              }}
+                            >
+                              <option value="landlord">Chủ trọ (F4)</option>
+                              <option value="tenant">Người thuê</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <div style={{ marginTop: '16px' }}>
                       <label className="incident-form-label">Hình ảnh sau khi sửa (Tùy chọn)</label>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <label 
-                          htmlFor="after-images-upload" 
-                          style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'center', 
-                            gap: '8px', 
-                            padding: '16px', 
-                            border: '1.5px dashed #cbd5e1', 
-                            borderRadius: '12px', 
-                            background: '#f8fafc', 
-                            cursor: 'pointer',
-                            color: '#64748b',
-                            transition: 'all 0.2s'
-                          }}
-                          onMouseOver={e => { e.currentTarget.style.borderColor = '#003e68'; e.currentTarget.style.color = '#003e68'; e.currentTarget.style.background = '#f0f9ff'; }}
-                          onMouseOut={e => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.color = '#64748b'; e.currentTarget.style.background = '#f8fafc'; }}
+                      <div className="incident-upload-container">
+                        <label
+                          htmlFor="after-images-upload"
+                          className="incident-image-upload-label"
                         >
                           <FiImage size={24} />
-                          <span style={{ fontSize: '0.95rem', fontWeight: 500 }}>Nhấn để tải ảnh lên</span>
+                          <span className="incident-image-upload-text">Nhấn để tải ảnh lên</span>
                         </label>
                         <input
                           id="after-images-upload"
-                          type="file" 
-                          multiple 
+                          type="file"
+                          multiple
                           accept="image/*"
                           onChange={e => {
                             if (e.target.files) {
@@ -607,19 +641,19 @@ export default function IncidentDetail({ incident, onClose, userRole }: Incident
                           }}
                           style={{ display: 'none' }}
                         />
-                        
+
                         {afterImages.length > 0 && (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+                          <div className="incident-image-preview-list">
                             {afterImages.map((file, index) => (
-                              <div key={index} style={{ position: 'relative', width: '64px', height: '64px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                                <img src={URL.createObjectURL(file)} alt={`preview-${index}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                <button 
+                              <div key={index} className="incident-image-preview-wrapper">
+                                <img src={URL.createObjectURL(file)} alt={`preview-${index}`} className="incident-image-preview-img" />
+                                <button
                                   onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     setAfterImages(prev => prev.filter((_, i) => i !== index));
                                   }}
-                                  style={{ position: 'absolute', top: '2px', right: '2px', background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', borderRadius: '50%', width: '18px', height: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                                  className="incident-image-remove-btn"
                                 >
                                   <FiX size={12} />
                                 </button>

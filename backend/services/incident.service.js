@@ -5,6 +5,21 @@ const Contract = require("../models/Contract");
 const User = require("../models/User");
 const notificationService = require("../utils/notificationService");
 
+const getRootStartDate = async (contractId) => {
+  let currentContract = await Contract.findById(contractId);
+  if (!currentContract) return new Date();
+
+  let rootStartDate = currentContract.startDate;
+
+  while (currentContract && currentContract.parentContract) {
+    currentContract = await Contract.findById(currentContract.parentContract);
+    if (currentContract) {
+      rootStartDate = currentContract.startDate;
+    }
+  }
+  return rootStartDate;
+};
+
 const createIncident = async (tenantId, data, files) => {
   const { roomId, contractId, category, priority, description, contactPhone, availableTime } = data;
 
@@ -13,7 +28,7 @@ const createIncident = async (tenantId, data, files) => {
   if (!contract) {
     throw new Error("Hợp đồng không tồn tại.");
   }
-  
+
   if (contract.tenant.toString() !== tenantId) {
     throw new Error("Bạn không có quyền báo cáo sự cố cho hợp đồng này.");
   }
@@ -93,7 +108,7 @@ const createIncident = async (tenantId, data, files) => {
       incident: incident._id,
       status: "assigned",
       note: "Hệ thống tự động phân công nhân viên xử lý.",
-      createdBy: assignedStaffId, 
+      createdBy: assignedStaffId,
     });
   }
 
@@ -106,9 +121,20 @@ const createIncident = async (tenantId, data, files) => {
 const getMyIncidents = async (tenantId) => {
   const incidents = await Incident.find({ tenant: tenantId })
     .populate("room", "name roomNumber")
-    .populate("assignedStaff", "name phone email")
+    .populate("contract", "startDate endDate status")
+    .populate("assignedStaff", "name phone email avatar")
     .sort({ createdAt: -1 });
-  return incidents;
+
+  const incidentsObj = await Promise.all(incidents.map(async (inc) => {
+    const obj = inc.toObject();
+    if (inc.contract) {
+      const startDate = await getRootStartDate(inc.contract._id);
+      const now = new Date();
+      obj.monthsRented = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
+    }
+    return obj;
+  }));
+  return incidentsObj;
 };
 
 const getIncidentById = async (incidentId, userId, userRole) => {
@@ -127,7 +153,15 @@ const getIncidentById = async (incidentId, userId, userRole) => {
     throw new Error("Bạn không có quyền xem báo cáo này.");
   }
 
-  return incident;
+  const incidentObj = incident.toObject();
+
+  if (incident.contract) {
+    const startDate = await getRootStartDate(incident.contract._id);
+    const now = new Date();
+    incidentObj.monthsRented = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
+  }
+
+  return incidentObj;
 };
 
 const getAllIncidents = async (query = {}) => {
@@ -139,12 +173,12 @@ const getAllIncidents = async (query = {}) => {
   if (category) filter.category = category;
   if (priority) filter.priority = priority;
   if (status) filter.status = status;
-  
+
   if (search) {
     const searchRegex = new RegExp(search, "i");
     const rooms = await Room.find({ name: searchRegex }).select("_id");
     const roomIds = rooms.map(r => r._id);
-    
+
     filter.$or = [
       { ticketCode: searchRegex },
       { room: { $in: roomIds } }
@@ -153,16 +187,27 @@ const getAllIncidents = async (query = {}) => {
 
   const incidents = await Incident.find(filter)
     .populate("room", "name roomNumber district")
+    .populate("contract", "startDate endDate status")
     .populate("tenant", "name phone email")
     .populate("assignedStaff", "name phone email avatar")
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
 
+  const incidentsObj = await Promise.all(incidents.map(async (inc) => {
+    const obj = inc.toObject();
+    if (inc.contract) {
+      const startDate = await getRootStartDate(inc.contract._id);
+      const now = new Date();
+      obj.monthsRented = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
+    }
+    return obj;
+  }));
+
   const total = await Incident.countDocuments(filter);
 
   return {
-    incidents,
+    incidents: incidentsObj,
     totalPages: Math.ceil(total / limit),
     currentPage: parseInt(page),
     totalIncidents: total
@@ -178,12 +223,12 @@ const getDistrictIncidents = async (districts, query = {}) => {
   if (category) filter.category = category;
   if (priority) filter.priority = priority;
   if (status) filter.status = status;
-  
+
   if (search) {
     const searchRegex = new RegExp(search, "i");
     const rooms = await Room.find({ name: searchRegex }).select("_id");
     const roomIds = rooms.map(r => r._id);
-    
+
     filter.$or = [
       { ticketCode: searchRegex },
       { room: { $in: roomIds } }
@@ -192,16 +237,27 @@ const getDistrictIncidents = async (districts, query = {}) => {
 
   const incidents = await Incident.find(filter)
     .populate("room", "name roomNumber district")
+    .populate("contract", "startDate endDate status")
     .populate("tenant", "name phone email")
     .populate("assignedStaff", "name phone email avatar")
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
 
+  const incidentsObj = await Promise.all(incidents.map(async (inc) => {
+    const obj = inc.toObject();
+    if (inc.contract) {
+      const startDate = await getRootStartDate(inc.contract._id);
+      const now = new Date();
+      obj.monthsRented = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
+    }
+    return obj;
+  }));
+
   const total = await Incident.countDocuments(filter);
 
   return {
-    incidents,
+    incidents: incidentsObj,
     totalPages: Math.ceil(total / limit),
     currentPage: parseInt(page),
     totalIncidents: total
@@ -209,7 +265,7 @@ const getDistrictIncidents = async (districts, query = {}) => {
 };
 
 const updateIncidentStatus = async (incidentId, status, userId, userRole, data = {}, files = null) => {
-  const incident = await Incident.findById(incidentId);
+  const incident = await Incident.findById(incidentId).populate("contract room tenant");
   if (!incident) throw new Error("Không tìm thấy báo cáo sự cố.");
 
   if (userRole === "staff") {
@@ -242,9 +298,64 @@ const updateIncidentStatus = async (incidentId, status, userId, userRole, data =
   if (status === "resolved") {
     incident.resolutionNote = data.resolutionNote || "";
     incident.repairCost = data.repairCost || 0;
-    
+
     if (files && files.afterImages) {
       incident.afterImages = files.afterImages.map(file => file.path);
+    }
+
+    // --- XỬ LÝ CHI PHÍ ---
+    const contract = incident.contract;
+    if (contract && incident.repairCost > 0) {
+      const startDate = await getRootStartDate(contract._id);
+      const now = new Date();
+      // Tính số tháng gần đúng
+      const monthsDiff = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
+
+      let finalCostPayer = "none";
+      if (monthsDiff < 3) {
+        finalCostPayer = "landlord";
+      } else {
+        finalCostPayer = data.costPayer === "tenant" ? "tenant" : "landlord";
+      }
+
+      incident.costPayer = finalCostPayer;
+
+      if (finalCostPayer === "landlord") {
+        // Tạo Expense
+        const Expense = require("../models/Expense");
+        await Expense.create({
+          amount: incident.repairCost,
+          category: "repair",
+          description: `Chi phí sửa chữa sự cố ${incident.ticketCode}`,
+          incident: incident._id,
+          createdBy: userId,
+        });
+        note += " (F4 đã chịu chi phí bảo trì)";
+      } else if (finalCostPayer === "tenant") {
+        // Tạo Invoice
+        const Invoice = require("../models/Invoice");
+        let tenantName = "Khách thuê";
+        if (incident.tenant && incident.tenant.name) tenantName = incident.tenant.name;
+
+        const repairInvoice = await Invoice.create({
+          type: "repair",
+          contract: contract._id,
+          tenantId: incident.tenant ? incident.tenant._id : null,
+          representativeName: contract.representativeName || tenantName,
+          roomName: incident.room ? incident.room.name : "N/A",
+          rentAmount: 0, // Bat buoc bang 0 vi day la hoa don sua chua
+          repairAmount: incident.repairCost,
+          incidentId: incident._id,
+          createdBy: userId,
+          dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+          sentAt: new Date()
+        });
+        incident.repairInvoice = repairInvoice._id;
+        note += " (Đã tạo hóa đơn sửa chữa cho khách thuê)";
+
+        // Gửi thông báo & email cho khách thuê về hóa đơn mới
+        await notificationService.notifyTenantInvoiceSent(repairInvoice);
+      }
     }
   }
 
@@ -289,7 +400,7 @@ const rateIncident = async (incidentId, tenantId, rating, comment) => {
   incident.rating = rating;
   if (comment) incident.ratingComment = comment;
   incident.ratedAt = new Date();
-  
+
   await incident.save();
 
   await IncidentTimeline.create({
@@ -327,7 +438,11 @@ const getIncidentStats = async (userRole, userDistricts = []) => {
             $cond: [{ $in: ["$status", ["resolved", "closed"]] }, 1, 0]
           }
         },
-        totalCost: { $sum: "$repairCost" }
+        totalCost: {
+          $sum: {
+            $cond: [{ $eq: ["$costPayer", "landlord"] }, "$repairCost", 0]
+          }
+        }
       }
     }
   ]);

@@ -192,6 +192,11 @@ const getInvoices = async (req, res) => {
     if (status) filter.status = status;
 
     const invoices = await Invoice.find(filter)
+      .populate({
+        path: "incidentId",
+        populate: { path: "assignedStaff", select: "name role" }
+      })
+      .populate("confirmedBy", "name role")
       .sort({ createdAt: -1 })
       .lean(); // lean để tăng tốc độ đọc
 
@@ -209,7 +214,13 @@ const getInvoices = async (req, res) => {
  */
 const getInvoiceById = async (req, res) => {
   try {
-    const invoice = await Invoice.findById(req.params.id).lean();
+    const invoice = await Invoice.findById(req.params.id)
+      .populate({
+        path: "incidentId",
+        populate: { path: "assignedStaff", select: "name role" }
+      })
+      .populate("confirmedBy", "name role")
+      .lean();
     if (!invoice) return res.status(404).json({ message: "Không tìm thấy hóa đơn." });
 
     // Kiểm tra quyền qua contract cha
@@ -238,6 +249,11 @@ const getMyInvoices = async (req, res) => {
       path: 'contract',
       populate: { path: 'room', select: 'name address' }
     })
+    .populate({
+      path: "incidentId",
+      populate: { path: "assignedStaff", select: "name role" }
+    })
+    .populate("confirmedBy", "name role")
     .sort({ createdAt: -1 })
     .lean();
 
@@ -409,6 +425,11 @@ const getAllInvoices = async (req, res) => {
       .sort({ [sortField]: sortDir })
       .skip((pageNum - 1) * limitNum)
       .limit(limitNum)
+      .populate({
+        path: "incidentId",
+        populate: { path: "assignedStaff", select: "name role" }
+      })
+      .populate("confirmedBy", "name role")
       .lean();
 
     res.json({

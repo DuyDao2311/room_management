@@ -419,9 +419,11 @@ const notifyTenantInvoiceSent = async (invoice) => {
   const tenant = contract?.tenant;
   if (!tenant) return [];
 
-  const loaiInvoice = invoice.type === "deposit"
-    ? "tiền cọc"
-    : `dịch vụ tháng ${invoice.month}/${invoice.year}`;
+  let loaiInvoice = "";
+  if (invoice.type === "deposit") loaiInvoice = "tiền cọc";
+  else if (invoice.type === "repair") loaiInvoice = "chi phí sửa chữa";
+  else loaiInvoice = `dịch vụ tháng ${invoice.month}/${invoice.year}`;
+  
   const title = `🧾 Hoá đơn mới — ${invoice.roomName}`;
   const dueText = invoice.dueDate ? ` Hạn thanh toán: ${fmtDate(invoice.dueDate)}.` : "";
   const message = `Kính gửi Quý khách,\n\nHoá đơn ${loaiInvoice} phòng ${invoice.roomName} của Quý khách (${fmt(invoice.totalAmount)}đ) vừa được phát hành.${dueText} Vui lòng truy cập hệ thống để xem chi tiết và hoàn tất thanh toán đúng hạn.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
@@ -447,9 +449,10 @@ const notifyTenantInvoicePaid = async (invoice) => {
   const tenant = await User.findById(invoice.tenantId).select("_id email name");
   if (!tenant) return [];
 
-  const loaiInvoice = invoice.type === "deposit"
-    ? "tiền cọc"
-    : `dịch vụ tháng ${invoice.month}/${invoice.year}`;
+  let loaiInvoice = "";
+  if (invoice.type === "deposit") loaiInvoice = "tiền cọc";
+  else if (invoice.type === "repair") loaiInvoice = "chi phí sửa chữa";
+  else loaiInvoice = `dịch vụ tháng ${invoice.month}/${invoice.year}`;
   const methodLabel = { Cash: "tiền mặt", MoMo: "MoMo", VNPay: "VNPay" };
   const phuongThuc = invoice.paymentMethod
     ? ` qua ${methodLabel[invoice.paymentMethod] || invoice.paymentMethod}`

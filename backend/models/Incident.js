@@ -79,6 +79,16 @@ const incidentSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    costPayer: {
+      type: String,
+      enum: ["tenant", "landlord", "none"],
+      default: "none",
+    },
+    repairInvoice: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Invoice",
+      default: null,
+    },
     rating: {
       type: Number,
       min: 1,

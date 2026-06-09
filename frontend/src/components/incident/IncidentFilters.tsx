@@ -29,26 +29,26 @@ export default function IncidentFilters({ filters, onFilterChange }: IncidentFil
   };
 
   return (
-    <div style={{ padding: '20px 24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', borderBottom: '1px solid #eaecf0' }}>
-      <div style={{ position: 'relative', flex: '1 1 220px', minWidth: '180px' }}>
-        <FiSearch size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+    <div className="incident-filters-wrapper">
+      <div className="incident-filter-search">
+        <FiSearch size={16} className="incident-filter-icon" />
         <input
           type="text"
           name="search"
           value={filters.search}
           onChange={handleChange}
           placeholder="Tìm theo mã sự cố, tên phòng..."
-          style={{ width: '100%', padding: '10px 16px 10px 36px', borderRadius: '6px', border: 'none', background: '#f1f5f9', color: '#475467', outline: 'none', fontSize: '0.9rem' }}
+          className="incident-filter-input"
         />
       </div>
 
-      <div style={{ position: 'relative' }}>
-        <FiFilter size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', pointerEvents: 'none' }} />
+      <div className="incident-filter-select-wrapper">
+        <FiFilter size={16} className="incident-filter-icon" />
         <select
           name="category"
           value={filters.category}
           onChange={handleChange}
-          style={{ padding: '10px 16px 10px 36px', borderRadius: '6px', border: 'none', background: '#f1f5f9', color: '#475467', outline: 'none', fontSize: '0.9rem', appearance: 'none', minWidth: '160px' }}
+          className="incident-filter-select with-icon"
         >
           <option value="">Tất cả loại sự cố</option>
           <option value="Điện">Sự cố về Điện</option>
@@ -62,7 +62,7 @@ export default function IncidentFilters({ filters, onFilterChange }: IncidentFil
         name="priority"
         value={filters.priority}
         onChange={handleChange}
-        style={{ padding: '10px 16px', borderRadius: '6px', border: 'none', background: '#f1f5f9', color: '#475467', outline: 'none', fontSize: '0.9rem' }}
+        className="incident-filter-select"
       >
         <option value="">Mức độ</option>
         <option value="Thấp">Thấp</option>
@@ -75,7 +75,7 @@ export default function IncidentFilters({ filters, onFilterChange }: IncidentFil
         name="status"
         value={filters.status}
         onChange={handleChange}
-        style={{ padding: '10px 16px', borderRadius: '6px', border: 'none', background: '#f1f5f9', color: '#475467', outline: 'none', fontSize: '0.9rem' }}
+        className="incident-filter-select"
       >
         <option value="">Trạng thái</option>
         <option value="pending">Chờ xử lý</option>
@@ -89,13 +89,7 @@ export default function IncidentFilters({ filters, onFilterChange }: IncidentFil
       <button
         onClick={handleResetFilter}
         title="Xóa bộ lọc"
-        style={{
-          padding: '10px 14px', borderRadius: '6px', border: 'none',
-          background: hasActiveFilter ? '#fee2e2' : '#f1f5f9',
-          color: hasActiveFilter ? '#dc2626' : '#475467',
-          cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all 0.2s'
-        }}
+        className={`incident-filter-reset ${hasActiveFilter ? 'active' : ''}`}
       >
         <svg stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" height="18" width="18" xmlns="http://www.w3.org/2000/svg"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>
       </button>
