@@ -43,18 +43,8 @@ const runDailyCronJobs = async (io) => {
   }
 };
 
-/**
- * Khởi tạo cronjob — gọi từ server.js sau khi kết nối DB.
- * @param {import("socket.io").Server} io
- */
 const initCronJobs = (io) => {
-  // Chạy mỗi ngày lúc 20:00 (Hệ thống chạy ngầm trong ứng dụng)
-  cron.schedule("0 20 * * *", () => runDailyCronJobs(io), {
-    scheduled: true,
-    timezone: "Asia/Ho_Chi_Minh"
-  });
-
-  console.log("📅 [CronJob] Đã khởi tạo cronjob kiểm tra hợp đồng (20:00 hàng ngày).");
+  console.log("📅 [CronJob] Chế độ webhook: Sẵn sàng nhận trigger từ cron-job.org tại /api/cron/daily-check.");
 };
 
 // ─── 0. Kích hoạt hợp đồng gia hạn đến ngày bắt đầu ────────────────────────
