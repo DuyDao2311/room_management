@@ -44,7 +44,7 @@ const runDailyCronJobs = async (io) => {
 };
 
 const initCronJobs = (io) => {
-  console.log("📅 [CronJob] Chế độ webhook: Sẵn sàng nhận trigger từ cron-job.org tại /api/cron/daily-check.");
+  console.log("📅 [CronJob] Sẵn sàng quét hợp đồng hàng ngày...");
 };
 
 // ─── 0. Kích hoạt hợp đồng gia hạn đến ngày bắt đầu ────────────────────────
