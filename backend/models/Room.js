@@ -44,10 +44,12 @@ const roomSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
-    images: {
-      type: [String],
-      default: [],
-    },
+    images: [{
+      url: { type: String, required: true },
+      isPrimary: { type: Boolean, default: false },
+      order: { type: Number, default: 0 },
+      createdAt: { type: Date, default: Date.now },
+    }],
     district: {
       type: String,
       trim: true,

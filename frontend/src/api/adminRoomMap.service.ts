@@ -16,7 +16,7 @@ export interface AdminRoomMapItem {
   type: string;
   area: number;
   district: string;
-  images?: string[];
+  images?: any[];
   createdBy?: {
     _id: string;
     name: string;

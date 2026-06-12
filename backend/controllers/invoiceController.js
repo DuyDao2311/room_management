@@ -96,7 +96,7 @@ const createDepositInvoice = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. Tạo hóa đơn SERVICE hàng tháng
+// 2. Tạo hóa đơn SERVICE hàng tháng (Thủ công)
 // ─────────────────────────────────────────────────────────────────────────────
 /**
  * POST /api/invoices/service
@@ -106,65 +106,17 @@ const createDepositInvoice = async (req, res) => {
  *   electricity: { oldReading, newReading, rate },
  *   water:       { oldReading, newReading, rate },
  *   extraFees:   [{ name, amount }],
- *   dueDate?,
  *   notes?
  * }
- * Quyền: admin
+ * Quyền: admin, staff
  */
+const { createManualInvoiceService } = require("../services/invoice.service");
+
 const createServiceInvoice = async (req, res) => {
   try {
-    const {
-      contractId, month, year,
-      electricity, water, extraFees,
-      dueDate, notes,
-    } = req.body;
-
-    if (!contractId || !month || !year) {
-      return res.status(400).json({ message: "contractId, month và year là bắt buộc." });
-    }
-    if (!electricity || !water) {
-      return res.status(400).json({ message: "Chỉ số điện và nước là bắt buộc." });
-    }
-
-    const contract = await getContractOrFail(contractId, req.user);
-
-    const invoice = await Invoice.create({
-      contract:            contractId,
-      type:                "service",
-      month:               Number(month),
-      year:                Number(year),
-
-      // --- Snapshot ---
-      representativeName:  contract.representativeName,
-      representativePhone: contract.representativePhone,
-      roomName:            contract.room.name,
-      rentAmount:          contract.monthlyRent,
-
-      electricity: {
-        oldReading: Number(electricity.oldReading),
-        newReading: Number(electricity.newReading),
-        rate:       Number(electricity.rate),
-      },
-      water: {
-        oldReading: Number(water.oldReading),
-        newReading: Number(water.newReading),
-        rate:       Number(water.rate),
-      },
-      extraFees: Array.isArray(extraFees) ? extraFees : [],
-
-      dueDate:   dueDate,
-      notes:     notes || "",
-      createdBy: req.user._id,
-    });
-
+    const invoice = await createManualInvoiceService(req.body, req.user);
     res.status(201).json(invoice);
   } catch (err) {
-    // Xử lý lỗi unique index (trùng tháng/năm)
-    if (err.code === 11000) {
-      return res.status(409).json({
-        message: `Hóa đơn tháng ${req.body.month}/${req.body.year} đã tồn tại cho hợp đồng này.`,
-      });
-    }
     res.status(err.status || 500).json({ message: err.message || "Lỗi server." });
   }
 };

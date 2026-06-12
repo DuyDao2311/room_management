@@ -15,6 +15,9 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.2.5",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@types/mapbox-gl": "^3.4.1",
     "@types/react": "^19.2.14",
     "@types/react-datepicker": "^6.2.0",
@@ -33,6 +36,8 @@
     "react-qr-code": "^2.0.21",
     "react-router-dom": "^7.14.1",
     "react-signature-canvas": "^1.1.0-alpha.2",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "swiper": "^12.2.0",
+    "yet-another-react-lightbox": "^3.32.0"
   }
 }

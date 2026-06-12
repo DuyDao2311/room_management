@@ -70,7 +70,7 @@ function buildGeoJSON(rooms: AdminRoomMapItem[]): GeoJSON.FeatureCollection {
           type: room.type,
           area: room.area,
           district: room.district,
-          thumbnail: room.images?.[0] || "",
+          thumbnail: room.images?.[0]?.url || room.images?.[0] || "",
           createdByName: room.createdBy?.name || "",
         },
       })),
@@ -273,7 +273,7 @@ export default function AdminRoomMap({
     const statusColor = STATUS_COLORS[room.status] || "#667085";
     const statusLabel = STATUS_LABELS[room.status] || room.status;
     const thumbnailHtml = room.images?.[0]
-      ? `<img src="${room.images[0]}" class="admin-map-popup-thumb" alt="${room.name}" />`
+      ? `<img src="${room.images[0]?.url || room.images[0]}" class="admin-map-popup-thumb" alt="${room.name}" />`
       : `<div class="admin-map-popup-thumb admin-map-popup-thumb--empty">🏠</div>`;
 
     popupRef.current = new mapboxgl.Popup({

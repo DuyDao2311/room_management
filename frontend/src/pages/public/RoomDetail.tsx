@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext.tsx'
 import { RiMapPin2Line } from "react-icons/ri";
 import FavoriteHeartButton from '../../components/ui/FavoriteHeartButton.tsx'
 import MapView from '../../components/map/MapView.tsx'
+import RoomGallery from '../../components/room-images/RoomGallery.tsx'
 import { LiaRulerHorizontalSolid } from "react-icons/lia";
 import { MdOutlineBedroomParent, MdSecurity, MdOutlinePerson, MdOutlinePhone, MdOutlineMoreTime, MdOutlineEmail } from "react-icons/md";
 import { FaWifi } from "react-icons/fa";
@@ -15,6 +16,13 @@ import SignaturePad from '../../components/ui/SignaturePad.tsx'
 import FeedbackList from '../../components/ui/FeedbackList.tsx'
 import FeedbackForm from '../../components/ui/FeedbackForm.tsx'
 import { checkEligibility, getMyFeedback, type Feedback } from '../../api/feedback.ts'
+
+interface RoomImage {
+  _id: string
+  url: string
+  isPrimary: boolean
+  order: number
+}
 
 interface Room {
   _id: string
@@ -26,7 +34,7 @@ interface Room {
   status: 'available' | 'occupied' | 'maintenance'
   description: string
   amenities: string[]
-  images: string[]
+  images: RoomImage[]
   viewCount: number
   location?: {
     type: string
@@ -52,7 +60,7 @@ const AMENITY_ICONS: Record<string, React.ReactNode> = {
   'Tủ lạnh': '🧊',
 }
 
-const DEFAULT_IMG = 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80'
+
 
 interface CoResident {
   name: string
@@ -97,8 +105,6 @@ export default function RoomDetail() {
   const [room, setRoom] = useState<Room | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [previewImage, setPreviewImage] = useState<string | null>(null)
-  const [activeImg, setActiveImg] = useState(0)
 
   // Chỉ gọi API view 1 lần khi mount — dùng useRef tránh double-call trong StrictMode
   const hasTrackedView = useRef(false)
@@ -261,8 +267,6 @@ export default function RoomDetail() {
   )
 
   const s = STATUS_MAP[room.status]
-  const imgs = room.images?.length > 0 ? room.images : [DEFAULT_IMG]
-  const mainImg = imgs[activeImg] ?? imgs[0]
 
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -301,34 +305,9 @@ export default function RoomDetail() {
       </div>
 
       {/* ── Gallery ── */}
-      <div className="rd-gallery">
-        {/* Main image */}
-        <div
-          className="rd-gallery-main"
-          style={{ backgroundImage: `url("${mainImg}")` }}
-          onClick={() => setPreviewImage(mainImg)}
-          title="Click để phóng to"
-        >
-          <button className="rd-view-all-btn" onClick={e => { e.stopPropagation(); setPreviewImage(mainImg) }}>
-            🖼️ Xem tất cả {imgs.length} ảnh
-          </button>
-          {/* Heart button — same style as /rooms cards */}
-          <FavoriteHeartButton room={room} />
-        </div>
-
-        {/* Thumbnails */}
-        {imgs.length > 1 && (
-          <div className="rd-thumbs">
-            {imgs.slice(0, 4).map((img, i) => (
-              <div
-                key={i}
-                className={`rd-thumb${activeImg === i ? ' active' : ''}`}
-                style={{ backgroundImage: `url("${img}")` }}
-                onClick={() => setActiveImg(i)}
-              />
-            ))}
-          </div>
-        )}
+      <div style={{ position: 'relative' }}>
+        <RoomGallery images={room.images || []} />
+        <FavoriteHeartButton room={room} />
       </div>
 
       {/* ── Main body: Info + Booking ── */}
@@ -553,29 +532,7 @@ export default function RoomDetail() {
         </div>
       </div>
 
-      {/* ── Image Preview Modal ── */}
-      {previewImage && (
-        <div
-          onClick={() => setPreviewImage(null)}
-          style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', zIndex: 9999, cursor: 'zoom-out'
-          }}
-        >
-          <img
-            src={previewImage}
-            alt="Room Preview"
-            style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: '8px', objectFit: 'contain', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}
-          />
-          <button
-            style={{ position: 'absolute', top: '24px', right: '32px', background: 'none', border: 'none', color: 'white', fontSize: '2.5rem', cursor: 'pointer' }}
-            onClick={() => setPreviewImage(null)}
-          >
-            &times;
-          </button>
-        </div>
-      )}
+
 
       {/* ── Rental Registration Modal ── */}
       {showRentModal && (

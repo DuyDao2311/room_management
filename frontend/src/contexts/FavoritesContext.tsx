@@ -10,7 +10,7 @@ export interface FavoriteRoom {
   area?: number
   type?: string
   status: 'available' | 'occupied' | 'maintenance'
-  images: string[]
+  images: any[]
 }
 
 interface FavoritesContextType {

@@ -22,7 +22,7 @@ interface Room {
   area: number
   type: string
   floor?: number
-  images: string[]
+  images?: any[]
   amenities: string[]
 }
 
@@ -383,7 +383,7 @@ export default function MyRoom() {
         {/* Hero Section */}
         <div style={{ position: 'relative', borderRadius: '16px', overflow: 'hidden', height: '320px', marginBottom: '32px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
           <img
-            src={room.images && room.images.length > 0 ? room.images[0] : 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267'}
+            src={room.images && room.images.length > 0 ? room.images[0]?.url : 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267'}
             alt={room.name}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />

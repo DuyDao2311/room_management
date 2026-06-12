@@ -12,7 +12,7 @@ interface Room {
   area: number;
   type: string;
   status: "available" | "occupied" | "maintenance";
-  images: string[];
+  images: any[];
   amenities: string[];
 }
 
@@ -71,8 +71,8 @@ export default function RoomList() {
     <div className="page-shell">
       <div className="room-list-page">
         <div className="page-hero-mini">
-          <h1>Tìm phòng trọ</h1>
-          <p>Khám phá hàng trăm phòng trọ chất lượng tại TP.Hà Nội</p>
+          <h1>Tìm căn hộ</h1>
+          <p>Khám phá hàng trăm căn hộ chất lượng tại TP.Hà Nội</p>
         </div>
 
         {/* Filters */}
@@ -155,7 +155,7 @@ export default function RoomList() {
 
                   const imageUrl =
                     room.images && room.images.length > 0
-                      ? room.images[0]
+                      ? room.images[0]?.url || room.images[0]
                       : "https://vinhomeoceanpark.net/wp-content/uploads/khong-sang-song-hien-dai-tien-ich-tai-studio-vinhomes-ocean-park.jpg";
                   const bgStyle = { backgroundImage: `url("${imageUrl}")` };
 
@@ -170,11 +170,10 @@ export default function RoomList() {
                         style={bgStyle}
                       >
                         <div
-                          className={`design-room-badge ${
-                            room.status === "available"
-                              ? "badge-available"
-                              : "badge-full"
-                          }`}
+                          className={`design-room-badge ${room.status === "available"
+                            ? "badge-available"
+                            : "badge-full"
+                            }`}
                         >
                           {room.status === "available"
                             ? "CÒN PHÒNG"

@@ -345,6 +345,38 @@ export default function InvoiceManagement() {
 
   const selectedContract = contracts.find((c) => c._id === form.contractId);
 
+  // ─── Tự động kế thừa chỉ số cũ ──────────────────────────────────────────────
+  useEffect(() => {
+    if (view === "create" && form.type === "service" && form.contractId) {
+      let prevMonth = form.month - 1;
+      let prevYear = form.year;
+      if (prevMonth === 0) {
+        prevMonth = 12;
+        prevYear -= 1;
+      }
+
+      api
+        .get("/invoices", {
+          params: { contractId: form.contractId, type: "service" },
+        })
+        .then((res) => {
+          const contractInvoices = res.data || [];
+          const prevInvoice = contractInvoices.find(
+            (inv: any) => inv.month === prevMonth && inv.year === prevYear
+          );
+
+          if (prevInvoice) {
+            setForm((prev) => ({
+              ...prev,
+              elecOld: prevInvoice.electricity?.newReading?.toString() || prev.elecOld,
+              waterOld: prevInvoice.water?.newReading?.toString() || prev.waterOld,
+            }));
+          }
+        })
+        .catch((err) => console.error("Lỗi kế thừa chỉ số cũ:", err));
+    }
+  }, [view, form.type, form.contractId, form.month, form.year]);
+
   // ─── Dynamic calculations ───────────────────────────────────────────────────
   const rentCost = selectedContract?.monthlyRent || 0;
 
@@ -437,6 +469,15 @@ export default function InvoiceManagement() {
         setFormError("Vui lòng nhập đầy đủ chỉ số nước.");
         return;
       }
+      if (view === "create") {
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth() + 1;
+        const currentYear = currentDate.getFullYear();
+        if (form.year < currentYear || (form.year === currentYear && form.month < currentMonth)) {
+          setFormError("Không được tạo hóa đơn cho tháng đã qua.");
+          return;
+        }
+      }
     }
 
     setSaving(true);
@@ -495,7 +536,6 @@ export default function InvoiceManagement() {
               rate: Number(form.waterRate),
             },
             extraFees,
-            dueDate: form.dueDate || undefined,
             notes: form.notes,
           });
         }
@@ -1673,7 +1713,7 @@ export default function InvoiceManagement() {
                   <span style={{ fontWeight: 600 }}>Ghi chú sửa chữa:</span>{" "}
                   {currentInvoice?.incidentId?.resolutionNote || <span style={{ fontStyle: "italic", color: "#6b7280" }}>Không có ghi chú</span>}
                 </div>
-                
+
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 16, borderTop: "1px solid #e5e7eb" }}>
                   <span style={{ color: "#374151", fontWeight: 500 }}>
                     Chi phí sửa chữa
@@ -2119,24 +2159,39 @@ export default function InvoiceManagement() {
                     display: "block",
                   }}
                 >
-                  Hạn thanh toán
+                  {view === "edit" ? "Hạn thanh toán" : "Hạn thanh toán (Dự kiến)"}
                 </label>
-                <DatePicker
-                  className="form-input"
-                  selected={form.dueDate ? new Date(form.dueDate) : null}
-                  onChange={(date: Date | null) => {
-                    if (date) {
-                      const tzOffset = date.getTimezoneOffset() * 60000;
-                      const localISOTime = new Date(date.getTime() - tzOffset).toISOString().split("T")[0];
-                      sf("dueDate", localISOTime);
-                    } else {
-                      sf("dueDate", "");
-                    }
-                  }}
-                  dateFormat="dd/MM/yyyy"
-                  locale={vi}
-                  placeholderText="dd/mm/yyyy"
-                />
+                {view === "edit" ? (
+                  <DatePicker
+                    className="form-input"
+                    selected={form.dueDate ? new Date(form.dueDate) : null}
+                    onChange={(date: Date | null) => {
+                      if (date) {
+                        const tzOffset = date.getTimezoneOffset() * 60000;
+                        const localISOTime = new Date(date.getTime() - tzOffset).toISOString().split("T")[0];
+                        sf("dueDate", localISOTime);
+                      } else {
+                        sf("dueDate", "");
+                      }
+                    }}
+                    dateFormat="dd/MM/yyyy"
+                    locale={vi}
+                    placeholderText="dd/mm/yyyy"
+                  />
+                ) : (
+                  <div
+                    style={{
+                      padding: "10px 14px",
+                      background: "#f3f4f6",
+                      borderRadius: "6px",
+                      color: "#4b5563",
+                      fontSize: "0.9rem",
+                      border: "1px solid #e5e7eb"
+                    }}
+                  >
+                    +5 ngày kể từ hôm nay
+                  </div>
+                )}
               </div>
 
               {/* Tổng kết dịch vụ */}

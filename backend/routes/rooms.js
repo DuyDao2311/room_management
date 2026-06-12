@@ -4,6 +4,7 @@ const Room = require("../models/Room");
 const { protect, optionalAuth, adminOnly, verifyRole, injectDistrictFilter, checkDistrictPermission } = require("../middleware/auth");
 const { validateLocationInput, isValidCoordinates } = require("../utils/geo.util");
 const { getRoomsForMap, getNearbyRooms, getRoomLocation } = require("../services/room.service");
+const { addImageUrl, addBulkImageUrls, removeImage, setPrimaryImage, reorderImages } = require("../controllers/roomImageController");
 
 // GET /api/rooms — danh sách phòng (public), hỗ trợ lọc
 router.get("/", async (req, res) => {
@@ -262,7 +263,11 @@ router.put("/:id", protect, verifyRole("admin", "staff"), async (req, res) => {
       return res.status(400).json({ success: false, message: locResult.error });
     }
 
-    const updatedRoom = await Room.findByIdAndUpdate(req.params.id, req.body, {
+    // Loại bỏ images khỏi payload — quản lý ảnh qua API riêng
+    const updateData = { ...req.body };
+    delete updateData.images;
+
+    const updatedRoom = await Room.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
     });
@@ -284,5 +289,22 @@ router.delete("/:id", protect, adminOnly, async (req, res) => {
     res.status(500).json({ message: "Lỗi server." });
   }
 });
+
+// ─── IMAGE MANAGEMENT APIs (admin + staff) ────────────────────────────────
+
+// POST /api/rooms/:id/images — thêm 1 ảnh
+router.post("/:id/images", protect, verifyRole("admin", "staff"), addImageUrl);
+
+// POST /api/rooms/:id/images/bulk — thêm nhiều ảnh
+router.post("/:id/images/bulk", protect, verifyRole("admin", "staff"), addBulkImageUrls);
+
+// PUT /api/rooms/:id/images/reorder — sắp xếp ảnh (đặt trước /:imageId để tránh conflict)
+router.put("/:id/images/reorder", protect, verifyRole("admin", "staff"), reorderImages);
+
+// PUT /api/rooms/:id/images/:imageId/primary — đặt ảnh đại diện
+router.put("/:id/images/:imageId/primary", protect, verifyRole("admin", "staff"), setPrimaryImage);
+
+// DELETE /api/rooms/:id/images/:imageId — xóa ảnh
+router.delete("/:id/images/:imageId", protect, verifyRole("admin", "staff"), removeImage);
 
 module.exports = router;

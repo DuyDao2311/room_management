@@ -4,11 +4,12 @@ import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 // import Badge from '../../components/ui/Badge.tsx'
-import { Building, TrendingUp, Key, Wrench, Pencil, Trash2 } from "lucide-react"
+import { Building, TrendingUp, Key, Wrench, Pencil, Trash2, ImageIcon } from "lucide-react"
 // import { DoorOpen, Bed, User } from "lucide-react"
 import { FiHome, FiTool } from "react-icons/fi";
 import { MdBed } from "react-icons/md";
 import MapPicker from '../../components/map/MapPicker.tsx'
+import RoomImageManager from '../../components/room-images/RoomImageManager.tsx'
 
 interface Room {
   _id: string
@@ -38,7 +39,7 @@ interface ContractInfo {
 const EMPTY_FORM = {
   name: '', address: '', district: '', price: '', area: '',
   type: 'Studio', status: 'available' as Room['status'],
-  description: '', amenities: '', images: '', maintenanceEndDate: '',
+  description: '', amenities: '', maintenanceEndDate: '',
   locationLat: 0, locationLng: 0
 }
 
@@ -61,6 +62,11 @@ export default function RoomManagement() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
   const [contractMap, setContractMap] = useState<Record<string, ContractInfo>>({})
+
+  // Image manager modal state
+  const [showImageManager, setShowImageManager] = useState(false)
+  const [imageManagerRoom, setImageManagerRoom] = useState<Room | null>(null)
+  const [imageManagerImages, setImageManagerImages] = useState<any[]>([])
 
   // Filters
   const [filterDistrict, setFilterDistrict] = useState(
@@ -118,7 +124,6 @@ export default function RoomManagement() {
           price: String(r.price), area: String(r.area), type: r.type, status: r.status,
           description: r.description || '',
           amenities: r.amenities ? r.amenities.join(', ') : '',
-          images: r.images ? r.images.join(', ') : '',
           maintenanceEndDate: r.maintenanceEndDate ? new Date(r.maintenanceEndDate).toISOString().split('T')[0] : '',
           locationLat: r.location?.coordinates?.[1] || 0,
           locationLng: r.location?.coordinates?.[0] || 0
@@ -148,7 +153,6 @@ export default function RoomManagement() {
       price: String(r.price), area: String(r.area), type: r.type, status: r.status,
       description: r.description || '',
       amenities: r.amenities ? r.amenities.join(', ') : '',
-      images: r.images ? r.images.join(', ') : '',
       maintenanceEndDate: r.maintenanceEndDate ? new Date(r.maintenanceEndDate).toISOString().split('T')[0] : '',
       locationLat: r.location?.coordinates?.[1] || 0,
       locationLng: r.location?.coordinates?.[0] || 0
@@ -165,7 +169,6 @@ export default function RoomManagement() {
       price: Number(form.price),
       area: Number(form.area),
       amenities: form.amenities.split(',').map(s => s.trim()).filter(Boolean),
-      images: form.images.split(',').map(s => s.trim()).filter(Boolean)
     }
 
     // Thêm location GeoJSON nếu có tọa độ hợp lệ
@@ -376,6 +379,17 @@ export default function RoomManagement() {
                     <button onClick={() => openEdit(r)} title="Sửa">
                       <Pencil size={18} />
                     </button>
+                    <button
+                      onClick={() => {
+                        setImageManagerRoom(r)
+                        setImageManagerImages(r.images || [])
+                        setShowImageManager(true)
+                      }}
+                      title="Quản lý ảnh"
+                      style={{ color: '#088373' }}
+                    >
+                      <ImageIcon size={18} />
+                    </button>
                     {!isStaff && (
                       <button onClick={() => handleDelete(r._id)} title="Xóa">
                         <Trash2 size={18} color="#d92d20" />
@@ -506,10 +520,7 @@ export default function RoomManagement() {
                   <label htmlFor="f-amenities">Tiện ích (phân cách bằng dấu phẩy)</label>
                   <input id="f-amenities" className="form-input" value={form.amenities} onChange={e => setForm({ ...form, amenities: e.target.value })} placeholder="VD: Wifi, Điều hòa, Bếp riêng" />
                 </div>
-                <div className="form-group">
-                  <label htmlFor="f-images">Link hình ảnh (phân cách bằng dấu phẩy)</label>
-                  <input id="f-images" className="form-input" value={form.images} onChange={e => setForm({ ...form, images: e.target.value })} placeholder="VD: https://link-anh-1.jpg, https://link-anh-2.png" />
-                </div>
+
                 <div className="form-group">
                   <label htmlFor="f-desc">Mô tả chi tiết</label>
                   <textarea id="f-desc" className="form-input" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Mô tả về phòng, giờ giấc tự do..." />
@@ -521,6 +532,25 @@ export default function RoomManagement() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Image Manager Modal */}
+        {showImageManager && imageManagerRoom && (
+          <div className="modal-overlay" onClick={() => setShowImageManager(false)}>
+            <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '900px' }}>
+              <div className="modal-header">
+                <h2>Quản lý ảnh — {imageManagerRoom.name}</h2>
+                <button className="modal-close" onClick={() => { setShowImageManager(false); fetchRooms(); }}>✕</button>
+              </div>
+              <div style={{ padding: '0 24px 24px' }}>
+                <RoomImageManager
+                  roomId={imageManagerRoom._id}
+                  images={imageManagerImages}
+                  onImagesChange={setImageManagerImages}
+                />
+              </div>
             </div>
           </div>
         )}

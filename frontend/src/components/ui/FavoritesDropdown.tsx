@@ -84,7 +84,7 @@ export default function FavoritesDropdown() {
               preview.map(room => {
                 const imgUrl =
                   room.images && room.images.length > 0
-                    ? room.images[0]
+                    ? room.images[0]?.url || room.images[0]
                     : 'https://vinhomeoceanpark.net/wp-content/uploads/khong-sang-song-hien-dai-tien-ich-tai-studio-vinhomes-ocean-park.jpg'
 
                 const statusColors: Record<string, string> = {
