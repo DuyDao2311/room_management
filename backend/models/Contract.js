@@ -32,7 +32,7 @@ const contractSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "active", "expired", "terminated"],
+      enum: ["pending", "active", "expired", "terminated", "renewal", "renewed"],
       default: "pending",
     },
     representativeName: { type: String, default: "" },
@@ -55,6 +55,30 @@ const contractSchema = new mongoose.Schema(
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+    },
+
+    // ── Gia hạn hợp đồng ──────────────────────────────────────────
+    /** Hợp đồng gốc (nếu đây là hợp đồng gia hạn) */
+    parentContract: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Contract",
+      default: null,
+    },
+    /** Trạng thái luồng gia hạn */
+    extensionStatus: {
+      type: String,
+      enum: ["none", "sent_to_tenant", "tenant_agreed", "tenant_declined", "extended"],
+      default: "none",
+    },
+    /** Số tháng tenant muốn gia hạn */
+    extensionRequestedMonths: {
+      type: Number,
+      default: null,
+    },
+    /** Ghi chú của admin khi gửi yêu cầu gia hạn (VD: thay đổi giá, dịch vụ) */
+    extensionNote: {
+      type: String,
+      default: "",
     },
 
     // ── Chữ ký điện tử ────────────────────────────────────────────

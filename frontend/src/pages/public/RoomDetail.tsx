@@ -782,7 +782,7 @@ export default function RoomDetail() {
                         <li>Tiền nước: 70.000 VNĐ/người/tháng.</li>
                         <li>Thanh toán từ ngày 1 đến ngày 5 hàng tháng.</li>
                       </ul>
-                      <p style={{ margin: '0 0 8px' }}><strong>4. Trách nhiệm của Bên A:</strong> Đảm bảo phòng ốc bàn giao đúng tình trạng thỏa thuận. Hỗ trợ sửa chữa các hư hỏng kết cấu do hao mòn tự nhiên.</p>
+                      <p style={{ margin: '0 0 8px' }}><strong>4. Trách nhiệm của Bên A:</strong> Đảm bảo phòng ốc bàn giao đúng tình trạng thỏa thuận. Hỗ trợ sửa chữa các hư hỏng kết cấu do hao mòn tự nhiên. Miễn phí hỗ trọ sửa chữa trong 3 tháng đầu.</p>
                       <p style={{ margin: '0 0 8px' }}><strong>5. Trách nhiệm của Bên B:</strong> Giữ gìn vệ sinh chung, tuân thủ nội quy khu trọ. Không tự ý sửa chữa, thay đổi kết cấu phòng khi chưa có sự đồng ý của Bên A.</p>
                     </div>
 

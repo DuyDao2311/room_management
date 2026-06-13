@@ -43,8 +43,8 @@ export default function Profile() {
         phone: user.phone || '',
         dob: user.dob
           ? (typeof user.dob === 'string' && user.dob.includes('/')
-              ? user.dob.split('/').reverse().join('-')
-              : user.dob)
+            ? user.dob.split('/').reverse().join('-')
+            : user.dob)
           : '',
         gender: user.gender || '',
         occupation: user.occupation || '',
@@ -52,8 +52,8 @@ export default function Profile() {
         idCard: user.idCard || '',
         idCardDate: user.idCardDate
           ? (typeof user.idCardDate === 'string' && user.idCardDate.includes('/')
-              ? user.idCardDate.split('/').reverse().join('-')
-              : user.idCardDate)
+            ? user.idCardDate.split('/').reverse().join('-')
+            : user.idCardDate)
           : '',
       })
     }
@@ -116,8 +116,8 @@ export default function Profile() {
         phone: user.phone || '',
         dob: user.dob
           ? (typeof user.dob === 'string' && user.dob.includes('/')
-              ? user.dob.split('/').reverse().join('-')
-              : user.dob)
+            ? user.dob.split('/').reverse().join('-')
+            : user.dob)
           : '',
         gender: user.gender || '',
         occupation: user.occupation || '',
@@ -125,8 +125,8 @@ export default function Profile() {
         idCard: user.idCard || '',
         idCardDate: user.idCardDate
           ? (typeof user.idCardDate === 'string' && user.idCardDate.includes('/')
-              ? user.idCardDate.split('/').reverse().join('-')
-              : user.idCardDate)
+            ? user.idCardDate.split('/').reverse().join('-')
+            : user.idCardDate)
           : '',
       })
     }
@@ -150,7 +150,7 @@ export default function Profile() {
     <div className="sp-page">
       {/* Back button */}
       <button className="sp-back-btn" onClick={() => navigate(-1)}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5m7-7-7 7 7 7"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5m7-7-7 7 7 7" /></svg>
         Quay lại
       </button>
 
@@ -161,8 +161,8 @@ export default function Profile() {
       </div>
 
       {/* Alerts */}
-      {message && <div className="sp-alert sp-alert--success"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6 9 17l-5-5"/></svg> {message}</div>}
-      {error && <div className="sp-alert sp-alert--error"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg> {error}</div>}
+      {message && <div className="sp-alert sp-alert--success"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6 9 17l-5-5" /></svg> {message}</div>}
+      {error && <div className="sp-alert sp-alert--error"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M15 9l-6 6M9 9l6 6" /></svg> {error}</div>}
 
       {/* Primary Profile Card */}
       <div className="sp-hero-card">
@@ -174,7 +174,7 @@ export default function Profile() {
             <div className="sp-hero-avatar-letter">{initials}</div>
           )}
           <div className="sp-hero-avatar-overlay">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
           </div>
           {uploadingAvatar && <div className="sp-hero-avatar-spinner" />}
         </div>
@@ -185,12 +185,12 @@ export default function Profile() {
             {user?.isEmailVerified ? (
               <svg className="sp-hero-verified" width="20" height="20" viewBox="0 0 24 24" fill="#16a34a">
                 <title>Email đã xác thực</title>
-                <path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+                <path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z" />
               </svg>
             ) : (
               <svg className="sp-hero-verified" width="20" height="20" viewBox="0 0 24 24" fill="#d97706">
                 <title>Email chưa xác thực</title>
-                <path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+                <path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
                 <text x="12" y="15" textAnchor="middle" fill="#fff" fontSize="14" fontWeight="bold">!</text>
               </svg>
             )}
@@ -199,7 +199,7 @@ export default function Profile() {
           <div className="sp-hero-actions">
             {!editing ? (
               <button className="sp-btn sp-btn--primary" onClick={() => setEditing(true)}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
                 Chỉnh sửa hồ sơ
               </button>
             ) : (
@@ -213,13 +213,13 @@ export default function Profile() {
             <div className={`sp-hero-verified-badge ${user?.isEmailVerified ? '' : 'sp-hero-verified-badge--unverified'}`}>
               {user?.isEmailVerified ? (
                 <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#16a34a"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#16a34a"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" /></svg>
                   <span>Email đã xác thực</span>
                 </>
               ) : (
                 <>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="#d97706">
-                    <path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
+                    <path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z" />
                     <text x="12" y="15" textAnchor="middle" fill="#fff" fontSize="13" fontWeight="bold">!</text>
                   </svg>
                   <span>Email chưa xác thực</span>
@@ -235,7 +235,7 @@ export default function Profile() {
         {/* General Information */}
         <div className="sp-card">
           <div className="sp-card-header">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><circle cx="12" cy="8" r="4" /><path d="M20 21a8 8 0 1 0-16 0" /></svg>
             <h3>Thông tin chung</h3>
           </div>
           <div className="sp-card-body">
@@ -285,7 +285,7 @@ export default function Profile() {
         {/* Contact Information */}
         <div className="sp-card">
           <div className="sp-card-header">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
             <h3>Thông tin liên lạc</h3>
           </div>
           <div className="sp-card-body">
@@ -318,7 +318,7 @@ export default function Profile() {
       {/* Identity Information - Full Width */}
       <div className="sp-card">
         <div className="sp-card-header">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M12 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 17a4 4 0 0 0-8 0"/></svg>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M12 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM16 17a4 4 0 0 0-8 0" /></svg>
           <h3>Định danh cá nhân</h3>
         </div>
         <div className="sp-card-body">
@@ -341,7 +341,7 @@ export default function Profile() {
             </div>
           </div>
           <div className="sp-notice">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="#2563eb"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10c.83 0 1.5.67 1.5 1.5S12.83 14 12 14s-1.5-.67-1.5-1.5S11.17 11 12 11zm0-5c.83 0 1.5.67 1.5 1.5v2c0 .83-.67 1.5-1.5 1.5s-1.5-.67-1.5-1.5v-2c0-.83.67-1.5 1.5-1.5z"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#2563eb"><path d="M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10c.83 0 1.5.67 1.5 1.5S12.83 14 12 14s-1.5-.67-1.5-1.5S11.17 11 12 11zm0-5c.83 0 1.5.67 1.5 1.5v2c0 .83-.67 1.5-1.5 1.5s-1.5-.67-1.5-1.5v-2c0-.83.67-1.5 1.5-1.5z" /></svg>
             <p>Thông tin định danh này được sử dụng để xác thực các yêu cầu hỗ trợ quan trọng và bảo mật tài khoản. Vui lòng cập nhật nếu có thay đổi.</p>
           </div>
         </div>

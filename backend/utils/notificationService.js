@@ -68,6 +68,7 @@ const dispatch = async ({
         feedbackId: data.feedbackId,
         roomId: data.roomId,
         invoiceId: data.invoiceId,
+        incidentId: data.incidentId,
         isRead: false,
       }));
       notifications = await Notification.insertMany(docs);
@@ -178,6 +179,42 @@ const notifyNewContract = async (contract) => {
   });
 };
 
+const notifyNewIncident = async (incident) => {
+  const room = await Room.findById(incident.room).select("name district");
+  const tenant = await User.findById(incident.tenant).select("name");
+
+  const district = room?.district;
+  const title = "🛠️ Báo cáo sự cố mới";
+  const message = `Khách thuê ${tenant?.name || ""} báo cáo sự cố (${incident.category}) tại phòng ${room?.name || ""}. Mức độ: ${incident.priority}.`;
+
+  return await notifyStaffByDistrict(district, {
+    type: "INCIDENT",
+    title,
+    message,
+    incidentId: incident._id,
+    roomId: incident.room,
+    actionUrl: buildFrontendUrl("/admin/incidents"),
+  });
+};
+
+const notifyStaffIncidentRated = async (incident) => {
+  const room = await Room.findById(incident.room).select("name district");
+  const tenant = await User.findById(incident.tenant).select("name");
+
+  const district = room?.district;
+  const title = "⭐ Khách thuê đã đánh giá sự cố";
+  const message = `Khách thuê ${tenant?.name || ""} đã đánh giá ${incident.rating} sao cho sự cố tại phòng ${room?.name || ""}.`;
+
+  return await notifyStaffByDistrict(district, {
+    type: "INCIDENT",
+    title,
+    message,
+    incidentId: incident._id,
+    roomId: incident.room,
+    actionUrl: buildFrontendUrl("/admin/incidents"),
+  });
+};
+
 const getInvoiceDistrict = async (invoice) => {
   try {
     const contract = await Contract.findById(invoice.contract).populate(
@@ -245,11 +282,7 @@ const buildFrontendUrl = (path) => {
 
 /** Hóa đơn sắp đến hạn (5 ngày trước dueDate) → email + in-app cho tenant. */
 const notifyTenantInvoiceDue = async (invoice) => {
-  const contract = await Contract.findById(invoice.contract).populate(
-    "tenant",
-    "_id email name",
-  );
-  const tenant = contract?.tenant;
+  const tenant = await User.findById(invoice.tenantId).select("_id email name");
   if (!tenant) return [];
 
   const title = "🔔 Hóa đơn sắp đến hạn thanh toán";
@@ -265,17 +298,13 @@ const notifyTenantInvoiceDue = async (invoice) => {
       invoiceId: invoice._id,
     },
     channels: ["inapp", "email"],
-    actionUrl: buildFrontendUrl("/tenant/invoices"),
+    actionUrl: buildFrontendUrl("/my-invoices"),
   });
 };
 
 /** Hóa đơn quá hạn → email + in-app cho tenant. */
 const notifyTenantInvoiceOverdue = async (invoice) => {
-  const contract = await Contract.findById(invoice.contract).populate(
-    "tenant",
-    "_id email name",
-  );
-  const tenant = contract?.tenant;
+  const tenant = await User.findById(invoice.tenantId).select("_id email name");
   if (!tenant) return [];
 
   const title = "⚠️ Hóa đơn của Quý khách đã quá hạn";
@@ -290,7 +319,7 @@ const notifyTenantInvoiceOverdue = async (invoice) => {
       invoiceId: invoice._id,
     },
     channels: ["inapp", "email"],
-    actionUrl: buildFrontendUrl("/tenant/invoices"),
+    actionUrl: buildFrontendUrl("/my-invoices"),
   });
 };
 
@@ -315,7 +344,7 @@ const notifyTenantContractExpiring = async (contract) => {
       roomId: populated.room?._id,
     },
     channels: ["inapp", "email"],
-    actionUrl: buildFrontendUrl("/tenant/contracts"),
+    actionUrl: buildFrontendUrl("/my-room"),
   });
 };
 
@@ -340,7 +369,7 @@ const notifyTenantContractApproved = async (contract) => {
       roomId: populated.room?._id,
     },
     channels: ["inapp", "email"],
-    actionUrl: buildFrontendUrl("/tenant/contracts"),
+    actionUrl: buildFrontendUrl("/my-room"),
   });
 };
 
@@ -377,7 +406,7 @@ const notifyTenantContractEnded = async (contract, { reason } = {}) => {
       roomId: populated.room?._id,
     },
     channels: ["inapp", "email"],
-    actionUrl: buildFrontendUrl("/tenant/contracts"),
+    actionUrl: buildFrontendUrl("/my-room"),
   });
 };
 
@@ -390,9 +419,11 @@ const notifyTenantInvoiceSent = async (invoice) => {
   const tenant = contract?.tenant;
   if (!tenant) return [];
 
-  const loaiInvoice = invoice.type === "deposit"
-    ? "tiền cọc"
-    : `dịch vụ tháng ${invoice.month}/${invoice.year}`;
+  let loaiInvoice = "";
+  if (invoice.type === "deposit") loaiInvoice = "tiền cọc";
+  else if (invoice.type === "repair") loaiInvoice = "chi phí sửa chữa";
+  else loaiInvoice = `dịch vụ tháng ${invoice.month}/${invoice.year}`;
+  
   const title = `🧾 Hoá đơn mới — ${invoice.roomName}`;
   const dueText = invoice.dueDate ? ` Hạn thanh toán: ${fmtDate(invoice.dueDate)}.` : "";
   const message = `Kính gửi Quý khách,\n\nHoá đơn ${loaiInvoice} phòng ${invoice.roomName} của Quý khách (${fmt(invoice.totalAmount)}đ) vừa được phát hành.${dueText} Vui lòng truy cập hệ thống để xem chi tiết và hoàn tất thanh toán đúng hạn.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
@@ -406,7 +437,7 @@ const notifyTenantInvoiceSent = async (invoice) => {
       invoiceId: invoice._id,
     },
     channels: ["inapp", "email"],
-    actionUrl: buildFrontendUrl("/tenant/invoices"),
+    actionUrl: buildFrontendUrl("/my-invoices"),
   });
 };
 
@@ -418,9 +449,10 @@ const notifyTenantInvoicePaid = async (invoice) => {
   const tenant = await User.findById(invoice.tenantId).select("_id email name");
   if (!tenant) return [];
 
-  const loaiInvoice = invoice.type === "deposit"
-    ? "tiền cọc"
-    : `dịch vụ tháng ${invoice.month}/${invoice.year}`;
+  let loaiInvoice = "";
+  if (invoice.type === "deposit") loaiInvoice = "tiền cọc";
+  else if (invoice.type === "repair") loaiInvoice = "chi phí sửa chữa";
+  else loaiInvoice = `dịch vụ tháng ${invoice.month}/${invoice.year}`;
   const methodLabel = { Cash: "tiền mặt", MoMo: "MoMo", VNPay: "VNPay" };
   const phuongThuc = invoice.paymentMethod
     ? ` qua ${methodLabel[invoice.paymentMethod] || invoice.paymentMethod}`
@@ -437,7 +469,52 @@ const notifyTenantInvoicePaid = async (invoice) => {
       invoiceId: invoice._id,
     },
     channels: ["inapp", "email"],
-    actionUrl: buildFrontendUrl("/tenant/invoices"),
+    actionUrl: buildFrontendUrl("/my-invoices"),
+  });
+};
+
+/** Thông báo sự cố cập nhật trạng thái cho tenant */
+const notifyTenantIncidentStatus = async (incident, status, note) => {
+  const room = await Room.findById(incident.room).select("name");
+  const tenant = await User.findById(incident.tenant).select("_id email name");
+  if (!tenant) return [];
+
+  let statusText = status;
+  let title = "🛠️ Cập nhật trạng thái sự cố";
+  
+  switch(status) {
+    case "assigned":
+      statusText = "đã được tiếp nhận";
+      title = "🛠️ Sự cố đã được tiếp nhận";
+      break;
+    case "in_progress":
+      statusText = "đang được xử lý";
+      title = "🛠️ Sự cố đang được xử lý";
+      break;
+    case "resolved":
+      statusText = "đã được xử lý xong";
+      title = "✅ Sự cố đã xử lý xong";
+      break;
+    case "rejected":
+      statusText = "đã bị từ chối";
+      title = "❌ Sự cố bị từ chối";
+      break;
+  }
+
+  const noteMsg = note ? `\nGhi chú: ${note}` : "";
+  const message = `Kính gửi Quý khách,\n\nSự cố tại phòng ${room?.name || ""} ${statusText}.${noteMsg}\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+
+  return dispatch({
+    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
+    data: {
+      type: "INCIDENT",
+      title,
+      message,
+      incidentId: incident._id,
+      roomId: incident.room,
+    },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/my-room"),
   });
 };
 
@@ -467,10 +544,10 @@ const notifyTenantAppointmentConfirmed = async (
   const channels = hasUser ? ["inapp", "email"] : ["email"];
   const recipient = hasUser
     ? {
-        _id: appointment.user,
-        email: appointment.email || null,
-        name: appointment.name,
-      }
+      _id: appointment.user,
+      email: appointment.email || null,
+      name: appointment.name,
+    }
     : { email: appointment.email, name: appointment.name };
 
   return dispatch({
@@ -517,7 +594,7 @@ const notifyTenantAppointmentCancelled = async (appointment) => {
 // ─── Cron periodic checks ────────────────────────────────────────────────────
 /**
  * Hợp đồng sắp hết hạn — staff + tenant.
- * Dedup: cùng contractId trong 7 ngày → skip cả staff lẫn tenant.
+ * Dedup: cùng contractId trong 1 ngày → skip cả staff lẫn tenant.
  */
 const checkExpiringContracts = async () => {
   const now = new Date();
@@ -526,6 +603,7 @@ const checkExpiringContracts = async () => {
   const expiringContracts = await Contract.find({
     status: "active",
     endDate: { $gte: now, $lte: thirtyDaysLater },
+    extensionStatus: { $in: ["none", null] },
   });
 
   const results = [];
@@ -533,7 +611,7 @@ const checkExpiringContracts = async () => {
     const existingNotif = await Notification.findOne({
       type: "CONTRACT",
       contractId: contract._id,
-      createdAt: { $gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
+      createdAt: { $gte: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000) },
     });
     if (!existingNotif) {
       const staffNotifs = await notifyContractExpiring(contract);
@@ -550,18 +628,26 @@ const checkExpiringContracts = async () => {
  */
 const checkOverdueInvoices = async () => {
   const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
   const overdueInvoices = await Invoice.find({
     status: { $in: ["unpaid", "overdue"] },
-    dueDate: { $lt: now },
+    dueDate: { $lt: startOfToday },
     sentAt: { $ne: null },
+    tenantId: { $ne: null },
   });
 
   const results = [];
   for (const invoice of overdueInvoices) {
+    if (invoice.status === "unpaid") {
+      invoice.status = "overdue";
+      await invoice.save();
+    }
+
     const existingNotif = await Notification.findOne({
       type: "INVOICE",
       invoiceId: invoice._id,
-      createdAt: { $gte: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000) },
+      createdAt: { $gte: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000) },
     });
     if (!existingNotif) {
       const staffNotifs = await notifyInvoiceOverdue(invoice);
@@ -579,11 +665,14 @@ const checkOverdueInvoices = async () => {
  */
 const checkDueSoonInvoices = async () => {
   const now = new Date();
-  const fiveDaysLater = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const fiveDaysLater = new Date(startOfToday.getTime() + 3 * 24 * 60 * 60 * 1000);
 
   const dueSoon = await Invoice.find({
     status: "unpaid",
-    dueDate: { $gte: now, $lte: fiveDaysLater },
+    dueDate: { $gte: startOfToday, $lte: fiveDaysLater },
+    sentAt: { $ne: null },
+    tenantId: { $ne: null },
   });
 
   const results = [];
@@ -607,6 +696,97 @@ const sendSocketNotification = (io, eventType, notification) => {
   io.to(`tenant_${notification.userId}`).emit(eventType, notification);
 };
 
+// ─── Extension notification helpers ──────────────────────────────────────────
+
+/** Admin gửi yêu cầu gia hạn → email + in-app cho tenant. */
+const notifyTenantExtensionRequest = async (contract) => {
+  const populated = await Contract.findById(contract._id)
+    .populate("tenant", "_id email name")
+    .populate("room", "name");
+  const tenant = populated?.tenant;
+  if (!tenant) return [];
+
+  const title = "📋 Yêu cầu gia hạn hợp đồng";
+  const noteSection = populated.extensionNote
+    ? `\n\nThông tin từ chủ trọ:\n${populated.extensionNote}`
+    : "";
+  const message = `Kính gửi Quý khách,\n\nHợp đồng thuê phòng ${populated.room?.name || ""} của Quý khách sắp hết hạn vào ngày ${fmtDate(populated.endDate)}. Chủ trọ muốn hỏi ý kiến Quý khách về việc gia hạn hợp đồng.${noteSection}\n\nVui lòng đăng nhập ứng dụng để phản hồi.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+
+  return dispatch({
+    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
+    data: {
+      type: "CONTRACT",
+      title,
+      message,
+      contractId: populated._id,
+      roomId: populated.room?._id,
+    },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/my-room"),
+  });
+};
+
+/** Tenant đồng ý gia hạn → thông báo admin/staff. */
+const notifyAdminTenantAgreedExtension = async (contract) => {
+  const room = await Room.findById(contract.room).select("name district");
+  const tenant = await User.findById(contract.tenant).select("name");
+
+  const title = "✅ Khách thuê đồng ý gia hạn hợp đồng";
+  const message = `Khách thuê ${tenant?.name || ""} — phòng ${room?.name || ""} đã đồng ý gia hạn hợp đồng${contract.extensionRequestedMonths ? ` (${contract.extensionRequestedMonths} tháng)` : ""}. Vui lòng tạo hợp đồng gia hạn.`;
+
+  return await notifyStaffByDistrict(room?.district || "", {
+    type: "CONTRACT",
+    title,
+    message,
+    contractId: contract._id,
+    roomId: contract.room,
+    actionUrl: buildFrontendUrl("/admin/contracts"),
+  });
+};
+
+/** Tenant từ chối gia hạn → thông báo admin/staff. */
+const notifyAdminTenantDeclinedExtension = async (contract) => {
+  const room = await Room.findById(contract.room).select("name district");
+  const tenant = await User.findById(contract.tenant).select("name");
+
+  const title = "❌ Khách thuê từ chối gia hạn hợp đồng";
+  const message = `Khách thuê ${tenant?.name || ""} — phòng ${room?.name || ""} đã từ chối gia hạn hợp đồng. Hợp đồng sẽ tự động chấm dứt khi hết hạn.`;
+
+  return await notifyStaffByDistrict(room?.district || "", {
+    type: "CONTRACT",
+    title,
+    message,
+    contractId: contract._id,
+    roomId: contract.room,
+    actionUrl: buildFrontendUrl("/admin/contracts"),
+  });
+};
+
+/** Admin tạo hợp đồng gia hạn → thông báo tenant ký. */
+const notifyTenantExtensionCreated = async (newContract) => {
+  const populated = await Contract.findById(newContract._id)
+    .populate("tenant", "_id email name")
+    .populate("room", "name");
+  const tenant = populated?.tenant;
+  if (!tenant) return [];
+
+  const title = "📝 Hợp đồng gia hạn đã được tạo — Vui lòng ký xác nhận";
+  const message = `Kính gửi Quý khách,\n\nChủ trọ đã tạo hợp đồng gia hạn cho phòng ${populated.room?.name || ""} (từ ${fmtDate(populated.startDate)} đến ${fmtDate(populated.endDate)}, giá thuê ${fmt(populated.monthlyRent)}đ/tháng). Vui lòng đăng nhập ứng dụng để xem chi tiết và ký xác nhận.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+
+  return dispatch({
+    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
+    data: {
+      type: "CONTRACT",
+      title,
+      message,
+      contractId: populated._id,
+      roomId: populated.room?._id,
+    },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/my-room"),
+  });
+};
+
 module.exports = {
   // Dispatcher (export để test)
   dispatch,
@@ -615,6 +795,8 @@ module.exports = {
   notifyStaffByDistrict,
   notifyNewAppointment,
   notifyNewContract,
+  notifyNewIncident,
+  notifyStaffIncidentRated,
   notifyInvoicePaid,
   notifyInvoiceOverdue,
   notifyContractExpiring,
@@ -628,6 +810,12 @@ module.exports = {
   notifyTenantInvoicePaid,
   notifyTenantAppointmentConfirmed,
   notifyTenantAppointmentCancelled,
+  notifyTenantIncidentStatus,
+  // Extension
+  notifyTenantExtensionRequest,
+  notifyAdminTenantAgreedExtension,
+  notifyAdminTenantDeclinedExtension,
+  notifyTenantExtensionCreated,
   // Cron
   checkExpiringContracts,
   checkOverdueInvoices,

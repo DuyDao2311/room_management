@@ -10,6 +10,10 @@ const {
   notifyNewContract,
   notifyTenantContractApproved,
   notifyTenantContractEnded,
+  notifyTenantExtensionRequest,
+  notifyAdminTenantAgreedExtension,
+  notifyAdminTenantDeclinedExtension,
+  notifyTenantExtensionCreated,
   sendSocketNotification,
 } = require("../utils/notificationService");
 
@@ -52,7 +56,7 @@ router.get("/stats", protect, verifyRole("admin", "staff"), async (req, res) => 
       Contract.countDocuments({ ...filter, startDate: { $lte: endOfLastMonth } }),
       Contract.countDocuments({ ...filter, startDate: { $gte: startOfThisMonth } }),
       Contract.countDocuments({ ...filter, startDate: { $gte: startOfLastMonth, $lte: endOfLastMonth } }),
-      Contract.countDocuments({ ...filter, status: "active", endDate: { $gte: now, $lte: next30Days } }),
+      Contract.countDocuments({ ...filter, status: "active", endDate: { $gte: now, $lte: next30Days }, extensionStatus: { $in: ["none", null] } }),
       Contract.countDocuments({ ...filter, status: "terminated" })
     ]);
 
@@ -383,6 +387,37 @@ router.post("/", protect, verifyRole("admin", "staff", "tenant"), async (req, re
   }
 });
 
+// GET /api/contracts/:id — lấy chi tiết một hợp đồng
+router.get("/:id", protect, async (req, res) => {
+  try {
+    const contract = await Contract.findById(req.params.id)
+      .populate("room", "name address price area type district")
+      .populate("tenant", "name email phone");
+
+    if (!contract) {
+      return res.status(404).json({ message: "Không tìm thấy hợp đồng." });
+    }
+
+    // Nếu là tenant thì chỉ được xem hợp đồng của mình
+    if (req.user.role === "tenant" && contract.tenant?._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Bạn không có quyền xem hợp đồng này." });
+    }
+
+    // Nếu là staff thì kiểm tra district
+    if (req.user.role === "staff") {
+      const roomDistrict = contract.room?.district || "";
+      if (!req.user.managedDistricts || !req.user.managedDistricts.includes(roomDistrict)) {
+        return res.status(403).json({ message: "Bạn không có quyền xem hợp đồng này." });
+      }
+    }
+
+    res.json(contract);
+  } catch (err) {
+    console.error("Lỗi lấy chi tiết hợp đồng:", err);
+    res.status(500).json({ message: "Lỗi server khi lấy chi tiết hợp đồng." });
+  }
+});
+
 // PUT /api/contracts/:id — cập nhật hợp đồng (admin + staff trong district)
 router.put("/:id", protect, verifyRole("admin", "staff"), async (req, res) => {
   try {
@@ -407,28 +442,48 @@ router.put("/:id", protect, verifyRole("admin", "staff"), async (req, res) => {
 
     // ── Khi admin/staff PHÊ DUYỆT hợp đồng (pending → active) ──────────────────────
     if (prevContract.status === "pending" && req.body.status === "active") {
+      // Xử lý hợp đồng gia hạn (có parentContract)
+      if (prevContract.parentContract) {
+        const parentContract = await Contract.findById(prevContract.parentContract);
+        const now = new Date();
+        // Nếu hợp đồng chính vẫn active VÀ ngày bắt đầu HĐ gia hạn chưa tới
+        if (parentContract && parentContract.status === "active" && new Date(contract.startDate) > now) {
+          // Chuyển sang trạng thái renewal (chờ kích hoạt khi đến ngày)
+          await Contract.findByIdAndUpdate(contract._id, { status: "renewal" });
+          contract.status = "renewal";
+        } else {
+          // HĐ chính đã hết hạn hoặc ngày bắt đầu đã qua → active ngay
+          if (parentContract && parentContract.status === "active") {
+            await Contract.findByIdAndUpdate(parentContract._id, { status: "renewed" });
+          }
+        }
+      }
+
       // Cập nhật trạng thái phòng → occupied
       await Room.findByIdAndUpdate(contract.room._id, { status: "occupied" });
 
       // Tự động tạo hóa đơn deposit nếu chưa có
-      const hasDeposit = await Invoice.findOne({ contract: contract._id, type: "deposit" });
-      if (!hasDeposit) {
-        // Hạn thanh toán = ngày phê duyệt + 1 ngày
-        const depositDueDate = new Date();
-        depositDueDate.setDate(depositDueDate.getDate() + 1);
+      // Chú ý: Chỉ tạo nếu là hợp đồng mới HOẶC hợp đồng gia hạn có thu thêm tiền cọc (> 0)
+      if (!contract.parentContract || contract.depositAmount > 0) {
+        const hasDeposit = await Invoice.findOne({ contract: contract._id, type: "deposit" });
+        if (!hasDeposit) {
+          // Hạn thanh toán = ngày phê duyệt + 1 ngày
+          const depositDueDate = new Date();
+          depositDueDate.setDate(depositDueDate.getDate() + 1);
 
-        await Invoice.create({
-          contract:            contract._id,
-          type:                "deposit",
-          representativeName:  contract.representativeName,
-          representativePhone: contract.representativePhone,
-          roomName:            contract.room.name,
-          rentAmount:          contract.monthlyRent,
-          depositAmount:       contract.depositAmount || contract.monthlyRent,
-          dueDate:             depositDueDate,
-          notes:               "Hóa đơn đặt cọc tự động khi phê duyệt hợp đồng.",
-          createdBy:           req.user._id,
-        });
+          await Invoice.create({
+            contract:            contract._id,
+            type:                "deposit",
+            representativeName:  contract.representativeName,
+            representativePhone: contract.representativePhone,
+            roomName:            contract.room.name,
+            rentAmount:          contract.monthlyRent,
+            depositAmount:       contract.depositAmount || contract.monthlyRent,
+            dueDate:             depositDueDate,
+            notes:               "Hóa đơn đặt cọc tự động khi phê duyệt hợp đồng.",
+            createdBy:           req.user._id,
+          });
+        }
       }
 
       // Gửi notification (email + in-app) cho tenant về việc hợp đồng được duyệt.
@@ -486,6 +541,203 @@ router.delete("/:id", protect, adminOnly, async (req, res) => {
   } catch (err) {
     console.error("Delete contract error:", err);
     res.status(500).json({ message: "Lỗi server khi xóa hợp đồng." });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// Gia hạn hợp đồng
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/contracts/:id/send-extension-request
+ * Admin/Staff gửi yêu cầu hỏi ý kiến gia hạn cho Tenant
+ */
+router.post("/:id/send-extension-request", protect, verifyRole("admin", "staff"), async (req, res) => {
+  try {
+    const contract = await Contract.findById(req.params.id).populate("room", "district");
+    if (!contract) return res.status(404).json({ message: "Không tìm thấy hợp đồng." });
+
+    // Kiểm tra quyền của staff
+    if (req.user.role === "staff") {
+      const roomDistrict = contract.room?.district || "";
+      if (!req.user.managedDistricts || !req.user.managedDistricts.includes(roomDistrict)) {
+        return res.status(403).json({ message: "Bạn không có quyền gửi yêu cầu gia hạn cho hợp đồng trong khu vực này." });
+      }
+    }
+
+    if (contract.status !== "active") {
+      return res.status(400).json({ message: "Chỉ có thể gửi yêu cầu gia hạn cho hợp đồng đang hiệu lực." });
+    }
+
+    // Cập nhật trạng thái + ghi chú gia hạn
+    const { note } = req.body;
+    const updated = await Contract.findByIdAndUpdate(
+      req.params.id,
+      { extensionStatus: "sent_to_tenant", extensionNote: note || "" },
+      { new: true }
+    )
+      .populate("room", "name address price area type district")
+      .populate("tenant", "name email");
+
+    // Gửi notification + email cho tenant
+    const notifs = await notifyTenantExtensionRequest(updated);
+    const io = req.app.get("io");
+    if (io && notifs.length > 0) {
+      notifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
+    }
+
+    res.json({ message: "Đã gửi yêu cầu gia hạn cho khách thuê.", contract: updated });
+  } catch (err) {
+    console.error("send-extension-request error:", err);
+    res.status(500).json({ message: err.message || "Lỗi server." });
+  }
+});
+
+/**
+ * POST /api/contracts/:id/respond-extension
+ * Tenant phản hồi yêu cầu gia hạn
+ * Body: { response: 'agreed' | 'declined', months?: number }
+ */
+router.post("/:id/respond-extension", protect, async (req, res) => {
+  try {
+    const { response, months } = req.body;
+
+    if (!["agreed", "declined"].includes(response)) {
+      return res.status(400).json({ message: "Phản hồi phải là 'agreed' hoặc 'declined'." });
+    }
+
+    const contract = await Contract.findById(req.params.id);
+    if (!contract) return res.status(404).json({ message: "Không tìm thấy hợp đồng." });
+
+    // Kiểm tra tenant có quyền phản hồi
+    if (contract.tenant.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Bạn không có quyền phản hồi hợp đồng này." });
+    }
+
+    if (contract.extensionStatus !== "sent_to_tenant") {
+      return res.status(400).json({ message: "Hợp đồng này không ở trạng thái chờ phản hồi gia hạn." });
+    }
+
+    const updateData = {
+      extensionStatus: response === "agreed" ? "tenant_agreed" : "tenant_declined",
+    };
+    if (response === "agreed" && months) {
+      updateData.extensionRequestedMonths = parseInt(months);
+    }
+
+    const updated = await Contract.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    )
+      .populate("room", "name address price area type district")
+      .populate("tenant", "name email");
+
+    // Gửi notification cho admin/staff
+    let notifs = [];
+    if (response === "agreed") {
+      notifs = await notifyAdminTenantAgreedExtension(updated);
+    } else {
+      notifs = await notifyAdminTenantDeclinedExtension(updated);
+    }
+
+    const io = req.app.get("io");
+    if (io && notifs.length > 0) {
+      notifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
+    }
+
+    res.json({
+      message: response === "agreed"
+        ? "Đã gửi phản hồi đồng ý gia hạn."
+        : "Đã gửi phản hồi từ chối gia hạn.",
+      contract: updated,
+    });
+  } catch (err) {
+    console.error("respond-extension error:", err);
+    res.status(500).json({ message: err.message || "Lỗi server." });
+  }
+});
+
+/**
+ * POST /api/contracts/:id/extend
+ * Admin/Staff tạo hợp đồng gia hạn mới (kế thừa từ hợp đồng cũ)
+ * Body: { endDate, monthlyRent, depositAmount?, notes? }
+ */
+router.post("/:id/extend", protect, verifyRole("admin", "staff"), async (req, res) => {
+  try {
+    const { endDate, monthlyRent, depositAmount, notes } = req.body;
+
+    const oldContract = await Contract.findById(req.params.id)
+      .populate("room", "name address price area type district")
+      .populate("tenant", "name email");
+
+    if (!oldContract) return res.status(404).json({ message: "Không tìm thấy hợp đồng gốc." });
+
+    // Kiểm tra quyền của staff
+    if (req.user.role === "staff") {
+      const roomDistrict = oldContract.room?.district || "";
+      if (!req.user.managedDistricts || !req.user.managedDistricts.includes(roomDistrict)) {
+        return res.status(403).json({ message: "Bạn không có quyền tạo hợp đồng gia hạn trong khu vực này." });
+      }
+    }
+
+    if (!endDate || !monthlyRent) {
+      return res.status(400).json({ message: "Ngày kết thúc và giá thuê không được để trống." });
+    }
+
+    // Tính ngày bắt đầu mới = ngày kết thúc cũ + 1 ngày
+    const oldEnd = new Date(oldContract.endDate);
+    const newStart = new Date(oldEnd);
+    newStart.setDate(newStart.getDate() + 1);
+
+    const newEnd = new Date(endDate);
+    if (newEnd <= newStart) {
+      return res.status(400).json({ message: "Ngày kết thúc phải sau ngày bắt đầu." });
+    }
+
+    // Tạo hợp đồng mới
+    const newContract = await Contract.create({
+      room: oldContract.room._id,
+      tenant: oldContract.tenant._id,
+      startDate: newStart,
+      endDate: newEnd,
+      monthlyRent: parseFloat(monthlyRent),
+      depositAmount: depositAmount != null ? parseFloat(depositAmount) : 0,
+      notes: notes || `Gia hạn từ hợp đồng ${oldContract._id}`,
+      representativeName: oldContract.representativeName,
+      representativePhone: oldContract.representativePhone,
+      representativeIdCard: oldContract.representativeIdCard,
+      representativeDob: oldContract.representativeDob,
+      coResidents: oldContract.coResidents || [],
+      createdBy: req.user._id,
+      parentContract: oldContract._id,
+      status: "pending",
+    });
+
+    // Cập nhật hợp đồng cũ
+    await Contract.findByIdAndUpdate(oldContract._id, {
+      extensionStatus: "extended",
+    });
+
+    // Populate hợp đồng mới
+    const populated = await Contract.findById(newContract._id)
+      .populate("room", "name address price area type district")
+      .populate("tenant", "name email");
+
+    // Gửi notification cho tenant
+    const notifs = await notifyTenantExtensionCreated(populated);
+    const io = req.app.get("io");
+    if (io && notifs.length > 0) {
+      notifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
+    }
+
+    res.status(201).json({
+      message: "Đã tạo hợp đồng gia hạn thành công. Chờ khách thuê ký xác nhận.",
+      contract: populated,
+    });
+  } catch (err) {
+    console.error("extend contract error:", err);
+    res.status(500).json({ message: err.message || "Lỗi server." });
   }
 });
 

@@ -222,7 +222,7 @@ export default function RoomManagement() {
   return (
     <div className="page-shell">
       <div className="admin-page">
-        <h1 style={{ color: '#003e68', fontSize: '1.5rem', fontWeight: 700, margin: '0 0 24px 0', paddingBottom: '16px', borderBottom: '1px solid #eaecf0' }}>
+        <h1 style={{ color: '#003e68', fontSize: '2rem', fontWeight: 700, margin: '0 0 24px 0', paddingBottom: '16px', borderBottom: '1px solid #eaecf0' }}>
           Danh sách phòng
         </h1>
 

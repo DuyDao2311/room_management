@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import { useAuth } from '../../contexts/AuthContext.tsx'
-import { Trash2, UserPlus, X } from "lucide-react"
+import { Trash2, UserPlus, X, MessageCircle } from "lucide-react"
 import Pagination from '../../components/ui/Pagination.tsx'
+import ZaloContactModal from '../../components/contact/ZaloContactModal.tsx'
 
 interface User {
   _id: string
@@ -11,6 +13,8 @@ interface User {
   email: string
   role: string
   createdAt?: string
+  phone?: string
+  avatar?: string
 }
 
 export default function UserManagement() {
@@ -21,16 +25,37 @@ export default function UserManagement() {
 
   // Add User Modal State
   const [showModal, setShowModal] = useState(false)
+
+  // Zalo Contact Modal State
+  const [showContactModal, setShowContactModal] = useState(false)
+  const [contactUser, setContactUser] = useState<User | null>(null)
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'tenant' })
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
 
   const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = 9
+  
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [highlightId, setHighlightId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchUsers()
   }, [])
+
+  useEffect(() => {
+    const id = searchParams.get('highlight');
+    if (id && users.length > 0) {
+      const idx = users.findIndex(u => u._id === id);
+      if (idx !== -1) {
+        setCurrentPage(Math.ceil((idx + 1) / ITEMS_PER_PAGE));
+        setHighlightId(id);
+        setTimeout(() => setHighlightId(null), 3000);
+      }
+      searchParams.delete('highlight');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [users, searchParams, setSearchParams]);
 
   const fetchUsers = async () => {
     try {
@@ -69,10 +94,15 @@ export default function UserManagement() {
     }
   }
 
-  const handleDelete = async (_userId: string, userName: string) => {
-    // Currently delete user is not implemented in backend.
-    // If you add DELETE /api/admin/users/:id, you can wire it up here.
-    alert(`Chức năng xóa người dùng "${userName}" đang được phát triển.`)
+  const handleDelete = async (userId: string, userName: string) => {
+    if (window.confirm(`Bạn có chắc chắn muốn xóa người dùng "${userName}" không?\nHành động này không thể hoàn tác.`)) {
+      try {
+        await api.delete(`/admin/users/${userId}`)
+        setUsers(prev => prev.filter(u => u._id !== userId))
+      } catch (err: any) {
+        alert(err.response?.data?.message || 'Lỗi khi xóa người dùng.')
+      }
+    }
   }
 
   const totalPages = Math.ceil(users.length / ITEMS_PER_PAGE)
@@ -126,7 +156,7 @@ export default function UserManagement() {
               </tr>
             ) : (
               currentUsers.map(u => (
-                <tr key={u._id}>
+                <tr key={u._id} style={highlightId === u._id ? { backgroundColor: '#fef08a', transition: 'background-color 0.5s ease' } : { transition: 'background-color 0.5s ease' }}>
                   <td className="td-name">{u.name}</td>
                   <td className="td-muted">{u.email}</td>
                   <td>
@@ -147,6 +177,16 @@ export default function UserManagement() {
                     {u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : '---'}
                   </td>
                   <td className="td-actions">
+                    <button
+                      className="action-btn"
+                      title="Liên hệ Zalo"
+                      onClick={() => {
+                        setContactUser(u)
+                        setShowContactModal(true)
+                      }}
+                    >
+                      <MessageCircle size={18} color="#0068ff" />
+                    </button>
                     <button
                       className="action-btn delete-btn"
                       title="Xóa"
@@ -257,6 +297,19 @@ export default function UserManagement() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Zalo Contact Modal */}
+      {contactUser && (
+        <ZaloContactModal
+          open={showContactModal}
+          onClose={() => setShowContactModal(false)}
+          customer={{ 
+            fullName: contactUser.name, 
+            phone: contactUser.phone || '', 
+            avatar: contactUser.avatar 
+          }}
+        />
       )}
     </div>
   )
