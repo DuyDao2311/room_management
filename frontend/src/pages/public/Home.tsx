@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import api from '../../api/axios.ts'
-import consultImg from '../../image/z7729713217703_c59b94e924d550ee4e1ea6ef86b3baba.jpg'
 import news1Img from '../../image/tin tức 1.png'
 import news2Img from '../../image/tin tức 2.png'
 import { RiMapPin2Line } from "react-icons/ri";
@@ -81,8 +80,8 @@ export default function Home() {
       <section className="hero-section">
         <div className="hero-overlay" />
         <div className="hero-content">
-          <h1>Tìm Kiếm Không Gian Sống Lý Tưởng Tại Phòng Trọ DTT</h1>
-          <p>Trải nghiệm dịch vụ quản lý và cho thuê phòng trọ chuyên nghiệp, mang đến sự an tâm và tiện nghi tuyệt đối cho cuộc sống hiện đại của bạn.</p>
+          <h1>Tìm Kiếm Không Gian Sống Lý Tưởng Tại Căn Hộ F4</h1>
+          <p>Trải nghiệm dịch vụ quản lý và cho thuê căn hộ chuyên nghiệp, mang đến sự an tâm và tiện nghi tuyệt đối cho cuộc sống hiện đại của bạn.</p>
           <div className="hero-search">
             <div className="search-field">
               <div style={{
@@ -156,7 +155,7 @@ export default function Home() {
           <section className="core-values-section">
             <div className="core-values-header">
               <span className="core-subtitle">GIÁ TRỊ CỐT LÕI</span>
-              <h2 className="core-title">Tại sao nên chọn Phòng Trọ DTT?</h2>
+              <h2 className="core-title">Tại sao nên chọn Căn Hộ F4?</h2>
             </div>
             <div className="value-grid design-value-grid">
               <article className="value-card design-value-card">
@@ -190,7 +189,7 @@ export default function Home() {
                 <span className="core-subtitle">GỢI Ý TỐT NHẤT</span>
                 <h2 className="core-title">Phòng Tiêu Biểu</h2>
               </div>
-              <Link to="/rooms" className="featured-rooms-link">Xem tất cả phòng trọ &rarr;</Link>
+              <Link to="/rooms" className="featured-rooms-link">Xem tất cả căn hộ &rarr;</Link>
             </div>
             <div className="design-room-grid">
               {featuredRooms.map(room => {
@@ -233,14 +232,14 @@ export default function Home() {
           <section className="design-process-section">
             <div className="core-values-header">
               <span className="core-subtitle">QUY TRÌNH</span>
-              <h2 className="core-title">Thuê Phòng Dễ Dàng</h2>
+              <h2 className="core-title">Thuê Căn Hộ Dễ Dàng</h2>
             </div>
 
             <div className="design-process-grid">
               <div className="process-line" />
               {[
-                { n: '01', title: 'Tìm kiếm', desc: 'Lựa chọn phòng trọ ưng ý qua website với hình ảnh và thông tin minh bạch.' },
-                { n: '02', title: 'Xem phòng', desc: 'Liên hệ hẹn lịch xem phòng thực tế để kiểm tra tiện nghi và không gian sống.' },
+                { n: '01', title: 'Tìm kiếm', desc: 'Lựa chọn căn hộ ưng ý qua website với hình ảnh và thông tin minh bạch.' },
+                { n: '02', title: 'Xem căn hộ', desc: 'Liên hệ hẹn lịch xem căn hộ thực tế để kiểm tra tiện nghi và không gian sống.' },
                 { n: '03', title: 'Ký hợp đồng', desc: 'Thực hiện ký kết hợp đồng điện tử hoặc trực tiếp nhanh chóng, bảo mật.' },
               ].map(step => (
                 <div className="design-process-step" key={step.n}>
@@ -293,7 +292,7 @@ export default function Home() {
               <p>Chúng tôi luôn sẵn sàng hỗ trợ bạn tìm kiếm không gian sống phù hợp nhất với phong cách và ngân sách của bạn.</p>
               <div className="design-cta-actions">
                 <Link to="https://www.facebook.com/duy.ao.397869/" className="design-btn-primary" target="_blank" rel="noreferrer">LIÊN HỆ NGAY</Link>
-                <a href={consultImg} target="_blank" rel="noreferrer" className="design-btn-outline">NHẬN TƯ VẤN MIỄN PHÍ</a>
+                <a href="https://zalo.me/0869188512" target="_blank" rel="noreferrer" className="design-btn-outline">NHẬN TƯ VẤN MIỄN PHÍ</a>
               </div>
             </div>
           </section>

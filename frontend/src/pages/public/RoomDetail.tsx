@@ -5,8 +5,9 @@ import Spinner from '../../components/ui/Spinner.tsx'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 import { RiMapPin2Line } from "react-icons/ri";
 import FavoriteHeartButton from '../../components/ui/FavoriteHeartButton.tsx'
+import MapView from '../../components/map/MapView.tsx'
 import { LiaRulerHorizontalSolid } from "react-icons/lia";
-import { MdOutlineBedroomParent, MdSecurity, MdOutlinePerson, MdOutlinePhone, MdOutlineMoreTime } from "react-icons/md";
+import { MdOutlineBedroomParent, MdSecurity, MdOutlinePerson, MdOutlinePhone, MdOutlineMoreTime, MdOutlineEmail } from "react-icons/md";
 import { FaWifi } from "react-icons/fa";
 import { LuCalendarDays } from "react-icons/lu";
 import { MdOutlinePeopleAlt, MdDeleteOutline, MdCheckCircleOutline, MdOutlineBusiness, MdOutlineGavel, MdOutlineMeetingRoom, MdPictureAsPdf } from "react-icons/md";
@@ -27,6 +28,10 @@ interface Room {
   amenities: string[]
   images: string[]
   viewCount: number
+  location?: {
+    type: string
+    coordinates: [number, number]
+  }
 }
 
 const STATUS_MAP = {
@@ -109,6 +114,7 @@ export default function RoomDetail() {
   // Booking form state
   const [bookName, setBookName] = useState('')
   const [bookPhone, setBookPhone] = useState('')
+  const [bookEmail, setBookEmail] = useState('')
   const [bookDate, setBookDate] = useState('')
   const [bookTime, setBookTime] = useState('')
   const [bookNote, setBookNote] = useState('')
@@ -130,7 +136,7 @@ export default function RoomDetail() {
   const [mainIdCard, setMainIdCard] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [leaseTerm, setLeaseTerm] = useState<number>(12)
+  const [leaseTerm, setLeaseTerm] = useState<number | ''>('')
 
   // Co-residents
   const [coResidents, setCoResidents] = useState<CoResident[]>([])
@@ -159,7 +165,7 @@ export default function RoomDetail() {
     setMainIdCard('')
     setStartDate('')
     setEndDate('')
-    setLeaseTerm(12)
+    setLeaseTerm('')
     setCoResidents([])
     setSigB('')          // reset chữ ký khi mở modal mới
     setRentError('')
@@ -169,6 +175,17 @@ export default function RoomDetail() {
 
   const handleRentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!startDate) {
+      setRentError('Hãy chọn ngày bắt đầu hợp đồng')
+      return
+    }
+
+    if (!sigB) {
+      setRentError('Hãy ký trước khi xác nhận')
+      return
+    }
+
     setRentLoading(true)
     setRentError('')
     try {
@@ -206,7 +223,7 @@ export default function RoomDetail() {
   useEffect(() => {
     if (!id || hasTrackedView.current) return
     hasTrackedView.current = true
-    api.patch(`/rooms/${id}/view`).catch(() => {})
+    api.patch(`/rooms/${id}/view`).catch(() => { })
   }, [id])
 
   // Kiểm tra eligibility và lấy feedback của tenant hiện tại
@@ -218,7 +235,7 @@ export default function RoomDetail() {
 
   // Tự động tính ngày kết thúc khi ngày bắt đầu hoặc thời hạn thuê thay đổi
   useEffect(() => {
-    if (startDate) {
+    if (startDate && typeof leaseTerm === 'number') {
       const date = new Date(startDate)
       date.setMonth(date.getMonth() + leaseTerm)
       const yyyy = date.getFullYear()
@@ -256,6 +273,7 @@ export default function RoomDetail() {
       await api.post('/appointments', {
         name: bookName,
         phone: bookPhone,
+        email: bookEmail,
         date: bookDate,
         time: bookTime,
         note: bookNote,
@@ -384,6 +402,17 @@ export default function RoomDetail() {
               <p className="rd-desc">{room.description}</p>
             </div>
           )}
+
+          {/* Map Location */}
+          {room.location?.coordinates &&
+            (room.location.coordinates[0] !== 0 || room.location.coordinates[1] !== 0) && (
+              <MapView
+                lat={room.location.coordinates[1]}
+                lng={room.location.coordinates[0]}
+                address={room.address}
+                roomName={room.name}
+              />
+            )}
         </div>
 
         {/* RIGHT: Booking form */}
@@ -423,6 +452,18 @@ export default function RoomDetail() {
                       value={bookPhone}
                       onChange={e => setBookPhone(e.target.value)}
                       required
+                    />
+                  </div>
+                </div>
+                <div className="rd-field">
+                  <label>Email (không bắt buộc)</label>
+                  <div className="rd-input-wrap">
+                    <span className="rd-input-icon" style={{ paddingTop: "8px" }}><MdOutlineEmail size={20} color="#647885ff" /></span>
+                    <input
+                      type="email"
+                      placeholder="Nhận email xác nhận khi lịch hẹn được duyệt"
+                      value={bookEmail}
+                      onChange={e => setBookEmail(e.target.value)}
                     />
                   </div>
                 </div>
@@ -648,19 +689,19 @@ export default function RoomDetail() {
                           <div className="contract-grid">
                             <div className="contract-field">
                               <label>Họ và tên</label>
-                              <input className="contract-input" type="text" placeholder="Trần Thị B" value={r.name} onChange={e => updateCoResident(idx, 'name', e.target.value)} />
+                              <input className="contract-input" type="text" placeholder="Trần Thị B" value={r.name} onChange={e => updateCoResident(idx, 'name', e.target.value)} required />
                             </div>
                             <div className="contract-field">
                               <label>Số điện thoại</label>
-                              <input className="contract-input" type="tel" placeholder="0987654321" value={r.phone} onChange={e => updateCoResident(idx, 'phone', e.target.value)} pattern="[0-9]{10}" maxLength={10} />
+                              <input className="contract-input" type="tel" placeholder="0987654321" value={r.phone} onChange={e => updateCoResident(idx, 'phone', e.target.value)} pattern="[0-9]{10}" maxLength={10} required />
                             </div>
                             <div className="contract-field">
                               <label>Ngày sinh</label>
-                              <CustomDateInput className="contract-input" value={r.dob} onChange={(e: any) => updateCoResident(idx, 'dob', e.target.value)} />
+                              <CustomDateInput className="contract-input" value={r.dob} onChange={(e: any) => updateCoResident(idx, 'dob', e.target.value)} required />
                             </div>
                             <div className="contract-field">
                               <label>Số CCCD/CMND</label>
-                              <input className="contract-input" type="text" placeholder="002095678901" value={r.idCard} onChange={e => updateCoResident(idx, 'idCard', e.target.value)} pattern="[0-9]{12}" maxLength={12} />
+                              <input className="contract-input" type="text" placeholder="002095678901" value={r.idCard} onChange={e => updateCoResident(idx, 'idCard', e.target.value)} pattern="[0-9]{12}" maxLength={12} required />
                             </div>
                           </div>
                         </div>
@@ -708,7 +749,8 @@ export default function RoomDetail() {
                     <div style={{ background: '#fff', borderRadius: '8px', padding: '20px', border: '1px solid #d1d5db', display: 'flex', gap: '20px' }}>
                       <div className="contract-field" style={{ flex: 1 }}>
                         <label>Thời hạn thuê</label>
-                        <select className="contract-input" value={leaseTerm} onChange={e => setLeaseTerm(Number(e.target.value))}>
+                        <select className="contract-input" value={leaseTerm} onChange={e => setLeaseTerm(e.target.value ? Number(e.target.value) : '')} required>
+                          <option value="" disabled>-- Chọn thời hạn --</option>
                           <option value={6}>6 tháng</option>
                           <option value={12}>12 tháng</option>
                         </select>
@@ -732,15 +774,15 @@ export default function RoomDetail() {
                     </div>
                     <div className="contract-text-box">
                       <p style={{ margin: '0 0 12px' }}><strong>1. Mục đích thuê:</strong> Bên B thuê phòng để ở, không sử dụng vào mục đích kinh doanh, sản xuất hay các mục đích trái pháp luật.</p>
-                      <p style={{ margin: '0 0 12px' }}><strong>2. Thời hạn thuê:</strong> Hợp đồng có giá trị trong vòng {leaseTerm} tháng kể từ ngày ký. Sau khi hết hạn, nếu hai bên có nhu cầu tiếp tục, sẽ tiến hành gia hạn hợp đồng mới.</p>
+                      <p style={{ margin: '0 0 12px' }}><strong>2. Thời hạn thuê:</strong> Hợp đồng có giá trị trong vòng {leaseTerm || '...'} tháng kể từ ngày ký. Sau khi hết hạn, nếu hai bên có nhu cầu tiếp tục, sẽ tiến hành gia hạn hợp đồng mới.</p>
                       <p style={{ margin: '0 0 8px' }}><strong>3. Giá thuê và phương thức thanh toán:</strong></p>
                       <ul style={{ margin: '0 0 12px', paddingLeft: '20px' }}>
-                        <li>Giá thuê phòng: 5.500.000 VNĐ/tháng.</li>
+                        <li>Giá thuê phòng: {room.price.toLocaleString('vi-VN')} VNĐ/tháng.</li>
                         <li>Tiền điện: 3.500 VNĐ/Kwh.</li>
-                        <li>Tiền nước: 100.000 VNĐ/người/tháng.</li>
+                        <li>Tiền nước: 70.000 VNĐ/người/tháng.</li>
                         <li>Thanh toán từ ngày 1 đến ngày 5 hàng tháng.</li>
                       </ul>
-                      <p style={{ margin: '0 0 8px' }}><strong>4. Trách nhiệm của Bên A:</strong> Đảm bảo phòng ốc bàn giao đúng tình trạng thỏa thuận. Hỗ trợ sửa chữa các hư hỏng kết cấu do hao mòn tự nhiên.</p>
+                      <p style={{ margin: '0 0 8px' }}><strong>4. Trách nhiệm của Bên A:</strong> Đảm bảo phòng ốc bàn giao đúng tình trạng thỏa thuận. Hỗ trợ sửa chữa các hư hỏng kết cấu do hao mòn tự nhiên. Miễn phí hỗ trọ sửa chữa trong 3 tháng đầu.</p>
                       <p style={{ margin: '0 0 8px' }}><strong>5. Trách nhiệm của Bên B:</strong> Giữ gìn vệ sinh chung, tuân thủ nội quy khu trọ. Không tự ý sửa chữa, thay đổi kết cấu phòng khi chưa có sự đồng ý của Bên A.</p>
                     </div>
 

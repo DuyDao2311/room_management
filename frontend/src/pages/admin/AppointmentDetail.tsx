@@ -8,25 +8,31 @@ import { MdMessage, MdEmail, MdEditCalendar, MdCancel } from "react-icons/md";
 import { RiMapPin2Line } from "react-icons/ri";
 import { BsPersonFill } from "react-icons/bs";
 
+import { useAuth } from '../../contexts/AuthContext.tsx'
+import ZaloContactModal from '../../components/contact/ZaloContactModal.tsx'
+
 interface AppointmentDetailObj {
   _id: string
   name: string
   phone: string
+  email?: string
   date: string
   time: string
   note: string
   status: string
   room: { _id: string, name: string, address: string, price: number, type: string, images?: string[] }
-  user?: { _id: string, name: string, email: string }
+  user?: { _id: string, name: string, email: string, avatar?: string }
 }
 
 const DEFAULT_IMG = 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80'
 
 export default function AppointmentDetail() {
   const { id } = useParams()
+  const { user } = useAuth()
   const [apt, setApt] = useState<AppointmentDetailObj | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showContactModal, setShowContactModal] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -170,7 +176,7 @@ export default function AppointmentDetail() {
                 alignItems: 'center',
                 gap: '8px',
               }}>
-                <MdEmail size={15} /><p> {apt.user?.email || apt.name.toLowerCase().replace(/\s/g, '') + '@email.com'}</p>
+                <MdEmail size={15} /><p> {apt.email || apt.user?.email || '—'}</p>
               </div>
             </div>
 
@@ -190,18 +196,20 @@ export default function AppointmentDetail() {
               </button>
             )}
 
-            <button className="aptd-btn-secondary" onClick={() => window.open(`tel:${apt.phone}`)}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}>
-                <MdMessage size={20} />NHẮN TIN CHO KHÁCH
-              </div>
-            </button>
+            {user && ['admin', 'staff'].includes(user.role) && (
+              <button className="aptd-btn-secondary" onClick={() => setShowContactModal(true)}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}>
+                  <MdMessage size={20} />LIÊN HỆ CHO KHÁCH
+                </div>
+              </button>
+            )}
 
             <div className="aptd-action-row">
               <button className="aptd-btn-gray" onClick={() => alert('Tính năng đang phát triển')}><div style={{
@@ -232,6 +240,14 @@ export default function AppointmentDetail() {
           </div>
         </div>
       </div>
+
+      {apt && (
+        <ZaloContactModal
+          open={showContactModal}
+          onClose={() => setShowContactModal(false)}
+          customer={{ fullName: apt.name, phone: apt.phone, avatar: apt.user?.avatar }}
+        />
+      )}
     </div>
   )
 }

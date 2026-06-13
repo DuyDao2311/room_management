@@ -37,6 +37,39 @@ const protect = async (req, res, next) => {
   }
 };
 
+// ─── Optional Auth — dùng cho route public nhưng muốn biết user nếu có ───────
+/**
+ * Giống `protect` nhưng KHÔNG reject request khi không có token.
+ * - Có token hợp lệ → req.user = user document
+ * - Không có token hoặc token lỗi → req.user = undefined, tiếp tục bình thường
+ *
+ * Use case: GET /api/rooms/map — guest xem available rooms, admin/staff xem theo role.
+ */
+const optionalAuth = async (req, res, next) => {
+  try {
+    let token;
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer ")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+
+    if (!token) return next(); // Không có token → tiếp tục như guest
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).select("-password");
+
+    if (user && user.isActive) {
+      req.user = user;
+    }
+    next();
+  } catch {
+    // Token lỗi/hết hạn → bỏ qua, coi như guest
+    next();
+  }
+};
+
 // ─── Chỉ admin mới được phép ─────────────────────────────────────────────────
 const adminOnly = (req, res, next) => {
   if (req.user?.role !== "admin") {
@@ -147,6 +180,7 @@ const checkUserDistrictPermission = (user, district) => {
 
 module.exports = {
   protect,
+  optionalAuth,
   adminOnly,
   verifyRole,
   injectDistrictFilter,

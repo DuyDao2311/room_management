@@ -1,0 +1,35 @@
+name: Daily Cron Job
+
+on:
+  schedule:
+    # Chạy vào lúc 13:00 UTC (Tương đương 20:00 giờ Việt Nam) mỗi ngày
+    - cron: '0 13 * * *'
+  workflow_dispatch: # Cho phép bấm nút chạy thử thủ công từ giao diện GitHub
+
+jobs:
+  run-daily-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Đánh thức máy chủ Render
+        run: |
+          echo "Bắt đầu gửi request đánh thức server..."
+          curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" https://room-management-faxs.onrender.com/api/health || true
+          
+      - name: 2. Chờ 40 giây để server khởi động hoàn toàn
+        run: sleep 40
+        
+      - name: 3. Gọi API kích hoạt Cron Job
+        run: |
+          echo "Đang gọi API /api/cron/daily-check..."
+          RESPONSE=$(curl -s -w "\nHTTP Status: %{http_code}" -X POST https://room-management-faxs.onrender.com/api/cron/daily-check \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}")
+          
+          echo "$RESPONSE"
+          
+          # Kiểm tra nếu HTTP Status không phải là 200 thì báo lỗi workflow
+          if [[ "$RESPONSE" != *"HTTP Status: 200"* ]]; then
+            echo "❌ Cron job thất bại!"
+            exit 1
+          else
+            echo "✅ Cron job chạy thành công!"
+          fi

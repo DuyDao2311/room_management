@@ -5,12 +5,11 @@
  * POST /api/contracts/:id/sign
  * ─ Admin (owner) gửi signatureA  → isSignedByOwner = true
  * ─ Tenant       gửi signatureB  → isSignedByTenant = true
- * ─ Nếu cả hai đã ký              → status = "active", signedAt = now
+ * ─ Chỉ lưu chữ ký, KHÔNG tự động kích hoạt hợp đồng
+ * ─ Phê duyệt hợp đồng (pending → active) do admin/staff thực hiện qua PUT /api/contracts/:id
  */
 
 const Contract = require("../models/Contract");
-const Room = require("../models/Room");
-const Invoice = require("../models/Invoice");
 
 /**
  * POST /api/contracts/:id/sign
@@ -86,17 +85,14 @@ const signContract = async (req, res) => {
       update.isSignedByTenant = true;
     }
 
-    // ── 6. Kiểm tra nếu cả hai bên đã ký → kích hoạt hợp đồng ────
+    // ── 6. Ghi nhận signedAt nếu cả hai bên đã ký (KHÔNG tự động kích hoạt) ────
+    // Việc phê duyệt hợp đồng (pending → active) do admin/staff thực hiện
+    // thông qua nút "Phê duyệt" (PUT /api/contracts/:id { status: 'active' })
     const ownerSigned  = signatureA ? true : contract.isSignedByOwner;
     const tenantSigned = signatureB ? true : contract.isSignedByTenant;
 
-    if (ownerSigned && tenantSigned) {
+    if (ownerSigned && tenantSigned && !contract.signedAt) {
       update.signedAt = new Date();
-
-      // Chỉ chuyển sang active nếu đang ở pending
-      if (contract.status === "pending") {
-        update.status = "active";
-      }
     }
 
     // ── 7. Lưu vào DB ──────────────────────────────────────────────
@@ -108,36 +104,9 @@ const signContract = async (req, res) => {
       .populate("room", "name address price area type")
       .populate("tenant", "name email");
 
-    // ── 8. Nếu vừa active → cập nhật phòng + tạo hóa đơn cọc ─────
-    if (update.status === "active") {
-      await Room.findByIdAndUpdate(updated.room._id, { status: "occupied" });
-
-      const hasDeposit = await Invoice.findOne({
-        contract: updated._id,
-        type: "deposit",
-      });
-
-      if (!hasDeposit) {
-        await Invoice.create({
-          contract:            updated._id,
-          type:                "deposit",
-          representativeName:  updated.representativeName,
-          representativePhone: updated.representativePhone,
-          roomName:            updated.room.name,
-          rentAmount:          updated.monthlyRent,
-          depositAmount:       updated.depositAmount || updated.monthlyRent,
-          dueDate:             updated.startDate,
-          notes:               "Hóa đơn đặt cọc tự động khi cả hai bên ký hợp đồng.",
-          createdBy:           req.user._id,
-        });
-      }
-    }
-
-    // ── 9. Trả response ────────────────────────────────────────────
+    // ── 8. Trả response ────────────────────────────────────────────
     return res.json({
-      message: update.status === "active"
-        ? "Cả hai bên đã ký! Hợp đồng chính thức có hiệu lực."
-        : "Lưu chữ ký thành công.",
+      message: "Lưu chữ ký thành công.",
       contract: updated,
       // Alias cho phép frontend dùng trực tiếp response.data
       ...updated.toObject(),

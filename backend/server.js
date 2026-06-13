@@ -18,7 +18,12 @@ const chatRoutes = require("./routes/chat");
 const notificationRoutes = require("./routes/notifications");
 const feedbackRoutes = require("./routes/feedback");
 const favoriteRoutes = require("./routes/favorites");
-const { checkExpiringContracts, checkOverdueInvoices } = require("./utils/notificationService");
+const adminRoomMapRoutes = require("./routes/adminRoomMap.routes");
+const searchRoutes = require("./routes/search");
+const cronRoutes = require("./routes/cron");
+const incidentRoutes = require("./routes/incidents");
+const { checkExpiringContracts, checkOverdueInvoices, checkDueSoonInvoices } = require("./utils/notificationService");
+const { initCronJobs } = require("./utils/cronJobs");
 
 const app = express();
 
@@ -103,6 +108,10 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/favorites", favoriteRoutes);
+app.use("/api/admin/rooms", adminRoomMapRoutes);
+app.use("/api/search", searchRoutes);
+app.use("/api/cron", cronRoutes);
+app.use("/api/incidents", incidentRoutes);
 
 // ─── Health check ─────────────────────────────────────────────
 app.get("/api/health", (_, res) => res.json({ status: "OK", timestamp: new Date() }));
@@ -143,6 +152,16 @@ const runPeriodicChecks = async () => {
       });
       console.log(`📨 Đã gửi ${overdueNotifs.length} thông báo hóa đơn quá hạn`);
     }
+
+    console.log('🔍 Kiểm tra hóa đơn sắp đến hạn (5 ngày)...');
+    const dueSoonNotifs = await checkDueSoonInvoices();
+    if (dueSoonNotifs.length > 0) {
+      const io = app.get('io');
+      dueSoonNotifs.forEach((n) => {
+        io?.to(`tenant_${n.userId}`).emit('new_notification', n);
+      });
+      console.log(`📨 Đã gửi ${dueSoonNotifs.length} thông báo hóa đơn sắp đến hạn`);
+    }
   } catch (err) {
     console.error('Periodic check error:', err.message);
   }
@@ -158,4 +177,7 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`✅ Server đang chạy tại http://localhost:${PORT}`);
   console.log(`🔌 Socket.io đã sẵn sàng`);
+
+  // Khởi tạo cronjob kiểm tra gia hạn hợp đồng hàng ngày
+  initCronJobs(io);
 });

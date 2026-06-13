@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import { createPayment, redirectToPayment, requestCashPayment } from '../../api/payment.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
@@ -7,13 +8,13 @@ import { useAuth } from '../../contexts/AuthContext.tsx'
 import { useNotifications } from '../../contexts/NotificationContext.tsx'
 
 import { MdOutlineReceipt, MdHouse, MdOutlineWaterDrop, MdDownload, MdCheckCircle } from 'react-icons/md'
-import { FiZap, FiInfo, FiClock } from 'react-icons/fi'
+import { FiZap, FiInfo, FiClock, FiTool } from 'react-icons/fi'
 import Pagination from '../../components/ui/Pagination.tsx'
 
 interface Invoice {
   _id: string
   contract?: { room?: { name: string; address: string; type?: string } }
-  type: 'deposit' | 'service'
+  type: 'deposit' | 'service' | 'repair'
   month?: number
   year?: number
   totalAmount: number
@@ -27,6 +28,12 @@ interface Invoice {
   roomName?: string
   rentAmount?: number
   depositAmount?: number
+  repairAmount?: number
+  incidentId?: {
+    category?: string
+    ticketCode?: string
+    resolutionNote?: string
+  }
   electricity?: { oldReading: number; newReading: number; usage: number; rate: number; amount: number }
   water?: { oldReading: number; newReading: number; usage: number; rate: number; amount: number }
   extraFees?: Array<{ name: string; amount: number }>
@@ -49,6 +56,7 @@ export default function MyInvoices() {
   const [paymentMethod, setPaymentMethod] = useState<'momo' | 'vnpay' | 'cash'>('momo')
   const [cashModal, setCashModal] = useState(false)
   const { socket } = useNotifications()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = 9
@@ -83,6 +91,31 @@ export default function MyInvoices() {
       .catch(() => setError('Không thể tải hóa đơn của bạn.'))
       .finally(() => setLoading(false))
   }, [])
+
+  // Handle highlight from notification
+  useEffect(() => {
+    const highlightId = searchParams.get('highlight')
+    if (highlightId && !loading && invoices.length > 0) {
+      const found = invoices.find(inv => inv._id === highlightId)
+      if (found) {
+        setSelectedInvoice(found)
+      } else {
+        // Invoice might not be in current page, fetch it directly
+        api.get(`/invoices/${highlightId}`)
+          .then(r => {
+            const inv = r.data?.data || r.data
+            if (inv) setSelectedInvoice(inv)
+          })
+          .catch(err => console.error('Lỗi lấy hóa đơn highlight:', err))
+      }
+      // Remove highlight param
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev)
+        next.delete('highlight')
+        return next
+      }, { replace: true })
+    }
+  }, [loading, invoices, searchParams, setSearchParams])
 
   const handlePay = async (id: string) => {
     if (!paymentMethod) {
@@ -144,7 +177,7 @@ export default function MyInvoices() {
       return `#INV-${inv.year.toString().slice(-2)}${inv.month.toString().padStart(2, '0')}-${inv._id.slice(-2).toUpperCase()}`
     } else {
       const d = new Date(inv.createdAt)
-      const prefix = inv.type === 'deposit' ? '#DEP-' : '#INV-'
+      const prefix = inv.type === 'deposit' ? '#DEP-' : (inv.type === 'repair' ? '#REP-' : '#INV-')
       return `${prefix}${d.getFullYear().toString().slice(-2)}${(d.getMonth() + 1).toString().padStart(2, '0')}-${inv._id.slice(-2).toUpperCase()}`
     }
   }
@@ -199,8 +232,7 @@ export default function MyInvoices() {
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4b5563' }}>
-                        {/* {inv.type === 'service' ? <MdHouse size={18} /> : <FiKey size={16} />} */}
-                        {inv.type === 'service' ? 'Dịch vụ' : 'Tiền cọc'}
+                        {inv.type === 'service' ? 'Dịch vụ' : inv.type === 'repair' ? 'Sửa chữa' : 'Tiền cọc'}
                       </div>
                     </td>
                     <td style={{ fontWeight: 600, color: '#111827' }}>
@@ -259,7 +291,7 @@ export default function MyInvoices() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '4px' }}>
                     <h2 style={{ margin: 0, fontSize: '1.5rem', color: '#111827', fontWeight: 800 }}>
-                      Chi tiết hóa đơn {selectedInvoice.type === 'service' && selectedInvoice.month ? `tháng ${selectedInvoice.month.toString().padStart(2, '0')}/${selectedInvoice.year}` : '(Tiền cọc)'}
+                      Chi tiết hóa đơn {selectedInvoice.type === 'service' && selectedInvoice.month ? `tháng ${selectedInvoice.month.toString().padStart(2, '0')}/${selectedInvoice.year}` : selectedInvoice.type === 'repair' ? '(Sửa chữa)' : '(Tiền cọc)'}
                     </h2>
                     <Badge label={STATUS_MAP[selectedInvoice.status]?.label} variant={STATUS_MAP[selectedInvoice.status]?.variant} />
                   </div>
@@ -291,7 +323,7 @@ export default function MyInvoices() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '0.9rem' }}>
                         <span style={{ color: '#6b7280' }}>Kỳ thanh toán</span>
                         <span style={{ fontWeight: 600, color: '#111827' }}>
-                          {selectedInvoice.type === 'service' ? `01/${selectedInvoice.month?.toString().padStart(2, '0')}/${selectedInvoice.year} - 30/${selectedInvoice.month?.toString().padStart(2, '0')}/${selectedInvoice.year}` : 'Tháng đầu'}
+                          {selectedInvoice.type === 'service' ? `01/${selectedInvoice.month?.toString().padStart(2, '0')}/${selectedInvoice.year} - 30/${selectedInvoice.month?.toString().padStart(2, '0')}/${selectedInvoice.year}` : selectedInvoice.type === 'repair' ? 'Theo yêu cầu' : 'Tháng đầu'}
                         </span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
@@ -327,7 +359,8 @@ export default function MyInvoices() {
                   {/* Services Details */}
                   <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#111827', fontWeight: 800, fontSize: '1.2rem', marginBottom: '24px' }}>
-                      <MdOutlineReceipt size={24} /> Chi tiết dịch vụ
+                      {selectedInvoice.type === 'repair' ? <FiTool size={24} /> : <MdOutlineReceipt size={24} />} 
+                      {selectedInvoice.type === 'repair' ? 'Chi tiết sửa chữa' : 'Chi tiết dịch vụ'}
                     </div>
 
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -339,7 +372,22 @@ export default function MyInvoices() {
                         </tr>
                       </thead>
                       <tbody>
+                        {selectedInvoice.type === 'repair' && (
+                          <tr style={{ borderBottom: '1px dashed #e5e7eb' }}>
+                            <td style={{ padding: '20px 0' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                <div style={{ width: '40px', height: '40px', background: '#f3f4f6', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
+                                  <FiTool size={20} />
+                                </div>
+                                <span style={{ fontWeight: 600, color: '#374151' }}>{selectedInvoice.incidentId?.category || 'Sửa chữa'}</span>
+                              </div>
+                            </td>
+                            <td style={{ color: '#6b7280', fontSize: '0.9rem' }}>{selectedInvoice.incidentId?.resolutionNote || 'Phí sửa chữa'}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 800, color: '#111827', fontSize: '1.05rem' }}>{(selectedInvoice.repairAmount || selectedInvoice.totalAmount || 0).toLocaleString('vi-VN')} đ</td>
+                          </tr>
+                        )}
                         {/* Rent */}
+                        {selectedInvoice.type !== 'repair' && (
                         <tr style={{ borderBottom: '1px dashed #e5e7eb' }}>
                           <td style={{ padding: '20px 0' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -352,6 +400,7 @@ export default function MyInvoices() {
                           <td style={{ color: '#6b7280', fontSize: '0.9rem' }}>Cố định hàng tháng</td>
                           <td style={{ textAlign: 'right', fontWeight: 800, color: '#111827', fontSize: '1.05rem' }}>{(selectedInvoice.rentAmount || 0).toLocaleString('vi-VN')} đ</td>
                         </tr>
+                        )}
 
                         {/* Electricity */}
                         {selectedInvoice.electricity && (
@@ -427,13 +476,15 @@ export default function MyInvoices() {
                     {selectedInvoice.totalAmount.toLocaleString('vi-VN')} <span style={{ fontSize: '1.2rem', fontWeight: 500, color: '#93c5fd' }}>đ</span>
                   </div>
 
-                  <div style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '16px', display: 'flex', gap: '12px', marginBottom: '32px' }}>
-                    <FiInfo size={20} color="#93c5fd" style={{ flexShrink: 0, marginTop: '2px' }} />
-                    <span style={{ fontSize: '0.9rem', color: '#dbeafe', lineHeight: 1.5 }}>
-                      Vui lòng thanh toán trước<br />
-                      <strong>{selectedInvoice.dueDate ? new Date(selectedInvoice.dueDate).toLocaleDateString('vi-VN') : '—'}</strong>
-                    </span>
-                  </div>
+                  {selectedInvoice.status !== 'paid' && (
+                    <div style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '16px', display: 'flex', gap: '12px', marginBottom: '32px' }}>
+                      <FiInfo size={20} color="#93c5fd" style={{ flexShrink: 0, marginTop: '2px' }} />
+                      <span style={{ fontSize: '0.9rem', color: '#dbeafe', lineHeight: 1.5 }}>
+                        Vui lòng thanh toán trước<br />
+                        <strong>{selectedInvoice.dueDate ? new Date(selectedInvoice.dueDate).toLocaleDateString('vi-VN') : '—'}</strong>
+                      </span>
+                    </div>
+                  )}
 
                   {/* ── PENDING: Đang chờ thu tiền mặt ── */}
                   {selectedInvoice.status === 'pending' && (

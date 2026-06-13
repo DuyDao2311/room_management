@@ -7,7 +7,7 @@ const notificationSchema = new mongoose.Schema({
   tenantId:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   type:      { 
     type: String, 
-    enum: ['INVOICE', 'REMINDER', 'SYSTEM', 'APPOINTMENT', 'CONTRACT', 'FEEDBACK'], 
+    enum: ['INVOICE', 'REMINDER', 'SYSTEM', 'APPOINTMENT', 'CONTRACT', 'FEEDBACK', 'INCIDENT'], 
     default: 'INVOICE' 
   },
   title:     { type: String, required: true },
@@ -18,6 +18,7 @@ const notificationSchema = new mongoose.Schema({
   contractId:    { type: mongoose.Schema.Types.ObjectId, ref: 'Contract' },
   feedbackId:    { type: mongoose.Schema.Types.ObjectId, ref: 'Feedback' },
   roomId:        { type: mongoose.Schema.Types.ObjectId, ref: 'Room' },
+  incidentId:    { type: mongoose.Schema.Types.ObjectId, ref: 'Incident' },
   isRead:    { type: Boolean, default: false },
 }, { timestamps: true });
 

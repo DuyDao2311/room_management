@@ -5,14 +5,16 @@ const Room = require("../models/Room");
 const { protect, adminOnly, verifyRole, injectDistrictFilter } = require("../middleware/auth");
 const {
   notifyNewAppointment,
+  notifyTenantAppointmentConfirmed,
+  notifyTenantAppointmentCancelled,
   sendSocketNotification,
 } = require("../utils/notificationService");
 
 // POST /api/appointments - Tạo lịch hẹn mới (Public / Khách vãng lai)
 router.post("/", async (req, res) => {
   try {
-    const { name, phone, date, time, note, room, user } = req.body;
-    
+    const { name, phone, email, date, time, note, room, user } = req.body;
+
     if (!name || !phone || !date || !time || !room) {
       return res.status(400).json({ message: "Vui lòng cung cấp đủ họ tên, SĐT, ngày, thời gian và phòng." });
     }
@@ -27,6 +29,7 @@ router.post("/", async (req, res) => {
     const appointment = new Appointment({
       name,
       phone,
+      email: email || "",
       date,
       time,
       note,
@@ -77,7 +80,7 @@ router.get("/:id", protect, verifyRole("admin", "staff"), async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id)
       .populate("room", "name address price type images district")
-      .populate("user", "name email");
+      .populate("user", "name email avatar");
     if (!appointment) return res.status(404).json({ message: "Không tìm thấy lịch hẹn" });
 
     // Staff: kiểm tra lịch hẹn thuộc district
@@ -115,13 +118,41 @@ router.put("/:id/status", protect, verifyRole("admin", "staff"), async (req, res
       }
     }
 
+    const prevStatus = appointment.status;
     appointment.status = status;
     await appointment.save();
+
+    // Gửi notification cho khách dựa trên chuyển trạng thái (in-app nếu có user, chỉ email nếu guest).
+    // - pending/cancelled → confirmed: email xác nhận (kèm flag isReconfirm nếu trước đó từng bị hủy)
+    // - confirmed → cancelled: email hủy
+    const io = req.app.get("io");
+    const emitNotifs = (notifs) => {
+      if (io && notifs && notifs.length > 0) {
+        notifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
+      }
+    };
+
+    if (status === "confirmed" && prevStatus !== "confirmed") {
+      try {
+        const isReconfirm = prevStatus === "cancelled";
+        const tenantNotifs = await notifyTenantAppointmentConfirmed(appointment, { isReconfirm });
+        emitNotifs(tenantNotifs);
+      } catch (notifyErr) {
+        console.error("notifyTenantAppointmentConfirmed error:", notifyErr.message);
+      }
+    } else if (status === "cancelled" && prevStatus === "confirmed") {
+      try {
+        const tenantNotifs = await notifyTenantAppointmentCancelled(appointment);
+        emitNotifs(tenantNotifs);
+      } catch (notifyErr) {
+        console.error("notifyTenantAppointmentCancelled error:", notifyErr.message);
+      }
+    }
 
     // Lấy lại dữ liệu kèm populate để trả về frontend
     const updatedAppointment = await Appointment.findById(req.params.id)
       .populate("room", "name address images district")
-      .populate("user", "name email");
+      .populate("user", "name email avatar");
 
     res.json(updatedAppointment);
   } catch (err) {

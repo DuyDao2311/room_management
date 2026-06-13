@@ -53,6 +53,18 @@ const roomSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    // ── GeoJSON location (MapBox integration) ─────────────────────────────
+    location: {
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number], // [longitude, latitude]
+        default: [0, 0],
+      },
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -84,6 +96,9 @@ roomSchema.index({ name: "text", address: "text", description: "text" });
 
 // Compound index: không cho phép 2 phòng cùng tên tại cùng địa chỉ
 roomSchema.index({ name: 1, address: 1 }, { unique: true, collation: { locale: "vi", strength: 2 } });
+
+// GeoSpatial index cho tìm kiếm nearby
+roomSchema.index({ location: "2dsphere" });
 
 
 module.exports = mongoose.model("Room", roomSchema);
