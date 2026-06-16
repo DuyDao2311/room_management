@@ -101,22 +101,6 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
     })
 
-    // Admin/Staff: nhận thông báo khi tenant yêu cầu thanh toán tiền mặt
-    socket.on('cash_payment_requested', (data: { invoiceId: string; roomName: string; totalAmount: number; representativeName: string }) => {
-      const fakeNotification: Notification = {
-        _id: `cash_${data.invoiceId}_${Date.now()}`,
-        tenantId: '',
-        type: 'INVOICE',
-        title: 'Có hóa đơn mới đang chờ thu tiền mặt',
-        message: `Phòng ${data.roomName} — ${data.representativeName} — ${data.totalAmount?.toLocaleString('vi-VN')}đ`,
-        invoiceId: data.invoiceId,
-        isRead: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
-      setNotifications(prev => [fakeNotification, ...prev])
-    })
-
     setSocket(socket)
 
     return () => {
