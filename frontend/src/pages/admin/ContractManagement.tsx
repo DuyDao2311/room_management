@@ -205,6 +205,18 @@ export default function ContractManagement() {
     fetchStats()
   }, [fetchStats])
 
+  // Hide body scrollbar when any modal is open
+  useEffect(() => {
+    if (selectedContract || showExtendModal || showExtensionNoteModal) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'auto'
+    }
+    return () => {
+      document.body.style.overflow = 'auto'
+    }
+  }, [selectedContract, showExtendModal, showExtensionNoteModal])
+
   // Debounce search input → sync lên URL
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
@@ -595,8 +607,8 @@ export default function ContractManagement() {
 
           {/* Modal Chi tiết hợp đồng */}
           {selectedContract && (
-            <div className="rent-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSelectedContract(null) }}>
-              <div className="rent-modal" style={{ maxWidth: '850px', borderRadius: '0', maxHeight: '95vh', overflowY: 'auto' }}>
+            <div className="rent-modal-overlay" style={{ alignItems: 'center', padding: '20px', overflow: 'hidden' }} onClick={(e) => { if (e.target === e.currentTarget) setSelectedContract(null) }}>
+              <div className="rent-modal" style={{ maxWidth: '850px', borderRadius: '0', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' }}>
                 <div ref={pdfRef} id="pdf-content">
 
                   <div className="contract-modal-header">

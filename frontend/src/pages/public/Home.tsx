@@ -198,8 +198,8 @@ export default function Home() {
                   : ['Wifi', 'Điều hòa', 'Chỗ để xe'];
 
                 const bgStyle = room.images && room.images.length > 0
-                  ? { backgroundImage: `url("${room.images[0]}")` }
-                  : { backgroundImage: 'url("https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80")' };
+                  ? { backgroundImage: `url("${room.images[0]?.url || room.images[0]}")` }
+                  : { backgroundImage: 'url("https://vinhomeoceanpark.net/wp-content/uploads/khong-sang-song-hien-dai-tien-ich-tai-studio-vinhomes-ocean-park.jpg")' };
 
                 return (
                   <Link to={`/rooms/${room._id}`} className="design-room-card" key={room._id}>

@@ -94,6 +94,15 @@ const invoiceSchema = new mongoose.Schema(
     // ── Ghi chú ───────────────────────────────────────────────────────────────
     notes: { type: String, trim: true, default: "" },
 
+    // ── Phí phạt quá hạn ────────────────────────────────────────────────────
+    penaltyFee: { type: Number, default: 0, min: 0 },
+
+    // ── Tiến độ xử lý quá hạn (0-6) ────────────────────────────────────────
+    // 0: chưa xử lý, 1: nhắc nhở lần 1, 2: nhắc nhở lần 2,
+    // 3: đã áp dụng phí phạt, 4: cảnh báo công nợ nghiêm trọng,
+    // 5: cảnh báo chấm dứt hợp đồng, 6: đã chấm dứt hợp đồng
+    overdueStep: { type: Number, default: 0, min: 0, max: 6 },
+
     // ── Người tạo ─────────────────────────────────────────────────────────────
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -127,16 +136,17 @@ invoiceSchema.pre("save", function () {
   }
 
   // 2. Tính totalAmount theo loại hóa đơn
+  const penalty = this.penaltyFee || 0;
   if (this.type === "deposit") {
-    // tiền cọc + tiền phòng tháng đầu
-    this.totalAmount = (this.depositAmount || 0) + (this.rentAmount || 0);
+    // tiền cọc + tiền phòng tháng đầu + phí phạt (nếu có)
+    this.totalAmount = (this.depositAmount || 0) + (this.rentAmount || 0) + penalty;
   } else if (this.type === "service") {
     const elec = this.electricity?.amount || 0;
     const wtr = this.water?.amount || 0;
     const extraTotal = (this.extraFees || []).reduce((sum, f) => sum + f.amount, 0);
-    this.totalAmount = (this.rentAmount || 0) + elec + wtr + extraTotal;
+    this.totalAmount = (this.rentAmount || 0) + elec + wtr + extraTotal + penalty;
   } else if (this.type === "repair") {
-    this.totalAmount = this.repairAmount || 0;
+    this.totalAmount = (this.repairAmount || 0) + penalty;
   }
 
   // 3. Ghi nhận thời điểm thanh toán

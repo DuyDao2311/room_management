@@ -22,8 +22,10 @@ const adminRoomMapRoutes = require("./routes/adminRoomMap.routes");
 const searchRoutes = require("./routes/search");
 const cronRoutes = require("./routes/cron");
 const incidentRoutes = require("./routes/incidents");
+const bookingRoutes = require("./routes/bookings");
 const { checkExpiringContracts, checkOverdueInvoices, checkDueSoonInvoices } = require("./utils/notificationService");
 const { initCronJobs } = require("./utils/cronJobs");
+const migrateRoomImages = require("./utils/migrateRoomImages");
 
 const app = express();
 
@@ -54,8 +56,11 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 
-// ─── Kết nối DB ──────────────────────────────────────────────
-connectDB();
+// ─── Kết nối DB + Migration ────────────────────────────────────
+connectDB().then(() => {
+  // Chạy migration dữ liệu images cũ (idempotent, chỉ chạy 1 lần nếu có dữ liệu cũ)
+  migrateRoomImages();
+});
 
 // ─── HTTP Server + Socket.io ─────────────────────────────────
 const server = http.createServer(app);
@@ -112,6 +117,7 @@ app.use("/api/admin/rooms", adminRoomMapRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/cron", cronRoutes);
 app.use("/api/incidents", incidentRoutes);
+app.use("/api/bookings", bookingRoutes);
 
 // ─── Health check ─────────────────────────────────────────────
 app.get("/api/health", (_, res) => res.json({ status: "OK", timestamp: new Date() }));

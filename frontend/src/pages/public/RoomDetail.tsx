@@ -6,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext.tsx'
 import { RiMapPin2Line } from "react-icons/ri";
 import FavoriteHeartButton from '../../components/ui/FavoriteHeartButton.tsx'
 import MapView from '../../components/map/MapView.tsx'
+import RoomGallery from '../../components/room-images/RoomGallery.tsx'
 import { LiaRulerHorizontalSolid } from "react-icons/lia";
 import { MdOutlineBedroomParent, MdSecurity, MdOutlinePerson, MdOutlinePhone, MdOutlineMoreTime, MdOutlineEmail } from "react-icons/md";
 import { FaWifi } from "react-icons/fa";
@@ -15,6 +16,19 @@ import SignaturePad from '../../components/ui/SignaturePad.tsx'
 import FeedbackList from '../../components/ui/FeedbackList.tsx'
 import FeedbackForm from '../../components/ui/FeedbackForm.tsx'
 import { checkEligibility, getMyFeedback, type Feedback } from '../../api/feedback.ts'
+// import { bookingService } from '../../api/booking.service.ts'
+import DatePicker, { registerLocale } from 'react-datepicker'
+import 'react-datepicker/dist/react-datepicker.css'
+import { vi } from 'date-fns/locale'
+
+registerLocale('vi', vi)
+
+interface RoomImage {
+  _id: string
+  url: string
+  isPrimary: boolean
+  order: number
+}
 
 interface Room {
   _id: string
@@ -26,8 +40,13 @@ interface Room {
   status: 'available' | 'occupied' | 'maintenance'
   description: string
   amenities: string[]
-  images: string[]
+  images: RoomImage[]
   viewCount: number
+  rentalMode?: string
+  hourlyPrice?: number
+  dailyPrice?: number
+  weeklyPrice?: number
+  monthlyPrice?: number
   location?: {
     type: string
     coordinates: [number, number]
@@ -52,7 +71,7 @@ const AMENITY_ICONS: Record<string, React.ReactNode> = {
   'Tủ lạnh': '🧊',
 }
 
-const DEFAULT_IMG = 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80'
+
 
 interface CoResident {
   name: string
@@ -97,8 +116,6 @@ export default function RoomDetail() {
   const [room, setRoom] = useState<Room | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [previewImage, setPreviewImage] = useState<string | null>(null)
-  const [activeImg, setActiveImg] = useState(0)
 
   // Chỉ gọi API view 1 lần khi mount — dùng useRef tránh double-call trong StrictMode
   const hasTrackedView = useRef(false)
@@ -128,6 +145,14 @@ export default function RoomDetail() {
   const [rentSent, setRentSent] = useState(false)
   const [rentLoading, setRentLoading] = useState(false)
   const [rentError, setRentError] = useState('')
+
+  // Short-term booking modal state
+  const [bookingType, setBookingType] = useState('hour')
+  const [shortCheckIn, setShortCheckIn] = useState('')
+  const [shortCheckOut, setShortCheckOut] = useState('')
+  const [shortLoading, setShortLoading] = useState(false)
+  const [shortError, setShortError] = useState('')
+  const [shortSuccess, setShortSuccess] = useState(false)
 
   // Main tenant (người đứng tên hợp đồng)
   const [mainName, setMainName] = useState(user?.name || '')
@@ -211,6 +236,25 @@ export default function RoomDetail() {
     }
   }
 
+  const handleShortTermSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setShortLoading(true)
+    setShortError('')
+    try {
+      await api.post('/bookings', {
+        roomId: room!._id,
+        bookingType,
+        checkInDateTime: shortCheckIn,
+        checkOutDateTime: shortCheckOut
+      })
+      setShortSuccess(true)
+    } catch (err: any) {
+      setShortError(err.response?.data?.message || 'Có lỗi xảy ra, không thể đặt phòng.')
+    } finally {
+      setShortLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (!id) return
     api.get(`/rooms/${id}`)
@@ -246,7 +290,24 @@ export default function RoomDetail() {
       setEndDate('')
     }
   }, [startDate, leaseTerm])
+  // const formatDisplayDate = (dStr: string) => {
+  //   if (!dStr) return 'Thêm ngày';
+  //   const d = new Date(dStr);
+  //   if (isNaN(d.getTime())) return 'Thêm ngày';
+  //   const datePart = `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+  //   if (bookingType === 'hour') {
+  //     return `${datePart} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  //   }
+  //   return datePart;
+  // };
 
+  // const inputType = bookingType === 'hour' ? 'datetime-local' : 'date';
+
+  // const getSafeValue = (val: string) => {
+  //   if (!val) return '';
+  //   if (inputType === 'date') return val.length > 10 ? val.substring(0, 10) : val;
+  //   return val;
+  // };
 
 
   if (loading) return <div className="page-shell"><Spinner /></div>
@@ -261,8 +322,6 @@ export default function RoomDetail() {
   )
 
   const s = STATUS_MAP[room.status]
-  const imgs = room.images?.length > 0 ? room.images : [DEFAULT_IMG]
-  const mainImg = imgs[activeImg] ?? imgs[0]
 
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -301,34 +360,9 @@ export default function RoomDetail() {
       </div>
 
       {/* ── Gallery ── */}
-      <div className="rd-gallery">
-        {/* Main image */}
-        <div
-          className="rd-gallery-main"
-          style={{ backgroundImage: `url("${mainImg}")` }}
-          onClick={() => setPreviewImage(mainImg)}
-          title="Click để phóng to"
-        >
-          <button className="rd-view-all-btn" onClick={e => { e.stopPropagation(); setPreviewImage(mainImg) }}>
-            🖼️ Xem tất cả {imgs.length} ảnh
-          </button>
-          {/* Heart button — same style as /rooms cards */}
-          <FavoriteHeartButton room={room} />
-        </div>
-
-        {/* Thumbnails */}
-        {imgs.length > 1 && (
-          <div className="rd-thumbs">
-            {imgs.slice(0, 4).map((img, i) => (
-              <div
-                key={i}
-                className={`rd-thumb${activeImg === i ? ' active' : ''}`}
-                style={{ backgroundImage: `url("${img}")` }}
-                onClick={() => setActiveImg(i)}
-              />
-            ))}
-          </div>
-        )}
+      <div style={{ position: 'relative' }}>
+        <RoomGallery images={room.images || []} />
+        <FavoriteHeartButton room={room} />
       </div>
 
       {/* ── Main body: Info + Booking ── */}
@@ -343,11 +377,22 @@ export default function RoomDetail() {
                 {s.label}
               </span>
               <span className="rd-views">👁 {room.viewCount ?? 0} lượt xem</span>
-
+              {room.rentalMode === 'short_term' && (
+                <span style={{ marginLeft: '12px', background: '#e0e7ff', color: '#3730a3', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Cho thuê ngắn hạn</span>
+              )}
             </div>
             <div className="rd-price">
-              <span className="rd-price-num">{(room.price / 1_000_000).toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}tr</span>
-              <span className="rd-price-unit">/tháng</span>
+              {room.rentalMode === 'short_term' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                  {/* <span className="rd-price-num" style={{ fontSize: '1.4rem' }}>Từ {(room.hourlyPrice! / 1000).toLocaleString('vi-VN')}k</span>
+                  <span className="rd-price-unit" style={{ fontSize: '0.8rem' }}>/giờ</span> */}
+                </div>
+              ) : (
+                <>
+                  <span className="rd-price-num">{(room.price / 1_000_000).toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}tr</span>
+                  <span className="rd-price-unit">/tháng</span>
+                </>
+              )}
             </div>
           </div>
 
@@ -417,165 +462,225 @@ export default function RoomDetail() {
 
         {/* RIGHT: Booking form */}
         <div className="rd-book-col">
-          <div className="rd-book-card">
-            <h3 className="rd-book-title">Lên lịch xem phòng</h3>
-            <p className="rd-book-subtitle">Để lại thông tin, chúng tôi sẽ liên hệ xác nhận trong vòng 30 phút.</p>
-
-            {bookSent ? (
-              <div className="rd-book-success">
-                ✅ Đã nhận yêu cầu! Chúng tôi sẽ liên hệ bạn sớm nhất.
+          {room.rentalMode === 'short_term' ? (
+            <div className="airbnb-book-card" style={{ background: '#fff', border: '1px solid #ddd', borderRadius: '12px', padding: '24px', boxShadow: '0 6px 16px rgba(0,0,0,0.12)', position: 'sticky', top: '100px' }}>
+              <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                <span style={{ fontSize: '1.4rem', fontWeight: 700, color: '#101828' }}>{room.hourlyPrice?.toLocaleString('vi-VN')} đ</span>
+                <span style={{ fontSize: '1rem', color: '#667085' }}>/ giờ</span>
               </div>
-            ) : (
-              <form className="rd-book-form" onSubmit={handleBook}>
-                {bookError && <div className="alert alert-error" style={{ marginBottom: '10px' }}>{bookError}</div>}
 
-                <div className="rd-field">
-                  <label>Họ và tên</label>
-                  <div className="rd-input-wrap">
-                    <span className="rd-input-icon" style={{ paddingTop: "8px" }}><MdOutlinePerson size={20} color="#647885ff" /></span>
-                    <input
-                      type="text"
-                      placeholder="Nhập họ và tên"
-                      value={bookName}
-                      onChange={e => setBookName(e.target.value)}
-                      required
-                    />
-                  </div>
+              {shortSuccess ? (
+                <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                  <MdCheckCircleOutline size={48} color="#e11d48" style={{ marginBottom: '16px' }} />
+                  <h3 style={{ fontSize: '1.2rem', marginBottom: '8px', color: '#101828' }}>Đặt phòng thành công!</h3>
+                  <p style={{ fontSize: '0.9rem', color: '#667085', marginBottom: '24px' }}>Hệ thống đã ghi nhận yêu cầu. Bạn chưa bị trừ tiền lúc này.</p>
+                  <Link to="/my-bookings" className="button button-primary" style={{ background: '#e11d48', width: '100%', display: 'block', textAlign: 'center' }}>Đến Booking của tôi</Link>
                 </div>
-                <div className="rd-field">
-                  <label>Số điện thoại</label>
-                  <div className="rd-input-wrap">
-                    <span className="rd-input-icon" style={{ paddingTop: "8px" }}><MdOutlinePhone size={20} color="#647885ff" /></span>
-                    <input
-                      type="tel"
-                      placeholder="Nhập số điện thoại"
-                      value={bookPhone}
-                      onChange={e => setBookPhone(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="rd-field">
-                  <label>Email (không bắt buộc)</label>
-                  <div className="rd-input-wrap">
-                    <span className="rd-input-icon" style={{ paddingTop: "8px" }}><MdOutlineEmail size={20} color="#647885ff" /></span>
-                    <input
-                      type="email"
-                      placeholder="Nhận email xác nhận khi lịch hẹn được duyệt"
-                      value={bookEmail}
-                      onChange={e => setBookEmail(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="rd-field">
-                  <label>Ngày muốn xem</label>
-                  <div className="rd-input-wrap">
-                    <span className="rd-input-icon" style={{ paddingTop: "8px" }}><LuCalendarDays size={20} color="#647885ff" /></span>
-                    <CustomDateInput
-                      value={bookDate}
-                      onChange={(e: any) => setBookDate(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="rd-field">
-                  <label>Thời gian muốn xem</label>
-                  <div className="rd-input-wrap">
-                    <span className="rd-input-icon" style={{ paddingTop: "8px" }}><MdOutlineMoreTime size={20} color="#647885ff" /></span>
-                    <input
-                      type="time"
-                      value={bookTime}
-                      onChange={e => setBookTime(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="rd-field">
-                  <label>Ghi chú (Tùy chọn)</label>
-                  <textarea
-                    placeholder="Vì dụ: Tôi muốn xem vào buổi chiều..."
-                    value={bookNote}
-                    onChange={e => setBookNote(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-
-                {!user && (
-                  <p className="rd-book-login-note">
-                    <Link to="/login">Đăng nhập</Link> để đặt lịch nhanh hơn.
-                  </p>
-                )}
-
-                <button
-                  type="submit"
-                  className="rd-book-btn"
-                  disabled={room.status !== 'available' || bookLoading}
-                >
-                  {bookLoading ? 'ĐANG GỬI...' : 'ĐẶT LỊCH XEM NGAY'}
-                </button>
-              </form>
-            )}
-
-            {/* Hotline */}
-            <div className="rd-hotline">
-              <div>
-                <span className="rd-hotline-label">HOTLINE HỖ TRỢ</span>
-                <span className="rd-hotline-num">0869 188 512</span>
-              </div>
-              {/* <button className="rd-chat-btn">💬</button> */}
-            </div>
-          </div>
-
-          {/* Rent button area */}
-          {room.status === 'available' && (
-            <div className="rd-actions">
-              {user ? (
-                <>
-                  <button className="button button-primary" id="contact-btn" style={{ flex: 1 }}>
-                    📞 Liên hệ thuê phòng
-                  </button>
-                  <button
-                    className="button button-primary"
-                    id="rent-btn"
-                    style={{ flex: 1, background: '#088373' }}
-                    onClick={handleOpenRentModal}
-                  >
-                    🔑 Thuê phòng
-                  </button>
-                </>
               ) : (
-                <Link to="/login" className="button button-primary" id="login-to-contact" style={{ flex: 1, textAlign: 'center' }}>
-                  Đăng nhập để thuê phòng
-                </Link>
+                <form onSubmit={handleShortTermSubmit}>
+                  {shortError && <div className="alert alert-error" style={{ marginBottom: '16px', fontSize: '0.85rem' }}>{shortError}</div>}
+
+                  <div style={{ border: '1px solid #b0b0b0', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', borderBottom: '1px solid #b0b0b0' }}>
+                      <div style={{ flex: 1, padding: '10px 12px', borderRight: '1px solid #b0b0b0' }}>
+                        <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#222222', marginBottom: '2px', textTransform: 'uppercase' }}>Nhận phòng</label>
+                        <DatePicker
+                          selected={shortCheckIn ? new Date(shortCheckIn) : null}
+                          onChange={(date: Date | null) => setShortCheckIn(date ? date.toISOString() : '')}
+                          showTimeSelect={bookingType === 'hour'}
+                          timeFormat="HH:mm"
+                          timeIntervals={30}
+                          timeCaption="Giờ"
+                          dateFormat={bookingType === 'hour' ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy"}
+                          locale="vi"
+                          placeholderText="Thêm ngày"
+                          customInput={<input readOnly style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: '14px', color: shortCheckIn ? '#222222' : '#717171', fontWeight: 400, width: '100%', padding: 0, cursor: 'pointer' }} />}
+                        />
+                      </div>
+                      <div style={{ flex: 1, padding: '10px 12px' }}>
+                        <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#222222', marginBottom: '2px', textTransform: 'uppercase' }}>Trả phòng</label>
+                        <DatePicker
+                          selected={shortCheckOut ? new Date(shortCheckOut) : null}
+                          onChange={(date: Date | null) => setShortCheckOut(date ? date.toISOString() : '')}
+                          showTimeSelect={bookingType === 'hour'}
+                          timeFormat="HH:mm"
+                          timeIntervals={30}
+                          timeCaption="Giờ"
+                          dateFormat={bookingType === 'hour' ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy"}
+                          locale="vi"
+                          placeholderText="Thêm ngày"
+                          customInput={<input readOnly style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: '14px', color: shortCheckOut ? '#222222' : '#717171', fontWeight: 400, width: '100%', padding: 0, cursor: 'pointer' }} />}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ padding: '10px 12px' }}>
+                      <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#222222', marginBottom: '4px', textTransform: 'uppercase' }}>Hình thức thuê</label>
+                      <select value={bookingType} onChange={e => setBookingType(e.target.value)} required style={{ border: 'none', outline: 'none', width: '100%', fontSize: '0.9rem', padding: 0, backgroundColor: 'transparent', cursor: 'pointer' }}>
+                        <option value="hour">Theo giờ ({room.hourlyPrice?.toLocaleString('vi-VN')}đ)</option>
+                        <option value="day">Theo ngày ({room.dailyPrice?.toLocaleString('vi-VN')}đ)</option>
+                        <option value="week">Theo tuần ({room.weeklyPrice?.toLocaleString('vi-VN')}đ)</option>
+                        <option value="month">Theo tháng ({room.monthlyPrice?.toLocaleString('vi-VN')}đ)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ background: '#f3f4f6', borderRadius: '8px', padding: '12px', textAlign: 'center', fontSize: '0.85rem', color: '#374151', marginBottom: '16px' }}>
+                    Hủy miễn phí trước khi nhận phòng
+                  </div>
+
+                  {user ? (
+                    <button type="submit" disabled={shortLoading} style={{ width: '100%', background: '#003e68', color: '#fff', border: 'none', padding: '14px', borderRadius: '8px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', opacity: shortLoading ? 0.7 : 1 }}>
+                      {shortLoading ? 'ĐANG XỬ LÝ...' : 'Đặt phòng'}
+                    </button>
+                  ) : (
+                    <Link to="/login" className="button button-primary" style={{ width: '100%', background: '#e11d48', color: '#fff', display: 'block', textAlign: 'center', padding: '14px', borderRadius: '8px', fontSize: '1rem', fontWeight: 700 }}>
+                      Đăng nhập để Đặt phòng
+                    </Link>
+                  )}
+
+                </form>
               )}
             </div>
+          ) : (
+            <>
+              <div className="rd-book-card">
+                <h3 className="rd-book-title">Lên lịch xem phòng</h3>
+                <p className="rd-book-subtitle">Để lại thông tin, chúng tôi sẽ liên hệ xác nhận trong vòng 30 phút.</p>
+
+                {bookSent ? (
+                  <div className="rd-book-success">
+                    ✅ Đã nhận yêu cầu! Chúng tôi sẽ liên hệ bạn sớm nhất.
+                  </div>
+                ) : (
+                  <form className="rd-book-form" onSubmit={handleBook}>
+                    {bookError && <div className="alert alert-error" style={{ marginBottom: '10px' }}>{bookError}</div>}
+
+                    <div className="rd-field">
+                      <label>Họ và tên</label>
+                      <div className="rd-input-wrap">
+                        <span className="rd-input-icon" style={{ paddingTop: "8px" }}><MdOutlinePerson size={20} color="#647885ff" /></span>
+                        <input
+                          type="text"
+                          placeholder="Nhập họ và tên"
+                          value={bookName}
+                          onChange={e => setBookName(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="rd-field">
+                      <label>Số điện thoại</label>
+                      <div className="rd-input-wrap">
+                        <span className="rd-input-icon" style={{ paddingTop: "8px" }}><MdOutlinePhone size={20} color="#647885ff" /></span>
+                        <input
+                          type="tel"
+                          placeholder="Nhập số điện thoại"
+                          value={bookPhone}
+                          onChange={e => setBookPhone(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="rd-field">
+                      <label>Email (không bắt buộc)</label>
+                      <div className="rd-input-wrap">
+                        <span className="rd-input-icon" style={{ paddingTop: "8px" }}><MdOutlineEmail size={20} color="#647885ff" /></span>
+                        <input
+                          type="email"
+                          placeholder="Nhận email xác nhận khi lịch hẹn được duyệt"
+                          value={bookEmail}
+                          onChange={e => setBookEmail(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="rd-field">
+                      <label>Ngày muốn xem</label>
+                      <div className="rd-input-wrap">
+                        <span className="rd-input-icon" style={{ paddingTop: "8px" }}><LuCalendarDays size={20} color="#647885ff" /></span>
+                        <CustomDateInput
+                          value={bookDate}
+                          onChange={(e: any) => setBookDate(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="rd-field">
+                      <label>Thời gian muốn xem</label>
+                      <div className="rd-input-wrap">
+                        <span className="rd-input-icon" style={{ paddingTop: "8px" }}><MdOutlineMoreTime size={20} color="#647885ff" /></span>
+                        <input
+                          type="time"
+                          value={bookTime}
+                          onChange={e => setBookTime(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="rd-field">
+                      <label>Ghi chú (Tùy chọn)</label>
+                      <textarea
+                        placeholder="Vì dụ: Tôi muốn xem vào buổi chiều..."
+                        value={bookNote}
+                        onChange={e => setBookNote(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
+
+                    {!user && (
+                      <p className="rd-book-login-note">
+                        <Link to="/login">Đăng nhập</Link> để đặt lịch nhanh hơn.
+                      </p>
+                    )}
+
+                    <button
+                      type="submit"
+                      className="rd-book-btn"
+                      disabled={room.status !== 'available' || bookLoading}
+                    >
+                      {bookLoading ? 'ĐANG GỬI...' : 'ĐẶT LỊCH XEM NGAY'}
+                    </button>
+                  </form>
+                )}
+
+                {/* Hotline */}
+                <div className="rd-hotline">
+                  <div>
+                    <span className="rd-hotline-label">HOTLINE HỖ TRỢ</span>
+                    <span className="rd-hotline-num">0869 188 512</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Rent button area */}
+              {room.status === 'available' && (
+                <div className="rd-actions">
+                  {user ? (
+                    <>
+                      <button className="button button-primary" id="contact-btn" style={{ flex: 1 }}>
+                        📞 Liên hệ
+                      </button>
+                      <button
+                        className="button button-primary"
+                        id="rent-btn"
+                        style={{ flex: 1, background: '#088373' }}
+                        onClick={handleOpenRentModal}
+                      >
+                        🔑 Thuê phòng
+                      </button>
+                    </>
+                  ) : (
+                    <Link to="/login" className="button button-primary" id="login-to-contact" style={{ flex: 1, textAlign: 'center' }}>
+                      Đăng nhập để thuê phòng
+                    </Link>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* ── Image Preview Modal ── */}
-      {previewImage && (
-        <div
-          onClick={() => setPreviewImage(null)}
-          style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', zIndex: 9999, cursor: 'zoom-out'
-          }}
-        >
-          <img
-            src={previewImage}
-            alt="Room Preview"
-            style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: '8px', objectFit: 'contain', boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }}
-          />
-          <button
-            style={{ position: 'absolute', top: '24px', right: '32px', background: 'none', border: 'none', color: 'white', fontSize: '2.5rem', cursor: 'pointer' }}
-            onClick={() => setPreviewImage(null)}
-          >
-            &times;
-          </button>
-        </div>
-      )}
+
 
       {/* ── Rental Registration Modal ── */}
       {showRentModal && (

@@ -639,20 +639,90 @@ const checkOverdueInvoices = async () => {
 
   const results = [];
   for (const invoice of overdueInvoices) {
-    if (invoice.status === "unpaid") {
-      invoice.status = "overdue";
-      await invoice.save();
-    }
+    try {
+      // Đảm bảo status = overdue
+      if (invoice.status === "unpaid") {
+        invoice.status = "overdue";
+      }
 
-    const existingNotif = await Notification.findOne({
-      type: "INVOICE",
-      invoiceId: invoice._id,
-      createdAt: { $gte: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000) },
-    });
-    if (!existingNotif) {
-      const staffNotifs = await notifyInvoiceOverdue(invoice);
-      const tenantNotifs = await notifyTenantInvoiceOverdue(invoice);
-      results.push(...staffNotifs, ...tenantNotifs);
+      // Tính số ngày quá hạn
+      const dueDate = new Date(invoice.dueDate);
+      dueDate.setHours(0, 0, 0, 0);
+      const daysOverdue = Math.floor((startOfToday - dueDate) / (1000 * 60 * 60 * 24));
+      const currentStep = invoice.overdueStep || 0;
+
+      // ── Áp dụng phí phạt nếu >= 4 ngày và chưa có ──
+      let penaltyAppliedNow = false;
+      if (daysOverdue >= 4 && (!invoice.penaltyFee || invoice.penaltyFee === 0)) {
+        const baseAmount = invoice.totalAmount || 0;
+        invoice.penaltyFee = Math.round(baseAmount * 0.05);
+        penaltyAppliedNow = true;
+      }
+
+      // ── Step 6: Chấm dứt hợp đồng (> 19 ngày) — xử lý trong cronJobs.js ──
+      // Không xử lý ở đây, chỉ trả về thông tin để cronJobs xử lý
+
+      // ── Step 5: Cảnh báo chấm dứt HĐ sau 5 ngày (>= 14 ngày) ──
+      if (daysOverdue >= 14 && currentStep < 5) {
+        invoice.overdueStep = 5;
+        await invoice.save();
+        const tenantNotifs = await notifyTenantTerminationWarning(invoice);
+        const staffNotifs = await notifyInvoiceOverdue(invoice);
+        results.push(...tenantNotifs, ...staffNotifs);
+        continue;
+      }
+
+      // ── Step 4: Cảnh báo công nợ nghiêm trọng (>= 9 ngày) ──
+      if (daysOverdue >= 9 && currentStep < 4) {
+        invoice.overdueStep = 4;
+        await invoice.save();
+        const tenantNotifs = await notifyTenantSevereWarning(invoice);
+        const staffNotifs = await notifyInvoiceOverdue(invoice);
+        results.push(...tenantNotifs, ...staffNotifs);
+        continue;
+      }
+
+      // ── Step 3: Áp dụng phí phạt 5% (>= 4 ngày) ──
+      if (daysOverdue >= 4 && currentStep < 3) {
+        invoice.overdueStep = 3;
+        await invoice.save(); // pre("save") sẽ tự cộng penaltyFee vào totalAmount
+        const tenantNotifs = await notifyTenantPenaltyApplied(invoice);
+        const staffNotifs = await notifyInvoiceOverdue(invoice);
+        results.push(...tenantNotifs, ...staffNotifs);
+        continue;
+      }
+
+      // Nếu chỉ áp dụng phạt mà không vào step mới (ví dụ đã ở step 3 nhưng vì lý do nào đó mất penalty)
+      if (penaltyAppliedNow && currentStep >= 3) {
+         await invoice.save();
+      }
+
+      // ── Step 2: Nhắc nhở lần 2 (>= 3 ngày) ──
+      if (daysOverdue >= 3 && currentStep < 2) {
+        invoice.overdueStep = 2;
+        await invoice.save();
+        const tenantNotifs = await notifyTenantOverdueReminder2(invoice);
+        const staffNotifs = await notifyInvoiceOverdue(invoice);
+        results.push(...tenantNotifs, ...staffNotifs);
+        continue;
+      }
+
+      // ── Step 1: Nhắc nhở lần 1 (>= 1 ngày) ──
+      if (daysOverdue >= 1 && currentStep < 1) {
+        invoice.overdueStep = 1;
+        await invoice.save();
+        const tenantNotifs = await notifyTenantOverdueReminder1(invoice);
+        const staffNotifs = await notifyInvoiceOverdue(invoice);
+        results.push(...tenantNotifs, ...staffNotifs);
+        continue;
+      }
+
+      // Nếu chưa vào bước nào mới, vẫn lưu status overdue
+      if (invoice.isModified()) {
+        await invoice.save();
+      }
+    } catch (err) {
+      console.error(`[Overdue] Lỗi xử lý hóa đơn ${invoice._id}:`, err.message);
     }
   }
   return results;
@@ -688,6 +758,122 @@ const checkDueSoonInvoices = async () => {
     }
   }
   return results;
+};
+
+// ─── Overdue escalation notification helpers ─────────────────────────────────
+
+/** Nhắc nhở lần 1 (1 ngày quá hạn) → tenant */
+const notifyTenantOverdueReminder1 = async (invoice) => {
+  const tenant = await User.findById(invoice.tenantId).select("_id email name");
+  if (!tenant) return [];
+
+  const title = "🔔 Nhắc nhở thanh toán hóa đơn (lần 1)";
+  const message = `Kính gửi Quý khách,\n\nHóa đơn phòng ${invoice.roomName} (${fmt(invoice.totalAmount)}đ) đã quá hạn thanh toán từ ngày ${fmtDate(invoice.dueDate)}. Vui lòng hoàn tất thanh toán sớm nhất để tránh các khoản phí phạt phát sinh.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+
+  return dispatch({
+    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
+    data: { type: "INVOICE", title, message, invoiceId: invoice._id },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/my-invoices"),
+  });
+};
+
+/** Nhắc nhở lần 2 (3 ngày quá hạn) → tenant */
+const notifyTenantOverdueReminder2 = async (invoice) => {
+  const tenant = await User.findById(invoice.tenantId).select("_id email name");
+  if (!tenant) return [];
+
+  const title = "⚠️ Nhắc nhở thanh toán hóa đơn (lần 2)";
+  const message = `Kính gửi Quý khách,\n\nĐây là lần nhắc nhở thứ 2 về hóa đơn phòng ${invoice.roomName} (${fmt(invoice.totalAmount)}đ) đã quá hạn từ ngày ${fmtDate(invoice.dueDate)}. Nếu không thanh toán trong thời gian tới, hệ thống sẽ tự động áp dụng phí phạt quá hạn.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+
+  return dispatch({
+    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
+    data: { type: "INVOICE", title, message, invoiceId: invoice._id },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/my-invoices"),
+  });
+};
+
+/** Áp dụng phí phạt 5% (4 ngày quá hạn) → tenant */
+const notifyTenantPenaltyApplied = async (invoice) => {
+  const tenant = await User.findById(invoice.tenantId).select("_id email name");
+  if (!tenant) return [];
+
+  const title = "💸 Đã áp dụng phí phạt quá hạn 5%";
+  const message = `Kính gửi Quý khách,\n\nDo hóa đơn phòng ${invoice.roomName} chưa được thanh toán sau nhiều lần nhắc nhở, hệ thống đã áp dụng phí phạt quá hạn 5% (${fmt(invoice.penaltyFee)}đ). Tổng số tiền cần thanh toán hiện tại là ${fmt(invoice.totalAmount)}đ.\n\nVui lòng thanh toán sớm nhất có thể.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+
+  return dispatch({
+    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
+    data: { type: "INVOICE", title, message, invoiceId: invoice._id },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/my-invoices"),
+  });
+};
+
+/** Cảnh báo công nợ nghiêm trọng (9 ngày quá hạn) → tenant */
+const notifyTenantSevereWarning = async (invoice) => {
+  const tenant = await User.findById(invoice.tenantId).select("_id email name");
+  if (!tenant) return [];
+
+  const title = "🚨 Cảnh báo công nợ nghiêm trọng";
+  const message = `Kính gửi Quý khách,\n\nHóa đơn phòng ${invoice.roomName} (${fmt(invoice.totalAmount)}đ) đã quá hạn thanh toán nghiêm trọng. Nếu tình trạng công nợ tiếp tục kéo dài, chúng tôi sẽ buộc phải xem xét chấm dứt hợp đồng thuê phòng.\n\nVui lòng liên hệ ngay với ban quản lý để giải quyết.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+
+  return dispatch({
+    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
+    data: { type: "INVOICE", title, message, invoiceId: invoice._id },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/my-invoices"),
+  });
+};
+
+/** Cảnh báo chấm dứt hợp đồng sau 5 ngày (14 ngày quá hạn) → tenant */
+const notifyTenantTerminationWarning = async (invoice) => {
+  const tenant = await User.findById(invoice.tenantId).select("_id email name");
+  if (!tenant) return [];
+
+  const title = "❌ Thông báo sẽ chấm dứt hợp đồng sau 5 ngày";
+  const message = `Kính gửi Quý khách,\n\nDo hóa đơn phòng ${invoice.roomName} (${fmt(invoice.totalAmount)}đ) đã quá hạn thanh toán quá lâu mà chưa được giải quyết, chúng tôi chính thức thông báo:\n\nHợp đồng thuê phòng của Quý khách sẽ bị chấm dứt sau 5 ngày nữa nếu khoản nợ không được thanh toán. Quý khách cũng sẽ mất toàn bộ tiền cọc.\n\nVui lòng liên hệ ngay với ban quản lý để thanh toán và tránh bị chấm dứt hợp đồng.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+
+  return dispatch({
+    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
+    data: { type: "INVOICE", title, message, invoiceId: invoice._id },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/my-invoices"),
+  });
+};
+
+/** Thông báo hợp đồng đã bị chấm dứt do nợ (> 19 ngày quá hạn) → tenant */
+const notifyTenantContractTerminatedDueToDebt = async (invoice, contract) => {
+  const tenant = await User.findById(invoice.tenantId).select("_id email name");
+  if (!tenant) return [];
+
+  const room = await Room.findById(contract.room).select("name");
+  const title = "🔴 Hợp đồng đã bị chấm dứt do nợ quá hạn";
+  const message = `Kính gửi Quý khách,\n\nHợp đồng thuê phòng ${room?.name || invoice.roomName} của Quý khách đã bị chấm dứt do hóa đơn quá hạn thanh toán quá lâu mà không được giải quyết.\n\n• Tiền cọc: Bị tịch thu theo quy định.\n• Phòng: Đã được giải phóng.\n\nNếu có bất kỳ thắc mắc nào, vui lòng liên hệ với ban quản lý.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+
+  return dispatch({
+    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
+    data: { type: "CONTRACT", title, message, contractId: contract._id, invoiceId: invoice._id },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/my-room"),
+  });
+};
+
+/** Thông báo cho staff/admin khi hợp đồng bị chấm dứt do nợ */
+const notifyStaffContractTerminatedDueToDebt = async (invoice, contract) => {
+  const district = await getInvoiceDistrict(invoice);
+  const room = await Room.findById(contract.room).select("name");
+  const title = "🔴 Hợp đồng bị chấm dứt do nợ quá hạn";
+  const message = `Hợp đồng phòng ${room?.name || invoice.roomName} — ${invoice.representativeName} đã bị hệ thống tự động chấm dứt do hóa đơn quá hạn ${fmt(invoice.totalAmount)}đ không được thanh toán. Tiền cọc đã bị tịch thu. Phòng chuyển sang trạng thái Available.`;
+
+  return await notifyStaffByDistrict(district, {
+    type: "CONTRACT",
+    title,
+    message,
+    contractId: contract._id,
+    invoiceId: invoice._id,
+    actionUrl: buildFrontendUrl("/admin/contracts"),
+  });
 };
 
 // ─── Socket helper (giữ nguyên) ──────────────────────────────────────────────
@@ -820,6 +1006,9 @@ module.exports = {
   checkExpiringContracts,
   checkOverdueInvoices,
   checkDueSoonInvoices,
+  // Overdue escalation
+  notifyTenantContractTerminatedDueToDebt,
+  notifyStaffContractTerminatedDueToDebt,
   // Socket
   sendSocketNotification,
 };

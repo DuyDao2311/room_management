@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import { useAuth } from '../../contexts/AuthContext.tsx'
-import { FiHome, FiKey, FiUserPlus, FiDollarSign, FiCalendar, FiDownload, FiMapPin } from "react-icons/fi";
+import { FiHome, FiKey, FiUserPlus, FiDollarSign, FiCalendar, FiDownload, FiMapPin, FiBookmark } from "react-icons/fi";
+import { bookingService } from '../../api/booking.service.ts'
 
 interface Stats {
   totalRooms: number
@@ -23,17 +24,33 @@ interface Stats {
   vnpayRevenue: number
 }
 
+interface ShortTermStats {
+  totalBookings: number
+  todayBookings: number
+  monthBookings: number
+  shortTermRevenue: number
+  occupancyRate: number
+  topRooms: any[]
+}
+
 export default function Dashboard() {
   const { user } = useAuth()
   const [stats, setStats] = useState<Stats | null>(null)
+  const [shortTermStats, setShortTermStats] = useState<ShortTermStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const isStaff = user?.role === 'staff'
 
   useEffect(() => {
-    api.get('/admin/stats')
-      .then(res => setStats(res.data))
+    Promise.all([
+      api.get('/admin/stats'),
+      bookingService.getStats()
+    ])
+      .then(([statsRes, bookingRes]) => {
+        setStats(statsRes.data)
+        setShortTermStats(bookingRes.data)
+      })
       .catch(() => setError('Không thể tải thống kê.'))
       .finally(() => setLoading(false))
   }, [])
@@ -141,11 +158,36 @@ export default function Dashboard() {
                 <span style={{ fontSize: '0.75rem', color: '#003e68', fontWeight: 700 }}>VND</span>
               </div>
             </div>
-            <FiDollarSign size={26} color="#133b72ff" />
+            <FiDollarSign size={26} color="#23385aff" />
           </div>
         </div>
 
-        {/* Lower Grid (Chart & Notifications) */}
+        {/* Short Term Stats Grid */}
+        <div style={{ marginBottom: '24px' }}>
+          <h2 style={{ fontSize: '1.2rem', color: '#003e68', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <FiBookmark /> Booking (Ngắn hạn)
+          </h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #eaecf0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#667085', fontWeight: 600 }}>Tỷ lệ lấp đầy</p>
+              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#003e68', marginTop: '8px' }}>{shortTermStats?.occupancyRate ?? 0}%</div>
+            </div>
+            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #eaecf0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#667085', fontWeight: 600 }}>Booking hôm nay</p>
+              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#088373', marginTop: '8px' }}>{shortTermStats?.todayBookings ?? 0}</div>
+            </div>
+            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #eaecf0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#667085', fontWeight: 600 }}>Booking tháng này</p>
+              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f79009', marginTop: '8px' }}>{shortTermStats?.monthBookings ?? 0}</div>
+            </div>
+            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #eaecf0', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#667085', fontWeight: 600 }}>Doanh thu ngắn hạn (Tháng)</p>
+              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#003e68', marginTop: '8px' }}>{shortTermStats ? `${(shortTermStats.shortTermRevenue / 1_000_000).toFixed(1)}M` : '0M'}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Section: Left (Overdue & Pending) + Right (Payment Chart) */}
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
           {/* Chart Placeholder */}
           <div style={{ background: 'white', padding: '32px', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column' }}>
