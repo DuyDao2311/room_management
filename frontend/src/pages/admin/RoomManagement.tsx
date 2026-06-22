@@ -24,6 +24,11 @@ interface Room {
   amenities?: string[]
   images?: string[]
   maintenanceEndDate?: string
+  hourlyPrice?: number
+  dailyPrice?: number
+  weeklyPrice?: number
+  monthlyPrice?: number
+  rentalMode?: string
   location?: {
     type: string
     coordinates: [number, number]
@@ -40,6 +45,7 @@ const EMPTY_FORM = {
   name: '', address: '', district: '', price: '', area: '',
   type: 'Studio', status: 'available' as Room['status'],
   description: '', amenities: '', maintenanceEndDate: '',
+  hourlyPrice: '0', dailyPrice: '0', weeklyPrice: '0', monthlyPrice: '0',
   locationLat: 0, locationLng: 0
 }
 
@@ -76,6 +82,7 @@ export default function RoomManagement() {
   )
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [filterRentalMode, setFilterRentalMode] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = 9
 
@@ -125,6 +132,8 @@ export default function RoomManagement() {
           description: r.description || '',
           amenities: r.amenities ? r.amenities.join(', ') : '',
           maintenanceEndDate: r.maintenanceEndDate ? new Date(r.maintenanceEndDate).toISOString().split('T')[0] : '',
+          hourlyPrice: String(r.hourlyPrice || 0), dailyPrice: String(r.dailyPrice || 0),
+          weeklyPrice: String(r.weeklyPrice || 0), monthlyPrice: String(r.monthlyPrice || 0),
           locationLat: r.location?.coordinates?.[1] || 0,
           locationLng: r.location?.coordinates?.[0] || 0
         });
@@ -154,6 +163,8 @@ export default function RoomManagement() {
       description: r.description || '',
       amenities: r.amenities ? r.amenities.join(', ') : '',
       maintenanceEndDate: r.maintenanceEndDate ? new Date(r.maintenanceEndDate).toISOString().split('T')[0] : '',
+      hourlyPrice: String(r.hourlyPrice || 0), dailyPrice: String(r.dailyPrice || 0),
+      weeklyPrice: String(r.weeklyPrice || 0), monthlyPrice: String(r.monthlyPrice || 0),
       locationLat: r.location?.coordinates?.[1] || 0,
       locationLng: r.location?.coordinates?.[0] || 0
     })
@@ -168,6 +179,10 @@ export default function RoomManagement() {
       ...form,
       price: Number(form.price),
       area: Number(form.area),
+      hourlyPrice: Number(form.hourlyPrice),
+      dailyPrice: Number(form.dailyPrice),
+      weeklyPrice: Number(form.weeklyPrice),
+      monthlyPrice: Number(form.monthlyPrice),
       amenities: form.amenities.split(',').map(s => s.trim()).filter(Boolean),
     }
 
@@ -219,6 +234,7 @@ export default function RoomManagement() {
     if (filterDistrict && r.district !== filterDistrict) return false;
     if (filterType && r.type !== filterType) return false;
     if (filterStatus && r.status !== filterStatus) return false;
+    if (filterRentalMode && r.rentalMode !== filterRentalMode) return false;
     return true;
   });
 
@@ -296,6 +312,12 @@ export default function RoomManagement() {
             <option value="available">Còn phòng</option>
             <option value="occupied">Đã thuê</option>
             <option value="maintenance">Đang sửa</option>
+          </select>
+
+          <select value={filterRentalMode} onChange={e => { setFilterRentalMode(e.target.value); setCurrentPage(1); }} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #eaecf0', background: '#f9fafb', color: '#475467', outline: 'none' }}>
+            <option value="">Hình thức thuê</option>
+            <option value="short_term">Thuê ngắn hạn</option>
+            <option value="long_term">Thuê dài hạn</option>
           </select>
 
           <div style={{ marginLeft: 'auto' }}>
@@ -484,6 +506,31 @@ export default function RoomManagement() {
                     <input id="f-area" type="number" className="form-input" value={form.area} onChange={e => setForm({ ...form, area: e.target.value })} required min={0} placeholder="40" />
                   </div>
                 </div>
+                {(form.type === 'Studio' || form.type === '1 phòng ngủ') && (
+                  <>
+                    <p style={{ margin: '8px 0', fontSize: '0.9rem', color: '#003e68', fontWeight: 600 }}>Cấu hình giá thuê ngắn hạn</p>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label htmlFor="f-price-hour">Giá theo giờ (VNĐ)</label>
+                        <input id="f-price-hour" type="number" className="form-input" value={form.hourlyPrice} onChange={e => setForm({ ...form, hourlyPrice: e.target.value })} min={0} />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="f-price-day">Giá theo ngày (VNĐ)</label>
+                        <input id="f-price-day" type="number" className="form-input" value={form.dailyPrice} onChange={e => setForm({ ...form, dailyPrice: e.target.value })} min={0} />
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label htmlFor="f-price-week">Giá theo tuần (VNĐ)</label>
+                        <input id="f-price-week" type="number" className="form-input" value={form.weeklyPrice} onChange={e => setForm({ ...form, weeklyPrice: e.target.value })} min={0} />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="f-price-month">Giá theo tháng (ngắn hạn) (VNĐ)</label>
+                        <input id="f-price-month" type="number" className="form-input" value={form.monthlyPrice} onChange={e => setForm({ ...form, monthlyPrice: e.target.value })} min={0} />
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div className="form-row">
                   <div className="form-group">
                     <label htmlFor="f-district">Quận/Huyện</label>

@@ -9,9 +9,9 @@ export default function Footer() {
 
         {/* Cột 1: Thương hiệu */}
         <div className="footer-brand-col">
-          <Link to="/" className="footer-brand-name">Phòng Trọ DTT</Link>
+          <Link to="/" className="footer-brand-name">Căn Hộ F4</Link>
           <p className="footer-brand-desc">
-            Đơn vị quản lý và cho thuê phòng trọ hàng đầu với phong cách kiến trúc hiện đại và dịch vụ tận tâm.
+            Đơn vị quản lý và cho thuê căn hộ hàng đầu với phong cách kiến trúc hiện đại và dịch vụ tận tâm.
           </p>
           <div className="footer-socials">
             <a href="https://facebook.com" target="_blank" rel="noreferrer" className="social-icon" title="Facebook">

@@ -11,7 +11,8 @@ export interface PaymentResponse {
   metadata: {
     paymentUrl?: string;
     orderId?: string;
-    invoiceId: string;
+    invoiceId?: string;
+    bookingId?: string;
     totalAmount?: number;
     status?: string;
     paymentMethod?: string;
@@ -22,13 +23,13 @@ export interface PaymentResponse {
  * Tạo yêu cầu thanh toán (Momo hoặc VNPay)
  */
 export async function createPayment(
-  invoiceId: string,
-  paymentMethod: 'momo' | 'vnpay'
+  data: { invoiceId?: string; bookingId?: string; paymentMethod: 'momo' | 'vnpay' }
 ): Promise<PaymentResponse> {
   try {
     const response = await api.post('/payment/create', {
-      invoiceId,
-      typePayment: paymentMethod,
+      invoiceId: data.invoiceId,
+      bookingId: data.bookingId,
+      typePayment: data.paymentMethod,
     });
     return response.data;
   } catch (error: any) {

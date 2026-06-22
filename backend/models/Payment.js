@@ -16,7 +16,13 @@ const paymentSchema = new mongoose.Schema(
     invoice: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Invoice",
-      required: true,
+      required: false,
+      index: true,
+    },
+    booking: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Booking",
+      required: false,
       index: true,
     },
     contract: {

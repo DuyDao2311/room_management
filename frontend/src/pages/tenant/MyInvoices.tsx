@@ -37,6 +37,8 @@ interface Invoice {
   electricity?: { oldReading: number; newReading: number; usage: number; rate: number; amount: number }
   water?: { oldReading: number; newReading: number; usage: number; rate: number; amount: number }
   extraFees?: Array<{ name: string; amount: number }>
+  penaltyFee?: number
+  overdueStep?: number
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: 'success' | 'warning' | 'danger' | 'info' | 'neutral' }> = {
@@ -117,6 +119,17 @@ export default function MyInvoices() {
     }
   }, [loading, invoices, searchParams, setSearchParams])
 
+  useEffect(() => {
+    if (selectedInvoice || cashModal) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'auto'
+    }
+    return () => {
+      document.body.style.overflow = 'auto'
+    }
+  }, [selectedInvoice, cashModal])
+
   const handlePay = async (id: string) => {
     if (!paymentMethod) {
       alert('Vui lòng chọn phương thức thanh toán')
@@ -140,7 +153,7 @@ export default function MyInvoices() {
 
     setPayingId(id)
     try {
-      const response = await createPayment(id, paymentMethod)
+      const response = await createPayment({ invoiceId: id, paymentMethod })
 
       // Nếu có paymentUrl (Momo/VNPay), redirect sang gateway
       if (response.metadata.paymentUrl) {
@@ -283,11 +296,11 @@ export default function MyInvoices() {
 
         {/* MODAL CHI TIẾT HÓA ĐƠN */}
         {selectedInvoice && (
-          <div className="rent-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setSelectedInvoice(null) }}>
-            <div className="rent-modal" style={{ maxWidth: '1000px', borderRadius: '12px', padding: 0, overflow: 'hidden', background: '#f3f4f6' }}>
+          <div className="rent-modal-overlay" style={{ alignItems: 'center', padding: '20px', overflow: 'hidden' }} onClick={(e) => { if (e.target === e.currentTarget) setSelectedInvoice(null) }}>
+            <div className="rent-modal" style={{ maxWidth: '1000px', width: '100%', borderRadius: '12px', padding: 0, overflow: 'hidden', background: '#f3f4f6', display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 40px)' }}>
 
               {/* Header */}
-              <div style={{ background: '#fff', padding: '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb' }}>
+              <div style={{ background: '#fff', padding: '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '4px' }}>
                     <h2 style={{ margin: 0, fontSize: '1.5rem', color: '#111827', fontWeight: 800 }}>
@@ -303,7 +316,7 @@ export default function MyInvoices() {
               </div>
 
               {/* Body */}
-              <div style={{ padding: '32px', display: 'flex', gap: '32px', alignItems: 'flex-start', maxHeight: '80vh', overflowY: 'auto' }}>
+              <div style={{ padding: '32px', display: 'flex', gap: '32px', alignItems: 'flex-start', overflowY: 'auto', flex: 1 }}>
 
                 {/* Left Column */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -402,6 +415,22 @@ export default function MyInvoices() {
                         </tr>
                         )}
 
+                        {/* Deposit */}
+                        {selectedInvoice.type === 'deposit' && (
+                        <tr style={{ borderBottom: '1px dashed #e5e7eb' }}>
+                          <td style={{ padding: '20px 0' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                              <div style={{ width: '40px', height: '40px', background: '#ecfdf5', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                                <MdOutlineReceipt size={20} />
+                              </div>
+                              <span style={{ fontWeight: 600, color: '#374151' }}>Tiền cọc</span>
+                            </div>
+                          </td>
+                          <td style={{ color: '#6b7280', fontSize: '0.9rem' }}>Tiền cọc giữ phòng</td>
+                          <td style={{ textAlign: 'right', fontWeight: 800, color: '#111827', fontSize: '1.05rem' }}>{(selectedInvoice.depositAmount || 0).toLocaleString('vi-VN')} đ</td>
+                        </tr>
+                        )}
+
                         {/* Electricity */}
                         {selectedInvoice.electricity && (
                           <tr style={{ borderBottom: '1px dashed #e5e7eb' }}>
@@ -448,7 +477,7 @@ export default function MyInvoices() {
 
                         {/* Extra Fees */}
                         {selectedInvoice.extraFees?.map((fee, idx) => (
-                          <tr key={idx} style={{ borderBottom: idx === (selectedInvoice.extraFees?.length || 0) - 1 ? 'none' : '1px dashed #e5e7eb' }}>
+                          <tr key={idx} style={{ borderBottom: idx === (selectedInvoice.extraFees?.length || 0) - 1 && !(selectedInvoice.penaltyFee && selectedInvoice.penaltyFee > 0) ? 'none' : '1px dashed #e5e7eb' }}>
                             <td style={{ padding: '20px 0' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                                 <div style={{ width: '40px', height: '40px', background: '#f3f4f6', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
@@ -461,6 +490,22 @@ export default function MyInvoices() {
                             <td style={{ textAlign: 'right', fontWeight: 800, color: '#111827', fontSize: '1.05rem' }}>{(fee.amount || 0).toLocaleString('vi-VN')} đ</td>
                           </tr>
                         ))}
+
+                        {/* Phí phạt quá hạn */}
+                        {selectedInvoice.penaltyFee != null && selectedInvoice.penaltyFee > 0 && (
+                          <tr style={{ borderBottom: 'none', background: '#fef2f2' }}>
+                            <td style={{ padding: '20px 0' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                <div style={{ width: '40px', height: '40px', background: '#fee2e2', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626' }}>
+                                  ⚠️
+                                </div>
+                                <span style={{ fontWeight: 600, color: '#dc2626' }}>Phí phạt quá hạn (5%)</span>
+                              </div>
+                            </td>
+                            <td style={{ color: '#dc2626', fontSize: '0.9rem' }}>Phạt do thanh toán trễ</td>
+                            <td style={{ textAlign: 'right', fontWeight: 800, color: '#dc2626', fontSize: '1.05rem' }}>{selectedInvoice.penaltyFee.toLocaleString('vi-VN')} đ</td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>

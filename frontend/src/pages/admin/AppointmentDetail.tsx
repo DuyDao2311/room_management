@@ -69,7 +69,8 @@ export default function AppointmentDetail() {
   const d = new Date(apt.date)
   const dayName = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'][d.getDay()]
   const dateStr = d.toLocaleDateString('vi-VN')
-  const thumb = apt.room?.images?.[0] || DEFAULT_IMG
+  const firstImage = apt.room?.images?.[0] as any
+  const thumb = firstImage ? (firstImage.url || firstImage) : DEFAULT_IMG
 
   return (
     <div className="admin-page">

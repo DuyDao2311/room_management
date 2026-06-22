@@ -35,6 +35,8 @@ interface Invoice {
   roomName: string;
   rentAmount: number;
   totalAmount: number;
+  penaltyFee?: number;
+  overdueStep?: number;
   repairAmount?: number;
   incidentId?: {
     _id: string;
@@ -2212,11 +2214,17 @@ export default function InvoiceManagement() {
                     <span>Phí khác:</span>
                     <strong>{extraCost.toLocaleString("vi-VN")} đ</strong>
                   </div>
+                  {view === "edit" && currentInvoice?.penaltyFee != null && currentInvoice.penaltyFee > 0 && (
+                    <div className="invoice-summary-line" style={{ color: "#dc2626" }}>
+                      <span>⚠️ Phí phạt quá hạn (5%):</span>
+                      <strong>{currentInvoice.penaltyFee.toLocaleString("vi-VN")} đ</strong>
+                    </div>
+                  )}
                 </div>
                 <div className="invoice-total-box">
                   <div className="invoice-total-label">Tổng tiền</div>
                   <div className="invoice-total-val">
-                    {totalCost.toLocaleString("vi-VN")} đ
+                    {(totalCost + (view === "edit" && currentInvoice?.penaltyFee ? currentInvoice.penaltyFee : 0)).toLocaleString("vi-VN")} đ
                   </div>
                 </div>
               </div>
