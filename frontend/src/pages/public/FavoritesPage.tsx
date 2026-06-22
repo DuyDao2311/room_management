@@ -53,7 +53,7 @@ export default function FavoritesPage() {
               {favorites.map(room => {
                 const imageUrl =
                   room.images && room.images.length > 0
-                    ? room.images[0]
+                    ? room.images[0]?.url || room.images[0]
                     : 'https://vinhomeoceanpark.net/wp-content/uploads/khong-sang-song-hien-dai-tien-ich-tai-studio-vinhomes-ocean-park.jpg'
                 const statusInfo = STATUS_MAP[room.status] ?? STATUS_MAP.available
 

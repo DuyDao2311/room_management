@@ -12,7 +12,7 @@ interface Room {
   area: number;
   type: string;
   status: "available" | "occupied" | "maintenance";
-  images: string[];
+  images: any[];
   amenities: string[];
 }
 
@@ -41,6 +41,7 @@ export default function RoomList() {
   const priceFilter = searchParams.get("price") ?? "";
   const districtFilter = searchParams.get("district") ?? "";
   const typeFilter = searchParams.get("type") ?? "";
+  const rentalModeFilter = searchParams.get("rentalMode") ?? "";
 
   useEffect(() => {
     setLoading(true);
@@ -49,6 +50,7 @@ export default function RoomList() {
     if (priceFilter) params.price = priceFilter;
     if (districtFilter) params.district = districtFilter;
     if (typeFilter) params.type = typeFilter;
+    if (rentalModeFilter) params.rentalMode = rentalModeFilter;
 
     api
       .get("/rooms", { params })
@@ -58,7 +60,7 @@ export default function RoomList() {
       })
       .catch(() => setError("Không thể tải danh sách phòng. Vui lòng thử lại."))
       .finally(() => setLoading(false));
-  }, [priceFilter, districtFilter, typeFilter]);
+  }, [priceFilter, districtFilter, typeFilter, rentalModeFilter]);
 
   const updateFilter = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams);
@@ -71,8 +73,8 @@ export default function RoomList() {
     <div className="page-shell">
       <div className="room-list-page">
         <div className="page-hero-mini">
-          <h1>Tìm phòng trọ</h1>
-          <p>Khám phá hàng trăm phòng trọ chất lượng tại TP.Hà Nội</p>
+          <h1>Tìm căn hộ</h1>
+          <p>Khám phá hàng trăm căn hộ chất lượng tại TP.Hà Nội</p>
         </div>
 
         {/* Filters */}
@@ -121,6 +123,19 @@ export default function RoomList() {
               <option value="Phòng trọ thường">Phòng trọ thường</option>
             </select>
           </div>
+          <div className="filter-group">
+            <label htmlFor="filter-rentalMode">Hình thức thuê</label>
+            <select
+              id="filter-rentalMode"
+              value={rentalModeFilter}
+              onChange={(e) => updateFilter("rentalMode", e.target.value)}
+              className="filter-select"
+            >
+              <option value="">Tất cả hình thức</option>
+              <option value="short_term">Thuê ngắn hạn</option>
+              <option value="long_term">Thuê dài hạn</option>
+            </select>
+          </div>
         </div>
 
         {/* Content */}
@@ -155,7 +170,7 @@ export default function RoomList() {
 
                   const imageUrl =
                     room.images && room.images.length > 0
-                      ? room.images[0]
+                      ? room.images[0]?.url || room.images[0]
                       : "https://vinhomeoceanpark.net/wp-content/uploads/khong-sang-song-hien-dai-tien-ich-tai-studio-vinhomes-ocean-park.jpg";
                   const bgStyle = { backgroundImage: `url("${imageUrl}")` };
 
@@ -170,11 +185,10 @@ export default function RoomList() {
                         style={bgStyle}
                       >
                         <div
-                          className={`design-room-badge ${
-                            room.status === "available"
-                              ? "badge-available"
-                              : "badge-full"
-                          }`}
+                          className={`design-room-badge ${room.status === "available"
+                            ? "badge-available"
+                            : "badge-full"
+                            }`}
                         >
                           {room.status === "available"
                             ? "CÒN PHÒNG"

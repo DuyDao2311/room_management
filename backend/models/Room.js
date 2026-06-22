@@ -44,10 +44,12 @@ const roomSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
-    images: {
-      type: [String],
-      default: [],
-    },
+    images: [{
+      url: { type: String, required: true },
+      isPrimary: { type: Boolean, default: false },
+      order: { type: Number, default: 0 },
+      createdAt: { type: Date, default: Date.now },
+    }],
     district: {
       type: String,
       trim: true,
@@ -87,9 +89,44 @@ const roomSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // ── Rental mode ─────────────────────────────────────────────────────────
+    rentalMode: {
+      type: String,
+      enum: ["short_term", "long_term"],
+      default: "long_term",
+    },
+    // ── Short-term pricing ──────────────────────────────────────────────────
+    hourlyPrice: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    dailyPrice: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    weeklyPrice: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    monthlyPrice: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   { timestamps: true }
 );
+
+// ── Auto-set rentalMode based on room type ──────────────────────────────────
+// Studio & 1 phòng ngủ → short_term, others → long_term
+roomSchema.pre("validate", function (next) {
+  const shortTermTypes = ["Studio", "1 phòng ngủ"];
+  this.rentalMode = shortTermTypes.includes(this.type) ? "short_term" : "long_term";
+  next();
+});
 
 // Text index để tìm kiếm
 roomSchema.index({ name: "text", address: "text", description: "text" });

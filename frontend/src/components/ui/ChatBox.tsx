@@ -19,7 +19,7 @@ interface RoomSuggestion {
   area?: number
   type?: string
   status?: string
-  images?: string[]
+  images?: any[]
 }
 
 const QUICK_SUGGESTIONS = [
@@ -41,7 +41,7 @@ function TypingIndicator() {
 }
 
 function RoomCard({ room }: { room: RoomSuggestion }) {
-  const img = room.images?.[0]
+  const img = room.images?.[0]?.url || room.images?.[0] || 'https://vinhomeoceanpark.net/wp-content/uploads/khong-sang-song-hien-dai-tien-ich-tai-studio-vinhomes-ocean-park.jpg'
   return (
     <a href={`/rooms/${room._id}`} target="_blank" rel="noreferrer" className="chat-room-card">
       <div className="chat-room-img">

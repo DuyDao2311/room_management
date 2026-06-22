@@ -89,6 +89,7 @@ export default function Header() {
         {user?.role === 'tenant' && (
           <>
             <Link to="/my-room" className={isActive('/my-room')}>Phòng của tôi</Link>
+            <Link to="/my-bookings" className={isActive('/my-bookings')}>Booking của tôi</Link>
             <Link to="/my-invoices" className={isActive('/my-invoices')}>Hóa đơn của tôi</Link>
           </>
         )}
@@ -232,6 +233,9 @@ export default function Header() {
                 <>
                   <Link to="/my-room" className={isMobileActive('/my-room')} onClick={() => setDrawerOpen(false)}>
                     <span className="mobile-nav-icon">🏡</span> Phòng của tôi
+                  </Link>
+                  <Link to="/my-bookings" className={isMobileActive('/my-bookings')} onClick={() => setDrawerOpen(false)}>
+                    <span className="mobile-nav-icon">🔖</span> Booking của tôi
                   </Link>
                   <Link to="/my-invoices" className={isMobileActive('/my-invoices')} onClick={() => setDrawerOpen(false)}>
                     <span className="mobile-nav-icon">📄</span> Hóa đơn của tôi
