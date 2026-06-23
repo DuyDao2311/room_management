@@ -3,7 +3,7 @@ const Contract     = require("../models/Contract");
 const Room         = require("../models/Room");
 const Payment      = require("../models/Payment");
 const { checkUserDistrictPermission } = require("../middleware/auth");
-const { notifyTenantInvoiceSent, notifyTenantInvoicePaid, notifyInvoicePaid, sendSocketNotification } = require("../utils/notificationService");
+const { notifyTenantInvoiceSent, notifyTenantInvoicePaid, notifyInvoicePaid, notifyStaffCashPaymentRequest, sendSocketNotification } = require("../utils/notificationService");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -589,25 +589,17 @@ const requestCashPayment = async (req, res) => {
     invoice.paymentMethod = "Cash";
     await invoice.save();
 
-    // 6. Emit Socket.IO cho admin/staff
-    const io = req.app.get("io");
-    if (io) {
-      const contract = await Contract.findById(invoice.contract).populate("room", "name district");
-      const eventData = {
-        invoiceId: invoice._id,
-        roomName: invoice.roomName,
-        representativeName: invoice.representativeName,
-        totalAmount: invoice.totalAmount,
-        district: contract?.room?.district || "",
-      };
-
-      // Gửi cho admin
-      io.to("admin_room").emit("cash_payment_requested", eventData);
-
-      // Gửi cho staff quản lý district của phòng này
-      if (contract?.room?.district) {
-        io.to(`district_${contract.room.district}`).emit("cash_payment_requested", eventData);
+    // 6. Lưu notification + email + realtime cho staff/admin quản lý khu vực.
+    //    Bọc try/catch riêng để notify lỗi KHÔNG phá response (fire-and-forget).
+    try {
+      const io = req.app.get("io");
+      const staffNotifs = await notifyStaffCashPaymentRequest(invoice);
+      // Đẩy notification THẬT (đã lưu DB) cho từng staff/admin online → chuông cập nhật ngay.
+      if (io && staffNotifs?.length) {
+        staffNotifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
       }
+    } catch (notifyErr) {
+      console.error("notifyStaffCashPaymentRequest error:", notifyErr.message);
     }
 
     // 7. Trả response
