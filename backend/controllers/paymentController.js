@@ -36,46 +36,62 @@ class PaymentController {
      */
     async createPayment(req, res, next) {
         try {
-            const { invoiceId, typePayment } = req.body;
+            const { invoiceId, bookingId, typePayment } = req.body;
             const userId = req.user; // Lấy từ JWT middleware
+
+            if (!invoiceId && !bookingId) {
+                return next(new BadRequestError('Vui lòng cung cấp invoiceId hoặc bookingId'));
+            }
 
             // Validate phương thức thanh toán
             if (!['momo', 'vnpay'].includes(typePayment)) {
                 return next(new BadRequestError('Phương thức thanh toán phải là "momo" hoặc "vnpay"'));
             }
 
-            // Kiểm tra hóa đơn tồn tại
-            const invoice = await invoiceModel.findById(invoiceId).populate('contract');
-            if (!invoice) {
-                return next(new NotFoundError('Hóa đơn không tồn tại'));
+            let targetDoc = null;
+            let tenant = null;
+            let amount = 0;
+            let orderInfoStr = "";
+
+            if (invoiceId) {
+                const invoice = await invoiceModel.findById(invoiceId).populate('contract');
+                if (!invoice) return next(new NotFoundError('Hóa đơn không tồn tại'));
+                if (invoice.status === 'paid') return next(new BadRequestError('Hóa đơn này đã được thanh toán'));
+                
+                tenant = await userModel.findById(invoice.tenantId || userId);
+                amount = invoice.totalAmount;
+                orderInfoStr = `Thanh toan hoa don phong tro - Hop dong: ${invoice.contract?._id || ''}`;
+                targetDoc = invoice;
+            } else if (bookingId) {
+                const Booking = require('../models/Booking');
+                const booking = await Booking.findById(bookingId).populate('tenant');
+                if (!booking) return next(new NotFoundError('Booking không tồn tại'));
+                if (booking.paymentStatus === 'paid') return next(new BadRequestError('Booking này đã được thanh toán'));
+                
+                tenant = booking.tenant;
+                amount = booking.totalAmount;
+                orderInfoStr = `Thanh toan booking phong tro: ${booking._id}`;
+                targetDoc = booking;
             }
 
-            // Kiểm tra hóa đơn chưa được thanh toán
-            if (invoice.status === 'paid') {
-                return next(new BadRequestError('Hóa đơn này đã được thanh toán'));
-            }
+            if (!tenant) return next(new NotFoundError('Người dùng không tồn tại'));
 
-            // Lấy thông tin tenant
-            const tenant = await userModel.findById(invoice.tenantId || userId);
-            if (!tenant) {
-                return next(new NotFoundError('Người dùng không tồn tại'));
-            }
-
-            // Tạo bản ghi Payment ở trạng thái "pending" trước khi redirect sang gateway
+            // Tạo bản ghi Payment ở trạng thái "pending"
             const pendingPayment = await paymentModel.create({
-                invoice:       invoice._id,
-                contract:      invoice.contract?._id || invoice.contract,
+                invoice:       invoiceId ? targetDoc._id : undefined,
+                booking:       bookingId ? targetDoc._id : undefined,
+                contract:      invoiceId ? (targetDoc.contract?._id || targetDoc.contract) : undefined,
                 tenant:        tenant._id,
                 paymentMethod: typePayment,
-                amount:        invoice.totalAmount,
+                amount:        amount,
                 status:        'pending',
             });
 
             // Xử lý theo phương thức thanh toán
             if (typePayment === 'momo') {
-                return this._handleMomo(invoice, tenant, req, res, next, pendingPayment._id);
+                return this._handleMomo(targetDoc, tenant, amount, orderInfoStr, req, res, next, pendingPayment._id, invoiceId, bookingId);
             } else if (typePayment === 'vnpay') {
-                return this._handleVNPay(invoice, tenant, req, res, next, pendingPayment._id);
+                return this._handleVNPay(targetDoc, tenant, amount, orderInfoStr, req, res, next, pendingPayment._id, invoiceId, bookingId);
             }
         } catch (error) {
             return next(error);
@@ -85,7 +101,7 @@ class PaymentController {
     /**
      * Xử lý thanh toán Momo
      */
-    async _handleMomo(invoice, tenant, req, res, next, pendingPaymentId = null) {
+    async _handleMomo(targetDoc, tenant, amount, orderInfo, req, res, next, pendingPaymentId = null, invoiceId = null, bookingId = null) {
         try {
             // Lấy credentials từ environment (hoặc .env)
             const accessKey = process.env.MOMO_ACCESS_KEY || 'F8BBA842ECF85';
@@ -94,14 +110,12 @@ class PaymentController {
 
             const orderId = partnerCode + generatePaymentID();
             const requestId = orderId;
-            const orderInfo = `Thanh toan hoa don phong tro - Hop dong: ${invoice.contract._id}`;
             // Momo redirect người dùng về BACKEND trước để cập nhật trạng thái
             const redirectUrl = `${process.env.SERVER_URL || 'http://localhost:5000'}/api/payment/momo-callback`;
             const ipnUrl = `${process.env.SERVER_URL || 'http://localhost:5000'}/api/payment/momo-callback`;
             const requestType = 'payWithMethod';
-            const amount = invoice.totalAmount;
-            // extraData lưu "invoiceId:pendingPaymentId" để verify callback
-            const extraData = `${invoice._id.toString()}:${pendingPaymentId || ''}`;
+            // extraData lưu "invoiceId:pendingPaymentId:bookingId" để verify callback
+            const extraData = `${invoiceId || ''}:${pendingPaymentId || ''}:${bookingId || ''}`;
 
             // Ghi orderId vào Payment record đang pending
             if (pendingPaymentId) {
@@ -178,7 +192,8 @@ class PaymentController {
                             metadata: {
                                 paymentUrl: momoResponse.payUrl,
                                 orderId: momoResponse.orderId,
-                                invoiceId: invoice._id,
+                                invoiceId: invoiceId,
+                                bookingId: bookingId,
                             },
                         }).send(res);
                     } catch (err) {
@@ -203,7 +218,7 @@ class PaymentController {
     /**
      * Xử lý thanh toán VNPay
      */
-    async _handleVNPay(invoice, tenant, req, res, next, pendingPaymentId = null) {
+    async _handleVNPay(targetDoc, tenant, amount, orderInfo, req, res, next, pendingPaymentId = null, invoiceId = null, bookingId = null) {
         try {
             // Kiểm tra xem có cài đặt vnpay package không
             let VNPay;
@@ -238,15 +253,15 @@ class PaymentController {
             if (pendingPaymentId) {
                 await paymentModel.findByIdAndUpdate(pendingPaymentId, {
                     'vnpay.txnRef':    txnRef,
-                    'vnpay.orderInfo': `Thanh toan hoa don: ${invoice._id}`,
+                    'vnpay.orderInfo': orderInfo,
                 });
             }
 
             const vnpayResponse = vnpay.buildPaymentUrl({
-                vnp_Amount: invoice.totalAmount, // thư viện vnpay đã tự nhân 100 nội bộ
+                vnp_Amount: amount, // thư viện vnpay đã tự nhân 100 nội bộ
                 vnp_IpAddr: req.ip || '127.0.0.1',
                 vnp_TxnRef: txnRef,
-                vnp_OrderInfo: `Thanh toan hoa don: ${invoice._id}`,
+                vnp_OrderInfo: orderInfo,
                 vnp_OrderType: 'other',
                 // VNPay redirect người dùng về BACKEND trước để cập nhật trạng thái,
                 // sau đó backend sẽ redirect tiếp sang frontend
@@ -260,7 +275,8 @@ class PaymentController {
                 message: 'Tạo yêu cầu thanh toán VNPay thành công',
                 metadata: {
                     paymentUrl: vnpayResponse,
-                    invoiceId: invoice._id,
+                    invoiceId: invoiceId,
+                    bookingId: bookingId,
                 },
             }).send(res);
         } catch (error) {
@@ -277,13 +293,12 @@ class PaymentController {
 
             console.log('Momo Callback:', { resultCode, orderId, extraData, message });
 
-            // extraData = "invoiceId:pendingPaymentId"
-            const [invoiceId, pendingPaymentId] = (extraData || '').split(':');
+            // extraData = "invoiceId:pendingPaymentId:bookingId"
+            const [invoiceId, pendingPaymentId, bookingId] = (extraData || '').split(':');
 
             if (resultCode !== '0') {
                 console.warn('Thanh toán Momo thất bại:', resultCode);
 
-                // Cập nhật Payment record → failed
                 if (pendingPaymentId) {
                     await paymentModel.findByIdAndUpdate(pendingPaymentId, {
                         status:          'failed',
@@ -298,27 +313,40 @@ class PaymentController {
                 );
             }
 
-            const invoice = await invoiceModel.findById(invoiceId);
-            if (!invoice) {
-                console.error('Không tìm thấy hóa đơn:', invoiceId);
-                return res.redirect(
-                    `${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=invoice-not-found`
-                );
-            }
+            let targetId = null;
+            let successRoute = '';
 
-            // Cập nhật trạng thái hóa đơn → paid
-            invoice.status = 'paid';
-            invoice.paidAt = new Date();
-            invoice.paymentMethod = 'MoMo';
-            await invoice.save();
+            if (invoiceId) {
+                const invoice = await invoiceModel.findById(invoiceId);
+                if (!invoice) {
+                    return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=invoice-not-found`);
+                }
+                invoice.status = 'paid';
+                invoice.paidAt = new Date();
+                invoice.paymentMethod = 'MoMo';
+                await invoice.save();
 
-            // Gửi thông báo đến staff/admin
-            const notifs = await notifyInvoicePaid(invoice);
-            // Gửi email + in-app xác nhận thanh toán cho tenant
-            await notifyTenantInvoicePaid(invoice);
-            const io = req.app ? req.app.get('io') : null;
-            if (io && notifs.length > 0) {
-              notifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));
+                const notifs = await notifyInvoicePaid(invoice);
+                await notifyTenantInvoicePaid(invoice);
+                const io = req.app ? req.app.get('io') : null;
+                if (io && notifs.length > 0) {
+                  notifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));
+                }
+                targetId = invoice._id;
+                successRoute = `/payment/success/${targetId}`;
+            } else if (bookingId) {
+                const Booking = require('../models/Booking');
+                const booking = await Booking.findById(bookingId);
+                if (!booking) {
+                    return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=booking-not-found`);
+                }
+                booking.paymentStatus = 'paid';
+                if (booking.status === 'pending') {
+                    booking.status = 'confirmed';
+                }
+                await booking.save();
+                targetId = booking._id;
+                successRoute = `/payment/success?bookingId=${targetId}`; // Will handle in frontend
             }
 
             // Cập nhật Payment record → success
@@ -345,10 +373,10 @@ class PaymentController {
                 });
             }
 
-            console.log('Thanh toán Momo thành công:', invoice._id);
+            console.log('Thanh toán Momo thành công:', targetId);
 
             return res.redirect(
-                `${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/success/${invoice._id}`
+                `${process.env.CLIENT_URL || 'http://localhost:5173'}${successRoute}`
             );
         } catch (error) {
             console.error('Lỗi Momo callback:', error);
@@ -393,27 +421,47 @@ class PaymentController {
                 );
             }
 
-            // Lấy invoiceId từ OrderInfo: "Thanh toan hoa don: {invoiceId}"
-            const invoiceId = vnp_OrderInfo?.split(': ')[1] || (paymentRecord?.invoice?.toString());
+            let invoiceId = null;
+            let bookingId = null;
 
-            const invoice = await invoiceModel.findById(invoiceId);
-            if (!invoice) {
-                console.error('Không tìm thấy hóa đơn:', invoiceId);
-                return res.redirect(
-                    `${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=invoice-not-found`
-                );
+            if (vnp_OrderInfo?.includes('hoa don:')) {
+                invoiceId = vnp_OrderInfo.split(': ')[1] || (paymentRecord?.invoice?.toString());
+            } else if (vnp_OrderInfo?.includes('booking phong tro:')) {
+                bookingId = vnp_OrderInfo.split(': ')[1] || (paymentRecord?.booking?.toString());
+            } else {
+                invoiceId = paymentRecord?.invoice?.toString();
+                bookingId = paymentRecord?.booking?.toString();
             }
 
-            // Cập nhật trạng thái hóa đơn → paid
-            invoice.status = 'paid';
-            invoice.paidAt = new Date();
-            invoice.paymentMethod = 'VNPay';
-            await invoice.save();
+            let targetId = null;
+            let successRoute = '';
 
-            // Gửi thông báo đến staff/admin (Không có req.app ở đây, ghi log thôi)
-            await notifyInvoicePaid(invoice);
-            // Gửi email + in-app xác nhận thanh toán cho tenant
-            await notifyTenantInvoicePaid(invoice);
+            if (invoiceId) {
+                const invoice = await invoiceModel.findById(invoiceId);
+                if (!invoice) return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=invoice-not-found`);
+                
+                invoice.status = 'paid';
+                invoice.paidAt = new Date();
+                invoice.paymentMethod = 'VNPay';
+                await invoice.save();
+                
+                await notifyInvoicePaid(invoice);
+                await notifyTenantInvoicePaid(invoice);
+                targetId = invoice._id;
+                successRoute = `/payment/success/${targetId}`;
+            } else if (bookingId) {
+                const Booking = require('../models/Booking');
+                const booking = await Booking.findById(bookingId);
+                if (!booking) return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=booking-not-found`);
+                
+                booking.paymentStatus = 'paid';
+                if (booking.status === 'pending') {
+                    booking.status = 'confirmed';
+                }
+                await booking.save();
+                targetId = booking._id;
+                successRoute = `/payment/success?bookingId=${targetId}`; // Will handle in frontend
+            }
 
             // Cập nhật Payment record → success
             if (paymentRecord) {
@@ -446,10 +494,10 @@ class PaymentController {
                 });
             }
 
-            console.log('Thanh toán VNPay thành công:', invoice._id);
+            console.log('Thanh toán VNPay thành công:', targetId);
 
             return res.redirect(
-                `${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/success/${invoice._id}`
+                `${process.env.CLIENT_URL || 'http://localhost:5173'}${successRoute}`
             );
         } catch (error) {
             console.error('Lỗi VNPay callback:', error);

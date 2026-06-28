@@ -4,12 +4,14 @@ const Room = require("../models/Room");
 const { protect, optionalAuth, adminOnly, verifyRole, injectDistrictFilter, checkDistrictPermission } = require("../middleware/auth");
 const { validateLocationInput, isValidCoordinates } = require("../utils/geo.util");
 const { getRoomsForMap, getNearbyRooms, getRoomLocation } = require("../services/room.service");
+const { addImageUrl, addBulkImageUrls, removeImage, setPrimaryImage, reorderImages } = require("../controllers/roomImageController");
+const { getRoomAvailability, getRoomCalendar } = require("../controllers/bookingController");
 
 // GET /api/rooms — danh sách phòng (public), hỗ trợ lọc
 router.get("/", async (req, res) => {
   try {
     const filter = {};
-    const { price, district, type, status, search } = req.query;
+    const { price, district, type, status, search, rentalMode } = req.query;
 
     // Lọc theo trạng thái (public chỉ thấy available, admin thấy tất cả)
     if (status) {
@@ -31,6 +33,9 @@ router.get("/", async (req, res) => {
     // Lọc theo loại phòng
     if (type) filter.type = type;
 
+    // Lọc theo loại hình thuê
+    if (rentalMode) filter.rentalMode = rentalMode;
+
     // Tìm kiếm text
     if (search) {
       filter.$text = { $search: search };
@@ -50,9 +55,10 @@ router.get("/my-district", protect, verifyRole("admin", "staff"), injectDistrict
     const filter = { ...req.districtFilter };
 
     // Hỗ trợ filter thêm từ query params
-    const { price, type, status, search } = req.query;
+    const { price, type, status, search, rentalMode } = req.query;
     if (status) filter.status = status;
     if (type) filter.type = type;
+    if (rentalMode) filter.rentalMode = rentalMode;
     if (price === "below-3") {
       filter.price = { $lt: 3_000_000 };
     } else if (price === "3-5") {
@@ -154,6 +160,13 @@ router.get("/:id/location", async (req, res) => {
   }
 });
 
+// ─── BOOKING: Availability & Calendar (phải đặt TRƯỚC /:id) ────────────────
+// GET /api/rooms/:id/availability — kiểm tra phòng trống
+router.get("/:id/availability", getRoomAvailability);
+
+// GET /api/rooms/:id/calendar — lịch đặt phòng
+router.get("/:id/calendar", getRoomCalendar);
+
 // GET /api/rooms/:id — chi tiết phòng (public)
 router.get("/:id", async (req, res) => {
   try {
@@ -169,7 +182,7 @@ router.get("/:id", async (req, res) => {
 // Staff chỉ được tạo phòng trong district được phân công
 router.post("/", protect, verifyRole("admin", "staff"), async (req, res) => {
   try {
-    const { name, address, price, area, type, status, description, amenities, district, images, maintenanceEndDate, location } = req.body;
+    const { name, address, price, area, type, status, description, amenities, district, images, maintenanceEndDate, location, hourlyPrice, dailyPrice, weeklyPrice, monthlyPrice } = req.body;
 
     // Validate location nếu có
     const locResult = validateLocationInput(req.body);
@@ -222,6 +235,10 @@ router.post("/", protect, verifyRole("admin", "staff"), async (req, res) => {
       district: finalDistrict,
       images: images || [],
       maintenanceEndDate: status === "maintenance" ? maintenanceEndDate : undefined,
+      hourlyPrice: hourlyPrice || 0,
+      dailyPrice: dailyPrice || 0,
+      weeklyPrice: weeklyPrice || 0,
+      monthlyPrice: monthlyPrice || 0,
       createdBy: req.user._id,
     };
 
@@ -262,7 +279,11 @@ router.put("/:id", protect, verifyRole("admin", "staff"), async (req, res) => {
       return res.status(400).json({ success: false, message: locResult.error });
     }
 
-    const updatedRoom = await Room.findByIdAndUpdate(req.params.id, req.body, {
+    // Loại bỏ images khỏi payload — quản lý ảnh qua API riêng
+    const updateData = { ...req.body };
+    delete updateData.images;
+
+    const updatedRoom = await Room.findByIdAndUpdate(req.params.id, updateData, {
       new: true,
       runValidators: true,
     });
@@ -284,5 +305,22 @@ router.delete("/:id", protect, adminOnly, async (req, res) => {
     res.status(500).json({ message: "Lỗi server." });
   }
 });
+
+// ─── IMAGE MANAGEMENT APIs (admin + staff) ────────────────────────────────
+
+// POST /api/rooms/:id/images — thêm 1 ảnh
+router.post("/:id/images", protect, verifyRole("admin", "staff"), addImageUrl);
+
+// POST /api/rooms/:id/images/bulk — thêm nhiều ảnh
+router.post("/:id/images/bulk", protect, verifyRole("admin", "staff"), addBulkImageUrls);
+
+// PUT /api/rooms/:id/images/reorder — sắp xếp ảnh (đặt trước /:imageId để tránh conflict)
+router.put("/:id/images/reorder", protect, verifyRole("admin", "staff"), reorderImages);
+
+// PUT /api/rooms/:id/images/:imageId/primary — đặt ảnh đại diện
+router.put("/:id/images/:imageId/primary", protect, verifyRole("admin", "staff"), setPrimaryImage);
+
+// DELETE /api/rooms/:id/images/:imageId — xóa ảnh
+router.delete("/:id/images/:imageId", protect, verifyRole("admin", "staff"), removeImage);
 
 module.exports = router;

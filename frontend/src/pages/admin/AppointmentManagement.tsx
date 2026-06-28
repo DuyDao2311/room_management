@@ -105,7 +105,8 @@ export default function AppointmentManagement() {
         ) : (
           currentAppointments.map(a => {
             const timeObj = parseTime(a.time)
-            const thumb = a.room?.images?.[0] || DEFAULT_IMG
+            const firstImage = a.room?.images?.[0] as any
+            const thumb = firstImage ? (firstImage.url || firstImage) : DEFAULT_IMG
 
             return (
               <div

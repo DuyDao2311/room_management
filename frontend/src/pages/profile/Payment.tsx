@@ -135,7 +135,7 @@ export default function Payment() {
 
     setPaying(id)
     try {
-      const response = await createPayment(id, paymentMethod)
+      const response = await createPayment({ invoiceId: id, paymentMethod })
 
       if (response.metadata.paymentUrl) {
         localStorage.setItem('pendingPaymentInvoiceId', id)

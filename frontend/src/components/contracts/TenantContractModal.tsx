@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import api from '../../api/axios.ts'
 import SignaturePad from '../ui/SignaturePad.tsx'
 import { MdOutlineMeetingRoom, MdOutlinePerson, MdOutlineGavel, MdOutlineBusiness, MdOutlinePeopleAlt, MdPictureAsPdf } from 'react-icons/md'
@@ -36,6 +36,14 @@ export default function TenantContractModal({ contract, onClose, onSuccess }: Pr
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const pdfRef = useRef<HTMLDivElement>(null)
+
+    // Hide body scrollbar when modal is mounted
+    useEffect(() => {
+        document.body.style.overflow = 'hidden'
+        return () => {
+            document.body.style.overflow = 'auto'
+        }
+    }, [])
 
     const handleSign = async () => {
         if (!signatureB) {
@@ -91,8 +99,8 @@ export default function TenantContractModal({ contract, onClose, onSuccess }: Pr
     }
 
     return (
-        <div className="rent-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-            <div className="rent-modal" style={{ maxWidth: '850px', borderRadius: '0', maxHeight: '95vh', overflowY: 'auto' }}>
+        <div className="rent-modal-overlay" style={{ alignItems: 'center', padding: '20px', overflow: 'hidden' }} onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+            <div className="rent-modal" style={{ maxWidth: '850px', borderRadius: '0', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' }}>
                 <div ref={pdfRef} id="pdf-content">
                     <div className="contract-modal-header">
                         <div className="contract-nation">CỘNG HOÀ XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>

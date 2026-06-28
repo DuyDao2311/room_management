@@ -29,34 +29,38 @@ function extractSearchCriteria(message) {
   const msgLower = message.toLowerCase();
   const isAbove = /(trên|hơn|từ|>=)/i.test(msgLower);
   const isBelow = /(dưới|ít hơn|<=)/i.test(msgLower);
+  const isBetween = /(khoảng|giữa|từ\s+.*\s+đến)/i.test(msgLower);
   const criteria = {};
-  
+
 
   // a. Trích xuất mức giá + ý nghĩa (trên / dưới / khoảng)
-const priceRegex = /(\d+)(?:[.,](\d+))?\s*(triệu|tr|củ)/i;
-const priceMatch = msgLower.match(priceRegex);
+  const priceRegex = /(\d+)(?:[.,](\d+))?\s*(triệu|tr|củ)/i;
+  const priceMatch = msgLower.match(priceRegex);
 
-if (priceMatch) {
-  let integerPart = parseInt(priceMatch[1]);
-  let decimalPart = priceMatch[2] ? parseInt(priceMatch[2]) : 0;
+  if (priceMatch) {
+    let integerPart = parseInt(priceMatch[1]);
+    let decimalPart = priceMatch[2] ? parseInt(priceMatch[2]) : 0;
 
-  if (!priceMatch[0].includes('.') && decimalPart > 0) {
-    decimalPart = decimalPart / 10;
+    if (!priceMatch[0].includes('.') && decimalPart > 0) {
+      decimalPart = decimalPart / 10;
+    }
+
+    const price = (integerPart + decimalPart) * 1000000;
+
+    // 🎯 detect intent giá
+    if (isAbove) {
+      criteria.minPrice = price;
+    } else if (isBelow) {
+      criteria.maxPrice = price;
+    } else if (isBetween) {
+      criteria.$gte = price - 500000;
+      criteria.$lte = price + 500000;
+    } else {
+      // khoảng giá mặc định
+      criteria.minPrice = price - 500000;
+      criteria.maxPrice = price + 500000;
+    }
   }
-
-  const price = (integerPart + decimalPart) * 1000000;
-
-  // 🎯 detect intent giá
-  if (isAbove) {
-  criteria.minPrice = price;
-} else if (isBelow) {
-  criteria.maxPrice = price;
-} else {
-  // khoảng giá mặc định
-  criteria.minPrice = price - 500000;
-  criteria.maxPrice = price + 500000;
-}
-}
 
   // b. Trích xuất loại phòng
   if (msgLower.includes("studio")) {
@@ -94,7 +98,7 @@ if (priceMatch) {
 async function fetchRoomsFromCriteria(criteria) {
   try {
     const query = { status: "available" };
-    
+
     // if (criteria.maxPrice) {
     //   query.price = { $lte: criteria.maxPrice };
     // }
@@ -108,7 +112,7 @@ async function fetchRoomsFromCriteria(criteria) {
     } else if (criteria.maxPrice) {
       query.price = { $lte: criteria.maxPrice };
     }
-    
+
     if (criteria.type) {
       query.type = criteria.type;
     }
@@ -163,69 +167,69 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "Tin nhắn không được để trống." });
     }
     // 🔥 Detect intent
-const intent = detectIntent(message);
+    const intent = detectIntent(message);
 
-// 👉 BƯỚC 4: GREETING (hello, hi...)
-if (intent === "greeting") {
-  return res.json({
-    text: "Dạ em chào anh/chị 😊 Anh/chị đang cần tìm phòng ở khu vực nào và mức giá khoảng bao nhiêu ạ?",
-    rooms: []
-  });
-}
-
-// 👉 BƯỚC 4.5: NEARBY SEARCH
-if (intent === "nearby_search") {
-  if (!userAddress) {
-    return res.json({
-      text: "Dạ em cần biết vị trí của anh/chị để tìm phòng. Anh/chị vui lòng đăng nhập và cập nhật địa chỉ trong phần Thông tin cá nhân trước nhé, hoặc anh/chị có thể nói tên quận cụ thể ạ!",
-      rooms: []
-    });
-  }
-
-  try {
-    // 1. Geocoding userAddress bằng MapBox API
-    const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN || 'pk.eyJ1IjoiYmV0YXBjaG9pMTBrIiwiYSI6ImNrY2ZuaWEwNjA2ZW0yeWw4bG9yNnUyYm0ifQ.bFCQ-5yq6cSsrhugfxO2_Q';
-    
-    const endpoint = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(userAddress)}.json`;
-    const geoRes = await fetch(`${endpoint}?access_token=${MAPBOX_TOKEN}&limit=1`);
-    const geoData = await geoRes.json();
-
-    if (geoData.message === "Not Authorized - Invalid Token") {
+    // 👉 BƯỚC 4: GREETING (hello, hi...)
+    if (intent === "greeting") {
       return res.json({
-        text: "Dạ tính năng bản đồ chưa được cấu hình đúng (Lỗi Token). Anh/chị báo quản trị viên cập nhật MAPBOX_TOKEN nhé!",
+        text: "Dạ em chào anh/chị 😊 Anh/chị đang cần tìm phòng ở khu vực nào và mức giá khoảng bao nhiêu ạ?",
         rooms: []
       });
     }
 
-    if (!geoData.features || geoData.features.length === 0) {
-      return res.json({
-        text: "Dạ em không định vị được địa chỉ trong hồ sơ của anh/chị. Anh/chị kiểm tra lại địa chỉ trong phần Thông tin cá nhân giúp em nhé!",
-        rooms: []
-      });
-    }
+    // 👉 BƯỚC 4.5: NEARBY SEARCH
+    if (intent === "nearby_search") {
+      if (!userAddress) {
+        return res.json({
+          text: "Dạ em cần biết vị trí của anh/chị để tìm phòng. Anh/chị vui lòng đăng nhập và cập nhật địa chỉ trong phần Thông tin cá nhân trước nhé, hoặc anh/chị có thể nói tên quận cụ thể ạ!",
+          rooms: []
+        });
+      }
 
-    const [lng, lat] = geoData.features[0].center;
+      try {
+        // 1. Geocoding userAddress bằng MapBox API
+        const MAPBOX_TOKEN = process.env.MAPBOX_TOKEN || 'pk.eyJ1IjoiYmV0YXBjaG9pMTBrIiwiYSI6ImNrY2ZuaWEwNjA2ZW0yeWw4bG9yNnUyYm0ifQ.bFCQ-5yq6cSsrhugfxO2_Q';
 
-    // 2. Lấy danh sách phòng gần đó (5km)
-    const nearbyResult = await getNearbyRooms(lng, lat, 5000, 1, 5, {});
-    let foundRooms = nearbyResult.rooms;
+        const endpoint = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(userAddress)}.json`;
+        const geoRes = await fetch(`${endpoint}?access_token=${MAPBOX_TOKEN}&limit=1`);
+        const geoData = await geoRes.json();
 
-    if (foundRooms.length === 0) {
-      return res.json({
-        text: "Dạ hiện quanh khu vực của anh/chị (bán kính 5km) em chưa tìm thấy phòng nào phù hợp. Anh/chị thử tìm ở khu vực khác xem sao nhé!",
-        rooms: []
-      });
-    }
+        if (geoData.message === "Not Authorized - Invalid Token") {
+          return res.json({
+            text: "Dạ tính năng bản đồ chưa được cấu hình đúng (Lỗi Token). Anh/chị báo quản trị viên cập nhật MAPBOX_TOKEN nhé!",
+            rooms: []
+          });
+        }
 
-    // 3. Chuẩn bị JSON cho AI
-    const compactRooms = foundRooms.map(r => ({
-      name: r.name,
-      price: r.price,
-      address: r.address,
-      distance: `${Math.round(r.distance)}m`
-    }));
+        if (!geoData.features || geoData.features.length === 0) {
+          return res.json({
+            text: "Dạ em không định vị được địa chỉ trong hồ sơ của anh/chị. Anh/chị kiểm tra lại địa chỉ trong phần Thông tin cá nhân giúp em nhé!",
+            rooms: []
+          });
+        }
 
-    let dynamicSystemPrompt = `Bạn là nhân viên lễ tân tư vấn phòng trọ của RoomFinder tên là Gemini. 
+        const [lng, lat] = geoData.features[0].center;
+
+        // 2. Lấy danh sách phòng gần đó (5km)
+        const nearbyResult = await getNearbyRooms(lng, lat, 5000, 1, 5, {});
+        let foundRooms = nearbyResult.rooms;
+
+        if (foundRooms.length === 0) {
+          return res.json({
+            text: "Dạ hiện quanh khu vực của anh/chị (bán kính 5km) em chưa tìm thấy phòng nào phù hợp. Anh/chị thử tìm ở khu vực khác xem sao nhé!",
+            rooms: []
+          });
+        }
+
+        // 3. Chuẩn bị JSON cho AI
+        const compactRooms = foundRooms.map(r => ({
+          name: r.name,
+          price: r.price,
+          address: r.address,
+          distance: `${Math.round(r.distance)}m`
+        }));
+
+        let dynamicSystemPrompt = `Bạn là nhân viên lễ tân tư vấn phòng trọ của RoomFinder tên là Gemini. 
 Nhiệm vụ duy nhất: Thông báo cho khách hàng danh sách các phòng trọ gần vị trí của họ dựa trên dữ liệu.
 
 QUY TẮC CỐT LÕI:
@@ -239,85 +243,85 @@ QUY TẮC CỐT LÕI:
 - Danh sách phòng JSON: ${JSON.stringify(compactRooms)}
 ============================================`;
 
-    const contents = [
-      ...history.map((h) => ({
-        role: h.role === "ai" ? "model" : "user",
-        parts: [{ text: h.content }],
-      })),
-      { role: "user", parts: [{ text: message }] },
-    ];
+        const contents = [
+          ...history.map((h) => ({
+            role: h.role === "ai" ? "model" : "user",
+            parts: [{ text: h.content }],
+          })),
+          { role: "user", parts: [{ text: message }] },
+        ];
 
-    let finalText = "";
-    try {
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("timeout")), 15000)
-      );
+        let finalText = "";
+        try {
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), 15000)
+          );
 
-      const aiPromise = ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents,
-        config: {
-          systemInstruction: dynamicSystemPrompt,
-          temperature: 0.5,
-        },
-      });
+          const aiPromise = ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents,
+            config: {
+              systemInstruction: dynamicSystemPrompt,
+              temperature: 0.5,
+            },
+          });
 
-      const response = await Promise.race([aiPromise, timeoutPromise]);
-      finalText = response.candidates?.[0]?.content?.parts?.[0]?.text || generateRawReply(foundRooms, message);
-    } catch (aiErr) {
-      console.log("Gemini lỗi (nearby_search):", aiErr.message);
-      // 🔥 fallback không dùng AI
-      finalText = generateRawReply(foundRooms, message);
+          const response = await Promise.race([aiPromise, timeoutPromise]);
+          finalText = response.candidates?.[0]?.content?.parts?.[0]?.text || generateRawReply(foundRooms, message);
+        } catch (aiErr) {
+          console.log("Gemini lỗi (nearby_search):", aiErr.message);
+          // 🔥 fallback không dùng AI
+          finalText = generateRawReply(foundRooms, message);
+        }
+
+        return res.json({ text: finalText, rooms: foundRooms });
+
+      } catch (err) {
+        console.log("Lỗi tìm phòng gần đây trong chat:", err.message);
+        return res.json({
+          text: "Dạ hệ thống đang gặp lỗi khi tìm vị trí, anh/chị thông cảm thử lại sau giúp em nhé!",
+          rooms: []
+        });
+      }
     }
 
-    return res.json({ text: finalText, rooms: foundRooms });
+    // 👉 BƯỚC 5: GENERAL (chat bình thường)
+    if (intent === "general") {
+      try {
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: message }]
+            }
+          ],
+          config: {
+            systemInstruction: "Bạn là trợ lý tư vấn phòng trọ thân thiện. Trả lời tự nhiên, không cần dữ liệu phòng.",
+            temperature: 0.7
+          }
+        });
 
-  } catch (err) {
-    console.log("Lỗi tìm phòng gần đây trong chat:", err.message);
-    return res.json({
-      text: "Dạ hệ thống đang gặp lỗi khi tìm vị trí, anh/chị thông cảm thử lại sau giúp em nhé!",
-      rooms: []
-    });
-  }
-}
+        const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
 
-// 👉 BƯỚC 5: GENERAL (chat bình thường)
-if (intent === "general") {
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: message }]
-        }
-      ],
-      config: {
-        systemInstruction: "Bạn là trợ lý tư vấn phòng trọ thân thiện. Trả lời tự nhiên, không cần dữ liệu phòng.",
-        temperature: 0.7
+        return res.json({
+          text: text || "Dạ em chưa hiểu rõ, anh/chị có thể nói rõ hơn không ạ?",
+          rooms: []
+        });
+
+      } catch (err) {
+        return res.json({
+          text: "Dạ em chưa hiểu rõ câu hỏi, anh/chị có thể nói cụ thể hơn không ạ?",
+          rooms: []
+        });
       }
-    });
-
-    const text = response.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    return res.json({
-      text: text || "Dạ em chưa hiểu rõ, anh/chị có thể nói rõ hơn không ạ?",
-      rooms: []
-    });
-
-  } catch (err) {
-    return res.json({
-      text: "Dạ em chưa hiểu rõ câu hỏi, anh/chị có thể nói cụ thể hơn không ạ?",
-      rooms: []
-    });
-  }
-}
+    }
 
     // [BƯỚC 1]: Backend nhận diện và bóc tách thông tin tiếng Việt
     // const criteria = extractSearchCriteria(message);
     // const intent = detectIntent(message);
     const criteria = extractSearchCriteria(message);
-    
+
     // [BƯỚC 2]: Truy vấn Database thuần tuý
     let foundRooms = [];
     if (intent === "search") {
@@ -327,8 +331,8 @@ if (intent === "general") {
           text: "Dạ hiện chưa có phòng phù hợp, anh/chị thử thay đổi yêu cầu giúp em nhé ạ.",
           rooms: []
         });
-  }
-}
+      }
+    }
 
     const compactRooms = foundRooms.map(r => ({
       name: r.name,
@@ -373,33 +377,33 @@ QUY TẮC CỐT LÕI:
     // const finalText = response.candidates?.[0]?.content?.parts?.[0]?.text || "Dạ mạng hơi yếu, anh/chị thao tác lại giúp em nhé.";
     let finalText = "";
 
-try {
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("timeout")), 15000)
-  );
+    try {
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), 15000)
+      );
 
-  // 🤖 gọi AI
-  const aiPromise = ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents,
-    config: {
-      systemInstruction: dynamicSystemPrompt,
-      temperature: 0.5,
-    },
-  });
-  const response = await Promise.race([aiPromise, timeoutPromise]);
+      // 🤖 gọi AI
+      const aiPromise = ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents,
+        config: {
+          systemInstruction: dynamicSystemPrompt,
+          temperature: 0.5,
+        },
+      });
+      const response = await Promise.race([aiPromise, timeoutPromise]);
 
-  finalText =
-    response.candidates?.[0]?.content?.parts?.[0]?.text ||
-    generateRawReply(foundRooms, message);
+      finalText =
+        response.candidates?.[0]?.content?.parts?.[0]?.text ||
+        generateRawReply(foundRooms, message);
 
-} catch (err) {
-  console.log("Gemini lỗi:", err.message);
+    } catch (err) {
+      console.log("Gemini lỗi:", err.message);
 
-  // 🔥 fallback không dùng AI
-  finalText = generateRawReply(foundRooms, message);
-}
-    
+      // 🔥 fallback không dùng AI
+      finalText = generateRawReply(foundRooms, message);
+    }
+
     // Trả cả chữ (cho AI nói) và mảng phòng (về React tự vẽ danh sách hình ảnh Component ra UI)
     return res.json({ text: finalText, rooms: foundRooms });
 
@@ -407,7 +411,7 @@ try {
     let errMsg = "AI đang bận vượt tải, đợi em tí rồi thử lại anh/chị nhé!";
     const errText = err?.message || "";
     if (errText.includes("400") || errText.includes("API key not valid")) {
-       errMsg = "API Key không hợp lệ. Vui lòng check file .env";
+      errMsg = "API Key không hợp lệ. Vui lòng check file .env";
     }
     return res.status(500).json({ message: errMsg });
   }

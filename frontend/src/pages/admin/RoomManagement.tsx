@@ -4,11 +4,12 @@ import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import { useAuth } from '../../contexts/AuthContext.tsx'
 // import Badge from '../../components/ui/Badge.tsx'
-import { Building, TrendingUp, Key, Wrench, Pencil, Trash2 } from "lucide-react"
+import { Building, TrendingUp, Key, Wrench, Pencil, Trash2, ImageIcon } from "lucide-react"
 // import { DoorOpen, Bed, User } from "lucide-react"
 import { FiHome, FiTool } from "react-icons/fi";
 import { MdBed } from "react-icons/md";
 import MapPicker from '../../components/map/MapPicker.tsx'
+import RoomImageManager from '../../components/room-images/RoomImageManager.tsx'
 
 interface Room {
   _id: string
@@ -23,6 +24,11 @@ interface Room {
   amenities?: string[]
   images?: string[]
   maintenanceEndDate?: string
+  hourlyPrice?: number
+  dailyPrice?: number
+  weeklyPrice?: number
+  monthlyPrice?: number
+  rentalMode?: string
   location?: {
     type: string
     coordinates: [number, number]
@@ -38,7 +44,8 @@ interface ContractInfo {
 const EMPTY_FORM = {
   name: '', address: '', district: '', price: '', area: '',
   type: 'Studio', status: 'available' as Room['status'],
-  description: '', amenities: '', images: '', maintenanceEndDate: '',
+  description: '', amenities: '', maintenanceEndDate: '',
+  hourlyPrice: '0', dailyPrice: '0', weeklyPrice: '0', monthlyPrice: '0',
   locationLat: 0, locationLng: 0
 }
 
@@ -62,6 +69,11 @@ export default function RoomManagement() {
   const [formError, setFormError] = useState('')
   const [contractMap, setContractMap] = useState<Record<string, ContractInfo>>({})
 
+  // Image manager modal state
+  const [showImageManager, setShowImageManager] = useState(false)
+  const [imageManagerRoom, setImageManagerRoom] = useState<Room | null>(null)
+  const [imageManagerImages, setImageManagerImages] = useState<any[]>([])
+
   // Filters
   const [filterDistrict, setFilterDistrict] = useState(
     isStaff && user?.managedDistricts && user.managedDistricts.length > 0
@@ -70,6 +82,7 @@ export default function RoomManagement() {
   )
   const [filterType, setFilterType] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [filterRentalMode, setFilterRentalMode] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = 9
 
@@ -118,8 +131,9 @@ export default function RoomManagement() {
           price: String(r.price), area: String(r.area), type: r.type, status: r.status,
           description: r.description || '',
           amenities: r.amenities ? r.amenities.join(', ') : '',
-          images: r.images ? r.images.join(', ') : '',
           maintenanceEndDate: r.maintenanceEndDate ? new Date(r.maintenanceEndDate).toISOString().split('T')[0] : '',
+          hourlyPrice: String(r.hourlyPrice || 0), dailyPrice: String(r.dailyPrice || 0),
+          weeklyPrice: String(r.weeklyPrice || 0), monthlyPrice: String(r.monthlyPrice || 0),
           locationLat: r.location?.coordinates?.[1] || 0,
           locationLng: r.location?.coordinates?.[0] || 0
         });
@@ -148,8 +162,9 @@ export default function RoomManagement() {
       price: String(r.price), area: String(r.area), type: r.type, status: r.status,
       description: r.description || '',
       amenities: r.amenities ? r.amenities.join(', ') : '',
-      images: r.images ? r.images.join(', ') : '',
       maintenanceEndDate: r.maintenanceEndDate ? new Date(r.maintenanceEndDate).toISOString().split('T')[0] : '',
+      hourlyPrice: String(r.hourlyPrice || 0), dailyPrice: String(r.dailyPrice || 0),
+      weeklyPrice: String(r.weeklyPrice || 0), monthlyPrice: String(r.monthlyPrice || 0),
       locationLat: r.location?.coordinates?.[1] || 0,
       locationLng: r.location?.coordinates?.[0] || 0
     })
@@ -164,8 +179,11 @@ export default function RoomManagement() {
       ...form,
       price: Number(form.price),
       area: Number(form.area),
+      hourlyPrice: Number(form.hourlyPrice),
+      dailyPrice: Number(form.dailyPrice),
+      weeklyPrice: Number(form.weeklyPrice),
+      monthlyPrice: Number(form.monthlyPrice),
       amenities: form.amenities.split(',').map(s => s.trim()).filter(Boolean),
-      images: form.images.split(',').map(s => s.trim()).filter(Boolean)
     }
 
     // Thêm location GeoJSON nếu có tọa độ hợp lệ
@@ -216,6 +234,7 @@ export default function RoomManagement() {
     if (filterDistrict && r.district !== filterDistrict) return false;
     if (filterType && r.type !== filterType) return false;
     if (filterStatus && r.status !== filterStatus) return false;
+    if (filterRentalMode && r.rentalMode !== filterRentalMode) return false;
     return true;
   });
 
@@ -293,6 +312,12 @@ export default function RoomManagement() {
             <option value="available">Còn phòng</option>
             <option value="occupied">Đã thuê</option>
             <option value="maintenance">Đang sửa</option>
+          </select>
+
+          <select value={filterRentalMode} onChange={e => { setFilterRentalMode(e.target.value); setCurrentPage(1); }} style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #eaecf0', background: '#f9fafb', color: '#475467', outline: 'none' }}>
+            <option value="">Hình thức thuê</option>
+            <option value="short_term">Thuê ngắn hạn</option>
+            <option value="long_term">Thuê dài hạn</option>
           </select>
 
           <div style={{ marginLeft: 'auto' }}>
@@ -375,6 +400,17 @@ export default function RoomManagement() {
                   <div style={{ display: 'flex', gap: '16px', marginLeft: '24px' }}>
                     <button onClick={() => openEdit(r)} title="Sửa">
                       <Pencil size={18} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setImageManagerRoom(r)
+                        setImageManagerImages(r.images || [])
+                        setShowImageManager(true)
+                      }}
+                      title="Quản lý ảnh"
+                      style={{ color: '#088373' }}
+                    >
+                      <ImageIcon size={18} />
                     </button>
                     {!isStaff && (
                       <button onClick={() => handleDelete(r._id)} title="Xóa">
@@ -470,6 +506,31 @@ export default function RoomManagement() {
                     <input id="f-area" type="number" className="form-input" value={form.area} onChange={e => setForm({ ...form, area: e.target.value })} required min={0} placeholder="40" />
                   </div>
                 </div>
+                {(form.type === 'Studio' || form.type === '1 phòng ngủ') && (
+                  <>
+                    <p style={{ margin: '8px 0', fontSize: '0.9rem', color: '#003e68', fontWeight: 600 }}>Cấu hình giá thuê ngắn hạn</p>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label htmlFor="f-price-hour">Giá theo giờ (VNĐ)</label>
+                        <input id="f-price-hour" type="number" className="form-input" value={form.hourlyPrice} onChange={e => setForm({ ...form, hourlyPrice: e.target.value })} min={0} />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="f-price-day">Giá theo ngày (VNĐ)</label>
+                        <input id="f-price-day" type="number" className="form-input" value={form.dailyPrice} onChange={e => setForm({ ...form, dailyPrice: e.target.value })} min={0} />
+                      </div>
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label htmlFor="f-price-week">Giá theo tuần (VNĐ)</label>
+                        <input id="f-price-week" type="number" className="form-input" value={form.weeklyPrice} onChange={e => setForm({ ...form, weeklyPrice: e.target.value })} min={0} />
+                      </div>
+                      <div className="form-group">
+                        <label htmlFor="f-price-month">Giá theo tháng (ngắn hạn) (VNĐ)</label>
+                        <input id="f-price-month" type="number" className="form-input" value={form.monthlyPrice} onChange={e => setForm({ ...form, monthlyPrice: e.target.value })} min={0} />
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div className="form-row">
                   <div className="form-group">
                     <label htmlFor="f-district">Quận/Huyện</label>
@@ -506,10 +567,7 @@ export default function RoomManagement() {
                   <label htmlFor="f-amenities">Tiện ích (phân cách bằng dấu phẩy)</label>
                   <input id="f-amenities" className="form-input" value={form.amenities} onChange={e => setForm({ ...form, amenities: e.target.value })} placeholder="VD: Wifi, Điều hòa, Bếp riêng" />
                 </div>
-                <div className="form-group">
-                  <label htmlFor="f-images">Link hình ảnh (phân cách bằng dấu phẩy)</label>
-                  <input id="f-images" className="form-input" value={form.images} onChange={e => setForm({ ...form, images: e.target.value })} placeholder="VD: https://link-anh-1.jpg, https://link-anh-2.png" />
-                </div>
+
                 <div className="form-group">
                   <label htmlFor="f-desc">Mô tả chi tiết</label>
                   <textarea id="f-desc" className="form-input" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Mô tả về phòng, giờ giấc tự do..." />
@@ -521,6 +579,25 @@ export default function RoomManagement() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Image Manager Modal */}
+        {showImageManager && imageManagerRoom && (
+          <div className="modal-overlay" onClick={() => setShowImageManager(false)}>
+            <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '900px' }}>
+              <div className="modal-header">
+                <h2>Quản lý ảnh — {imageManagerRoom.name}</h2>
+                <button className="modal-close" onClick={() => { setShowImageManager(false); fetchRooms(); }}>✕</button>
+              </div>
+              <div style={{ padding: '0 24px 24px' }}>
+                <RoomImageManager
+                  roomId={imageManagerRoom._id}
+                  images={imageManagerImages}
+                  onImagesChange={setImageManagerImages}
+                />
+              </div>
             </div>
           </div>
         )}

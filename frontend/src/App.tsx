@@ -21,8 +21,10 @@ import AppointmentManagement from './pages/admin/AppointmentManagement'
 import AppointmentDetail from './pages/admin/AppointmentDetail'
 import UserManagement from './pages/admin/UserManagement'
 import StaffManagement from './pages/admin/StaffManagement'
+import BookingManagement from './pages/admin/BookingManagement'
 import MyInvoices from './pages/tenant/MyInvoices'
 import MyRoom from './pages/tenant/MyRoom'
+import MyBookings from './pages/tenant/MyBookings'
 import MyIncidents from './pages/tenant/MyIncidents'
 import IncidentManagement from './pages/admin/IncidentManagement'
 import AdminLayout from './components/layout/AdminLayout'
@@ -101,7 +103,7 @@ function AppLayout() {
           <Route path="appointments" element={<AppointmentManagement />} />
           <Route path="appointments/:id" element={<AppointmentDetail />} />
           <Route path="incidents" element={<IncidentManagement />} />
-          {/* Admin only routes */}
+          <Route path="bookings" element={<BookingManagement />} />
           <Route path="users" element={<RequireAuth role="admin"><UserManagement /></RequireAuth>} />
           <Route path="staff" element={<RequireAuth role="admin"><StaffManagement /></RequireAuth>} />
           <Route path="feedback" element={<FeedbackManagement />} />
@@ -116,9 +118,10 @@ function AppLayout() {
         </Route>
 
         {/* Tenant only */}
-        <Route path="/my-room" element={<RequireAuth role="tenant"><MyRoom /></RequireAuth>} />
-        <Route path="/my-invoices" element={<RequireAuth role="tenant"><MyInvoices /></RequireAuth>} />
-        <Route path="/my-incidents" element={<RequireAuth role="tenant"><MyIncidents /></RequireAuth>} />
+          <Route path="/my-invoices" element={<RequireAuth role="tenant"><MyInvoices /></RequireAuth>} />
+          <Route path="/my-room" element={<RequireAuth role="tenant"><MyRoom /></RequireAuth>} />
+          <Route path="/my-bookings" element={<RequireAuth role="tenant"><MyBookings /></RequireAuth>} />
+          <Route path="/my-incidents" element={<RequireAuth role="tenant"><MyIncidents /></RequireAuth>} />
 
         {/* 404 fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />
