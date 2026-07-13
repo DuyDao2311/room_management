@@ -23,6 +23,8 @@ const searchRoutes = require("./routes/search");
 const cronRoutes = require("./routes/cron");
 const incidentRoutes = require("./routes/incidents");
 const bookingRoutes = require("./routes/bookings");
+const serviceRoutes = require("./routes/services");
+const serviceBookingRoutes = require("./routes/serviceBookings");
 const { checkExpiringContracts, checkOverdueInvoices, checkDueSoonInvoices } = require("./utils/notificationService");
 const { initCronJobs } = require("./utils/cronJobs");
 const migrateRoomImages = require("./utils/migrateRoomImages");
@@ -118,6 +120,8 @@ app.use("/api/search", searchRoutes);
 app.use("/api/cron", cronRoutes);
 app.use("/api/incidents", incidentRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/services", serviceRoutes);
+app.use("/api/service-bookings", serviceBookingRoutes);
 
 // ─── Health check ─────────────────────────────────────────────
 app.get("/api/health", (_, res) => res.json({ status: "OK", timestamp: new Date() }));

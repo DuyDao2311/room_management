@@ -144,6 +144,9 @@ export default function AdminNotificationDropdown({ onClose }: Props) {
           navigate('/admin/incidents')
         }
         break
+      case 'SERVICE':
+        navigate(n.serviceBookingId ? `/admin/service-bookings?highlight=${n.serviceBookingId}` : '/admin/service-bookings')
+        break
       default:
         navigate('/admin')
     }

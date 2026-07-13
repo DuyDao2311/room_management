@@ -24,6 +24,7 @@ function getNotificationIcon(type: Notification['type']): string {
     case 'INVOICE': return '💰'
     case 'REMINDER': return '⏰'
     case 'INCIDENT': return '🛠️'
+    case 'SERVICE': return '🧺'
     case 'SYSTEM': return '🔔'
     default: return '🔔'
   }
@@ -38,6 +39,7 @@ function getNotificationColor(type: Notification['type']): string {
     case 'INVOICE': return '#10b981'
     case 'REMINDER': return '#f97316'
     case 'INCIDENT': return '#ef4444'
+    case 'SERVICE': return '#0f5cc7'
     case 'SYSTEM': return '#6b7280'
     default: return '#6b7280'
   }
@@ -128,6 +130,9 @@ export default function NotificationBell() {
         } else {
           navigate(n.incidentId ? `/my-incidents?highlight=${n.incidentId}` : '/my-incidents')
         }
+        break
+      case 'SERVICE':
+        navigate(n.serviceBookingId ? `/my-service-bookings?highlight=${n.serviceBookingId}` : '/my-service-bookings')
         break
       default:
         navigate('/notifications')
