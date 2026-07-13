@@ -79,6 +79,7 @@ export default function Header() {
             <Link to="/" className={isActive('/')}>Trang chủ</Link>
             <Link to="/rooms" className={isActive('/rooms')}>Tìm phòng</Link>
             <Link to="/rooms/map" className={isActive('/rooms/map')}>Bản đồ phòng</Link>
+            <Link to="/services" className={isActive('/services')}>Dịch vụ</Link>
           </>
         ) : (
           <Link to="/admin" className={isActive('/admin')}>
@@ -91,6 +92,7 @@ export default function Header() {
             <Link to="/my-room" className={isActive('/my-room')}>Phòng của tôi</Link>
             <Link to="/my-bookings" className={isActive('/my-bookings')}>Booking của tôi</Link>
             <Link to="/my-invoices" className={isActive('/my-invoices')}>Hóa đơn của tôi</Link>
+            <Link to="/my-service-bookings" className={isActive('/my-service-bookings')}>Dịch vụ của tôi</Link>
           </>
         )}
       </nav>
@@ -222,6 +224,9 @@ export default function Header() {
                   <Link to="/rooms/map" className={isMobileActive('/rooms/map')} onClick={() => setDrawerOpen(false)}>
                     <span className="mobile-nav-icon">🗺️</span> Bản đồ phòng
                   </Link>
+                  <Link to="/services" className={isMobileActive('/services')} onClick={() => setDrawerOpen(false)}>
+                    <span className="mobile-nav-icon">🛎️</span> Dịch vụ
+                  </Link>
                 </>
               ) : (
                 <Link to="/admin" className={isMobileActive('/admin')} onClick={() => setDrawerOpen(false)}>
@@ -239,6 +244,9 @@ export default function Header() {
                   </Link>
                   <Link to="/my-invoices" className={isMobileActive('/my-invoices')} onClick={() => setDrawerOpen(false)}>
                     <span className="mobile-nav-icon">📄</span> Hóa đơn của tôi
+                  </Link>
+                  <Link to="/my-service-bookings" className={isMobileActive('/my-service-bookings')} onClick={() => setDrawerOpen(false)}>
+                    <span className="mobile-nav-icon">🛎️</span> Dịch vụ của tôi
                   </Link>
                 </>
               )}
