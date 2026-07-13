@@ -36,6 +36,11 @@ import Profile from './pages/profile/Profile'
 import UserProfileLayout from './pages/profile/UserProfileLayout'
 import Payment from './pages/profile/Payment'
 import Security from './pages/profile/Security'
+import ServiceList from './pages/public/ServiceList'
+import ServiceDetail from './pages/public/ServiceDetail'
+import ServiceManagement from './pages/admin/ServiceManagement'
+import ServiceBookingManagement from './pages/admin/ServiceBookingManagement'
+import MyServiceBookings from './pages/tenant/MyServiceBookings'
 
 /**
  * RequireAuth — Route protection component
@@ -82,6 +87,8 @@ function AppLayout() {
         <Route path="/rooms/map" element={<RoomMapPage />} />
         <Route path="/rooms/:id" element={<RoomDetail />} />
         <Route path="/favorites" element={<FavoritesPage />} />
+        <Route path="/services" element={<ServiceList />} />
+        <Route path="/services/:id" element={<ServiceDetail />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -106,6 +113,8 @@ function AppLayout() {
           <Route path="appointments/:id" element={<AppointmentDetail />} />
           <Route path="incidents" element={<IncidentManagement />} />
           <Route path="bookings" element={<BookingManagement />} />
+          <Route path="services" element={<ServiceManagement />} />
+          <Route path="service-bookings" element={<ServiceBookingManagement />} />
           <Route path="users" element={<RequireAuth role="admin"><UserManagement /></RequireAuth>} />
           <Route path="staff" element={<RequireAuth role="admin"><StaffManagement /></RequireAuth>} />
           <Route path="feedback" element={<FeedbackManagement />} />
@@ -124,6 +133,7 @@ function AppLayout() {
           <Route path="/my-invoices" element={<RequireAuth role="tenant"><MyInvoices /></RequireAuth>} />
           <Route path="/my-room" element={<RequireAuth role="tenant"><MyRoom /></RequireAuth>} />
           <Route path="/my-bookings" element={<RequireAuth role="tenant"><MyBookings /></RequireAuth>} />
+          <Route path="/my-service-bookings" element={<RequireAuth role="tenant"><MyServiceBookings /></RequireAuth>} />
           <Route path="/my-incidents" element={<RequireAuth role="tenant"><MyIncidents /></RequireAuth>} />
 
         {/* 404 fallback */}

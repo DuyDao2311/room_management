@@ -133,10 +133,12 @@ const roomSchema = new mongoose.Schema(
 
 // ── Auto-set rentalMode based on room type ──────────────────────────────────
 // Studio & 1 phòng ngủ → short_term, others → long_term
-roomSchema.pre("validate", function (next) {
+// Hook không khai báo tham số `next` — Mongoose coi đây là hook đồng bộ và tự
+// chạy tiếp sau khi hàm return; khai báo `next` mà không gọi đúng cách từng
+// làm treo validate() khi tạo Room trong test (xem __tests__/serviceBooking.test.js).
+roomSchema.pre("validate", function () {
   const shortTermTypes = ["Studio", "1 phòng ngủ"];
   this.rentalMode = shortTermTypes.includes(this.type) ? "short_term" : "long_term";
-  next();
 });
 
 // ── Auto-calculate short-term prices ─────────────────────────────────────────

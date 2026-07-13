@@ -69,6 +69,7 @@ const dispatch = async ({
         roomId: data.roomId,
         invoiceId: data.invoiceId,
         incidentId: data.incidentId,
+        serviceBookingId: data.serviceBookingId,
         isRead: false,
       }));
       notifications = await Notification.insertMany(docs);
@@ -517,7 +518,7 @@ const notifyTenantIncidentStatus = async (incident, status, note) => {
   }
 
   const noteMsg = note ? `\nGhi chú: ${note}` : "";
-  const message = `Kính gửi Quý khách,\n\nSự cố tại phòng ${room?.name || ""} ${statusText}.${noteMsg}\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+  const message = `Kính gửi Quý khách,\n\nSự cố tại phòng ${room?.name || ""} ${statusText}.${noteMsg}\n\nTrân trọng,\nCăn Hộ F4`;
 
   return dispatch({
     recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
@@ -783,7 +784,7 @@ const notifyTenantOverdueReminder1 = async (invoice) => {
   if (!tenant) return [];
 
   const title = "🔔 Nhắc nhở thanh toán hóa đơn (lần 1)";
-  const message = `Kính gửi Quý khách,\n\nHóa đơn phòng ${invoice.roomName} (${fmt(invoice.totalAmount)}đ) đã quá hạn thanh toán từ ngày ${fmtDate(invoice.dueDate)}. Vui lòng hoàn tất thanh toán sớm nhất để tránh các khoản phí phạt phát sinh.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+  const message = `Kính gửi Quý khách,\n\nHóa đơn phòng ${invoice.roomName} (${fmt(invoice.totalAmount)}đ) đã quá hạn thanh toán từ ngày ${fmtDate(invoice.dueDate)}. Vui lòng hoàn tất thanh toán sớm nhất để tránh các khoản phí phạt phát sinh.\n\nTrân trọng,\nCăn Hộ F4`;
 
   return dispatch({
     recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
@@ -799,7 +800,7 @@ const notifyTenantOverdueReminder2 = async (invoice) => {
   if (!tenant) return [];
 
   const title = "⚠️ Nhắc nhở thanh toán hóa đơn (lần 2)";
-  const message = `Kính gửi Quý khách,\n\nĐây là lần nhắc nhở thứ 2 về hóa đơn phòng ${invoice.roomName} (${fmt(invoice.totalAmount)}đ) đã quá hạn từ ngày ${fmtDate(invoice.dueDate)}. Nếu không thanh toán trong thời gian tới, hệ thống sẽ tự động áp dụng phí phạt quá hạn.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+  const message = `Kính gửi Quý khách,\n\nĐây là lần nhắc nhở thứ 2 về hóa đơn phòng ${invoice.roomName} (${fmt(invoice.totalAmount)}đ) đã quá hạn từ ngày ${fmtDate(invoice.dueDate)}. Nếu không thanh toán trong thời gian tới, hệ thống sẽ tự động áp dụng phí phạt quá hạn.\n\nTrân trọng,\nCăn Hộ F4`;
 
   return dispatch({
     recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
@@ -815,7 +816,7 @@ const notifyTenantPenaltyApplied = async (invoice) => {
   if (!tenant) return [];
 
   const title = "💸 Đã áp dụng phí phạt quá hạn 5%";
-  const message = `Kính gửi Quý khách,\n\nDo hóa đơn phòng ${invoice.roomName} chưa được thanh toán sau nhiều lần nhắc nhở, hệ thống đã áp dụng phí phạt quá hạn 5% (${fmt(invoice.penaltyFee)}đ). Tổng số tiền cần thanh toán hiện tại là ${fmt(invoice.totalAmount)}đ.\n\nVui lòng thanh toán sớm nhất có thể.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+  const message = `Kính gửi Quý khách,\n\nDo hóa đơn phòng ${invoice.roomName} chưa được thanh toán sau nhiều lần nhắc nhở, hệ thống đã áp dụng phí phạt quá hạn 5% (${fmt(invoice.penaltyFee)}đ). Tổng số tiền cần thanh toán hiện tại là ${fmt(invoice.totalAmount)}đ.\n\nVui lòng thanh toán sớm nhất có thể.\n\nTrân trọng,\nCăn Hộ F4`;
 
   return dispatch({
     recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
@@ -831,7 +832,7 @@ const notifyTenantSevereWarning = async (invoice) => {
   if (!tenant) return [];
 
   const title = "🚨 Cảnh báo công nợ nghiêm trọng";
-  const message = `Kính gửi Quý khách,\n\nHóa đơn phòng ${invoice.roomName} (${fmt(invoice.totalAmount)}đ) đã quá hạn thanh toán nghiêm trọng. Nếu tình trạng công nợ tiếp tục kéo dài, chúng tôi sẽ buộc phải xem xét chấm dứt hợp đồng thuê phòng.\n\nVui lòng liên hệ ngay với ban quản lý để giải quyết.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+  const message = `Kính gửi Quý khách,\n\nHóa đơn phòng ${invoice.roomName} (${fmt(invoice.totalAmount)}đ) đã quá hạn thanh toán nghiêm trọng. Nếu tình trạng công nợ tiếp tục kéo dài, chúng tôi sẽ buộc phải xem xét chấm dứt hợp đồng thuê phòng.\n\nVui lòng liên hệ ngay với ban quản lý để giải quyết.\n\nTrân trọng,\nCăn Hộ F4`;
 
   return dispatch({
     recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
@@ -847,7 +848,7 @@ const notifyTenantTerminationWarning = async (invoice) => {
   if (!tenant) return [];
 
   const title = "❌ Thông báo sẽ chấm dứt hợp đồng sau 5 ngày";
-  const message = `Kính gửi Quý khách,\n\nDo hóa đơn phòng ${invoice.roomName} (${fmt(invoice.totalAmount)}đ) đã quá hạn thanh toán quá lâu mà chưa được giải quyết, chúng tôi chính thức thông báo:\n\nHợp đồng thuê phòng của Quý khách sẽ bị chấm dứt sau 5 ngày nữa nếu khoản nợ không được thanh toán. Quý khách cũng sẽ mất toàn bộ tiền cọc.\n\nVui lòng liên hệ ngay với ban quản lý để thanh toán và tránh bị chấm dứt hợp đồng.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+  const message = `Kính gửi Quý khách,\n\nDo hóa đơn phòng ${invoice.roomName} (${fmt(invoice.totalAmount)}đ) đã quá hạn thanh toán quá lâu mà chưa được giải quyết, chúng tôi chính thức thông báo:\n\nHợp đồng thuê phòng của Quý khách sẽ bị chấm dứt sau 5 ngày nữa nếu khoản nợ không được thanh toán. Quý khách cũng sẽ mất toàn bộ tiền cọc.\n\nVui lòng liên hệ ngay với ban quản lý để thanh toán và tránh bị chấm dứt hợp đồng.\n\nTrân trọng,\nCăn Hộ F4`;
 
   return dispatch({
     recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
@@ -864,7 +865,7 @@ const notifyTenantContractTerminatedDueToDebt = async (invoice, contract) => {
 
   const room = await Room.findById(contract.room).select("name");
   const title = "🔴 Hợp đồng đã bị chấm dứt do nợ quá hạn";
-  const message = `Kính gửi Quý khách,\n\nHợp đồng thuê phòng ${room?.name || invoice.roomName} của Quý khách đã bị chấm dứt do hóa đơn quá hạn thanh toán quá lâu mà không được giải quyết.\n\n• Tiền cọc: Bị tịch thu theo quy định.\n• Phòng: Đã được giải phóng.\n\nNếu có bất kỳ thắc mắc nào, vui lòng liên hệ với ban quản lý.\n\nTrân trọng,\nĐội ngũ Phòng Trọ DTT`;
+  const message = `Kính gửi Quý khách,\n\nHợp đồng thuê phòng ${room?.name || invoice.roomName} của Quý khách đã bị chấm dứt do hóa đơn quá hạn thanh toán quá lâu mà không được giải quyết.\n\n• Tiền cọc: Bị tịch thu theo quy định.\n• Phòng: Đã được giải phóng.\n\nNếu có bất kỳ thắc mắc nào, vui lòng liên hệ với ban quản lý.\n\nTrân trọng,\nCăn Hộ F4`;
 
   return dispatch({
     recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
@@ -988,6 +989,57 @@ const notifyTenantExtensionCreated = async (newContract) => {
   });
 };
 
+// ─── Service booking ─────────────────────────────────────────────────────────
+/**
+ * Gửi thông báo (in-app + email) cho tenant khi ServiceBooking đổi trạng thái.
+ * `booking.service` và `booking.tenant` phải đã populate (tenant cần `email`/`name` để gửi mail).
+ */
+const notifyTenantServiceBookingStatusChanged = async (booking, status) => {
+  const STATUS_TEXT = {
+    confirmed: { title: "✅ Booking dịch vụ đã được xác nhận", verb: "đã được xác nhận" },
+    completed: { title: "🎉 Dịch vụ đã hoàn thành", verb: "đã hoàn thành" },
+    cancelled: { title: "❌ Booking dịch vụ đã bị hủy", verb: "đã bị hủy" },
+  };
+  const info = STATUS_TEXT[status];
+  if (!info) return [];
+
+  const serviceName = booking.service?.name || "Dịch vụ";
+  const message = `Kính gửi Quý khách,\n\nBooking dịch vụ "${serviceName}" (hẹn lúc ${fmtDate(booking.scheduledAt)}) ${info.verb}.\n\nTrân trọng,\nCăn Hộ F4`;
+
+  return dispatch({
+    recipients: [{ _id: booking.tenant._id, email: booking.tenant.email, name: booking.tenant.name }],
+    data: {
+      type: "SERVICE",
+      title: info.title,
+      message,
+      serviceBookingId: booking._id,
+    },
+    channels: ["inapp", "email"],
+  });
+};
+
+/**
+ * Gửi thông báo (in-app + email) cho tenant khi 1 Service họ đang có booking pending/confirmed
+ * bị admin/staff chuyển isActive:true → false (tạm ngừng kinh doanh).
+ * KHÔNG tự hủy booking — chỉ báo cho tenant biết, admin/staff tự xử lý tiếp bằng tay.
+ * `booking.tenant` phải đã populate (cần `email`/`name` để gửi mail).
+ */
+const notifyTenantServiceDeactivated = async (booking, service) => {
+  const title = "⏸️ Dịch vụ tạm ngừng kinh doanh";
+  const message = `Kính gửi Quý khách,\n\nDịch vụ "${service.name}" mà Quý khách đã đặt (hẹn lúc ${fmtDate(booking.scheduledAt)}) hiện đã tạm ngừng kinh doanh. Booking của Quý khách vẫn được giữ nguyên, đội ngũ CSKH sẽ liên hệ Quý khách sớm.\n\nTrân trọng,\nCăn Hộ F4`;
+
+  return dispatch({
+    recipients: [{ _id: booking.tenant._id, email: booking.tenant.email, name: booking.tenant.name }],
+    data: {
+      type: "SERVICE",
+      title,
+      message,
+      serviceBookingId: booking._id,
+    },
+    channels: ["inapp", "email"],
+  });
+};
+
 module.exports = {
   // Dispatcher (export để test)
   dispatch,
@@ -1013,6 +1065,8 @@ module.exports = {
   notifyTenantAppointmentConfirmed,
   notifyTenantAppointmentCancelled,
   notifyTenantIncidentStatus,
+  notifyTenantServiceBookingStatusChanged,
+  notifyTenantServiceDeactivated,
   // Extension
   notifyTenantExtensionRequest,
   notifyAdminTenantAgreedExtension,

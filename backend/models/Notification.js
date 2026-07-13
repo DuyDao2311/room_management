@@ -5,10 +5,10 @@ const notificationSchema = new mongoose.Schema({
   userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   // Alias cho tenantId để tương thích ngược
   tenantId:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  type:      { 
-    type: String, 
-    enum: ['INVOICE', 'REMINDER', 'SYSTEM', 'APPOINTMENT', 'CONTRACT', 'FEEDBACK', 'INCIDENT'], 
-    default: 'INVOICE' 
+  type:      {
+    type: String,
+    enum: ['INVOICE', 'REMINDER', 'SYSTEM', 'APPOINTMENT', 'CONTRACT', 'FEEDBACK', 'INCIDENT', 'SERVICE'],
+    default: 'INVOICE'
   },
   title:     { type: String, required: true },
   message:   { type: String, required: true },
@@ -19,6 +19,7 @@ const notificationSchema = new mongoose.Schema({
   feedbackId:    { type: mongoose.Schema.Types.ObjectId, ref: 'Feedback' },
   roomId:        { type: mongoose.Schema.Types.ObjectId, ref: 'Room' },
   incidentId:    { type: mongoose.Schema.Types.ObjectId, ref: 'Incident' },
+  serviceBookingId: { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceBooking' },
   isRead:    { type: Boolean, default: false },
 }, { timestamps: true });
 

@@ -27,3 +27,8 @@ logs/
 
 # ===== Personal notes (không push lên repo) =====
 .notes/
+.understand-anything/
+
+# ===== Personal Claude Code skill tooling (không phải code app) =====
+.agents/
+skills-lock.json

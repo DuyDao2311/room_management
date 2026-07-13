@@ -15,13 +15,14 @@ import {
   FiStar,        // Đánh giá
   FiTool,        // Sự cố
   FiBookmark,    // Booking
+  FiTag          // Dịch vụ
 } from "react-icons/fi";
 import { MdOutlineLogout } from "react-icons/md";
 import { Tag } from "lucide-react";
 
 export default function AdminLayout() {
   const { user, logout } = useAuth()
-  const { unreadAppointmentCount, unreadContractCount, unreadFeedbackCount, unreadInvoiceCount, markAllAsRead } = useNotifications()
+  const { unreadAppointmentCount, unreadContractCount, unreadFeedbackCount, unreadInvoiceCount, unreadServiceCount, markAllAsRead } = useNotifications()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -46,6 +47,8 @@ export default function AdminLayout() {
     { name: 'Quản lý phòng', path: '/admin/rooms', exact: false, icon: <FiHome />, roles: ['admin', 'staff'], badge: 0, notifType: undefined },
     { name: 'Bản đồ phòng', path: '/admin/room-map', exact: false, icon: <FiMap />, roles: ['admin', 'staff'], badge: 0, notifType: undefined },
     { name: 'Đặt phòng', path: '/admin/bookings', exact: false, icon: <FiBookmark />, roles: ['admin', 'staff'], badge: 0, notifType: undefined },
+    { name: 'Dịch vụ', path: '/admin/services', exact: false, icon: <FiTag />, roles: ['admin', 'staff'], badge: 0, notifType: undefined },
+    { name: 'Đặt dịch vụ', path: '/admin/service-bookings', exact: false, icon: <FiBookmark />, roles: ['admin', 'staff'], badge: unreadServiceCount, notifType: 'SERVICE' },
     { name: 'Hợp đồng', path: '/admin/contracts', exact: false, icon: <FiFileText />, roles: ['admin', 'staff'], badge: unreadContractCount, notifType: 'CONTRACT' },
     { name: 'Hóa đơn', path: '/admin/invoices', exact: false, icon: <FiFile />, roles: ['admin', 'staff'], badge: unreadInvoiceCount, notifType: 'INVOICE' },
     { name: 'Lịch hẹn', path: '/admin/appointments', exact: false, icon: <FiCalendar />, roles: ['admin', 'staff'], badge: unreadAppointmentCount, notifType: 'APPOINTMENT' },
