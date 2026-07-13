@@ -6,7 +6,7 @@ import { useAuth } from '../../contexts/AuthContext.tsx'
 // import Badge from '../../components/ui/Badge.tsx'
 import { Building, TrendingUp, Key, Wrench, Pencil, Trash2, ImageIcon } from "lucide-react"
 // import { DoorOpen, Bed, User } from "lucide-react"
-import { FiHome, FiTool } from "react-icons/fi";
+import { FiHome, FiTool, FiPlus } from "react-icons/fi";
 import { MdBed } from "react-icons/md";
 import MapPicker from '../../components/map/MapPicker.tsx'
 import RoomImageManager from '../../components/room-images/RoomImageManager.tsx'
@@ -28,6 +28,7 @@ interface Room {
   dailyPrice?: number
   weeklyPrice?: number
   monthlyPrice?: number
+  maxGuests?: number
   rentalMode?: string
   location?: {
     type: string
@@ -46,6 +47,7 @@ const EMPTY_FORM = {
   type: 'Studio', status: 'available' as Room['status'],
   description: '', amenities: '', maintenanceEndDate: '',
   hourlyPrice: '0', dailyPrice: '0', weeklyPrice: '0', monthlyPrice: '0',
+  maxGuests: '2',
   locationLat: 0, locationLng: 0
 }
 
@@ -134,6 +136,7 @@ export default function RoomManagement() {
           maintenanceEndDate: r.maintenanceEndDate ? new Date(r.maintenanceEndDate).toISOString().split('T')[0] : '',
           hourlyPrice: String(r.hourlyPrice || 0), dailyPrice: String(r.dailyPrice || 0),
           weeklyPrice: String(r.weeklyPrice || 0), monthlyPrice: String(r.monthlyPrice || 0),
+          maxGuests: String(r.maxGuests || 2),
           locationLat: r.location?.coordinates?.[1] || 0,
           locationLng: r.location?.coordinates?.[0] || 0
         });
@@ -165,6 +168,7 @@ export default function RoomManagement() {
       maintenanceEndDate: r.maintenanceEndDate ? new Date(r.maintenanceEndDate).toISOString().split('T')[0] : '',
       hourlyPrice: String(r.hourlyPrice || 0), dailyPrice: String(r.dailyPrice || 0),
       weeklyPrice: String(r.weeklyPrice || 0), monthlyPrice: String(r.monthlyPrice || 0),
+      maxGuests: String(r.maxGuests || 2),
       locationLat: r.location?.coordinates?.[1] || 0,
       locationLng: r.location?.coordinates?.[0] || 0
     })
@@ -183,6 +187,7 @@ export default function RoomManagement() {
       dailyPrice: Number(form.dailyPrice),
       weeklyPrice: Number(form.weeklyPrice),
       monthlyPrice: Number(form.monthlyPrice),
+      maxGuests: Number(form.maxGuests),
       amenities: form.amenities.split(',').map(s => s.trim()).filter(Boolean),
     }
 
@@ -241,9 +246,35 @@ export default function RoomManagement() {
   return (
     <div className="page-shell">
       <div className="admin-page">
-        <h1 style={{ color: '#003e68', fontSize: '2rem', fontWeight: 700, margin: '0 0 24px 0', paddingBottom: '16px', borderBottom: '1px solid #eaecf0' }}>
-          Danh sách phòng
-        </h1>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "24px",
+          }}
+        >
+          <h1
+            style={{
+              color: '#003e68',
+              fontSize: '2rem',
+              fontWeight: 700,
+              margin: 0,
+              paddingBottom: '16px',
+              borderBottom: '1px solid #eaecf0',
+              flex: 1,
+            }}
+          >
+            Quản lý phòng
+          </h1>
+          <button
+            onClick={openCreate}
+            className="button button-primary"
+            style={{ display: "flex", alignItems: "center", gap: "8px" }}
+          >
+            <FiPlus /> Thêm phòng mới
+          </button>
+        </div>
 
         {/* Stats Row */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
@@ -319,12 +350,6 @@ export default function RoomManagement() {
             <option value="short_term">Thuê ngắn hạn</option>
             <option value="long_term">Thuê dài hạn</option>
           </select>
-
-          <div style={{ marginLeft: 'auto' }}>
-            <button className="button button-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '1rem' }}>+</span> THÊM PHÒNG
-            </button>
-          </div>
         </div>
 
         {error && <div className="alert alert-error">{error}</div>}
@@ -398,7 +423,11 @@ export default function RoomManagement() {
 
                   {/* Actions */}
                   <div style={{ display: 'flex', gap: '16px', marginLeft: '24px' }}>
-                    <button onClick={() => openEdit(r)} title="Sửa">
+                    <button
+                      onClick={() => openEdit(r)}
+                      title="Sửa"
+                      style={{ background: 'white', border: 'none', cursor: 'pointer', padding: '8px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
                       <Pencil size={18} />
                     </button>
                     <button
@@ -408,12 +437,16 @@ export default function RoomManagement() {
                         setShowImageManager(true)
                       }}
                       title="Quản lý ảnh"
-                      style={{ color: '#088373' }}
+                      style={{ background: 'white', border: 'none', cursor: 'pointer', padding: '8px', borderRadius: '4px', color: '#088373', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     >
                       <ImageIcon size={18} />
                     </button>
                     {!isStaff && (
-                      <button onClick={() => handleDelete(r._id)} title="Xóa">
+                      <button
+                        onClick={() => handleDelete(r._id)}
+                        title="Xóa"
+                        style={{ background: 'white', border: 'none', cursor: 'pointer', padding: '8px', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
                         <Trash2 size={18} color="#d92d20" />
                       </button>
                     )}
@@ -497,10 +530,12 @@ export default function RoomManagement() {
                   onChange={(loc) => setForm({ ...form, locationLat: loc.lat, locationLng: loc.lng })}
                 />
                 <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="f-price">Giá thuê (VNĐ/tháng)</label>
-                    <input id="f-price" type="number" className="form-input" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required min={0} placeholder="5500000" />
-                  </div>
+                  {!(form.type === 'Studio' || form.type === '1 phòng ngủ') && (
+                    <div className="form-group">
+                      <label htmlFor="f-price">Giá thuê (VNĐ/tháng)</label>
+                      <input id="f-price" type="number" className="form-input" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required min={0} placeholder="5500000" />
+                    </div>
+                  )}
                   <div className="form-group">
                     <label htmlFor="f-area">Diện tích (m²)</label>
                     <input id="f-area" type="number" className="form-input" value={form.area} onChange={e => setForm({ ...form, area: e.target.value })} required min={0} placeholder="40" />
@@ -508,8 +543,29 @@ export default function RoomManagement() {
                 </div>
                 {(form.type === 'Studio' || form.type === '1 phòng ngủ') && (
                   <>
-                    <p style={{ margin: '8px 0', fontSize: '0.9rem', color: '#003e68', fontWeight: 600 }}>Cấu hình giá thuê ngắn hạn</p>
+                    {/* <p style={{ margin: '8px 0', fontSize: '0.9rem', color: '#003e68', fontWeight: 600 }}>Cấu hình giá thuê ngắn hạn</p> */}
                     <div className="form-row">
+                      <div className="form-group">
+                        <label htmlFor="f-price-month">Giá theo tháng (VNĐ)</label>
+                        <input id="f-price-month" type="number" className="form-input" value={form.monthlyPrice} onChange={e => {
+                          const val = e.target.value;
+                          const num = Number(val);
+                          if (num > 0) {
+                            const rawWeekly = num * 0.3;
+                            const rawDaily = num * (1 / 15);
+                            const rawHourly = rawDaily * (1 / 4);
+                            setForm({
+                              ...form,
+                              monthlyPrice: val,
+                              weeklyPrice: String(Math.round(rawWeekly / 1000) * 1000),
+                              dailyPrice: String(Math.round(rawDaily / 1000) * 1000),
+                              hourlyPrice: String(Math.round(rawHourly / 1000) * 1000),
+                            });
+                          } else {
+                            setForm({ ...form, monthlyPrice: val });
+                          }
+                        }} min={0} />
+                      </div>
                       <div className="form-group">
                         <label htmlFor="f-price-hour">Giá theo giờ (VNĐ)</label>
                         <input id="f-price-hour" type="number" className="form-input" value={form.hourlyPrice} onChange={e => setForm({ ...form, hourlyPrice: e.target.value })} min={0} />
@@ -518,15 +574,15 @@ export default function RoomManagement() {
                         <label htmlFor="f-price-day">Giá theo ngày (VNĐ)</label>
                         <input id="f-price-day" type="number" className="form-input" value={form.dailyPrice} onChange={e => setForm({ ...form, dailyPrice: e.target.value })} min={0} />
                       </div>
-                    </div>
-                    <div className="form-row">
                       <div className="form-group">
                         <label htmlFor="f-price-week">Giá theo tuần (VNĐ)</label>
                         <input id="f-price-week" type="number" className="form-input" value={form.weeklyPrice} onChange={e => setForm({ ...form, weeklyPrice: e.target.value })} min={0} />
                       </div>
+                    </div>
+                    <div className="form-row">
                       <div className="form-group">
-                        <label htmlFor="f-price-month">Giá theo tháng (ngắn hạn) (VNĐ)</label>
-                        <input id="f-price-month" type="number" className="form-input" value={form.monthlyPrice} onChange={e => setForm({ ...form, monthlyPrice: e.target.value })} min={0} />
+                        <label htmlFor="f-max-guests">Số khách tối đa</label>
+                        <input id="f-max-guests" type="number" className="form-input" value={form.maxGuests} onChange={e => setForm({ ...form, maxGuests: e.target.value })} min={1} max={20} />
                       </div>
                     </div>
                   </>

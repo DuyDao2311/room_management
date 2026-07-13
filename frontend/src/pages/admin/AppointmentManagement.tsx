@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios.ts'
 import Spinner from '../../components/ui/Spinner.tsx'
 import Pagination from '../../components/ui/Pagination.tsx'
-
+import { MdFormatListBulleted, MdAssignment, MdCheckCircle, MdCancel } from 'react-icons/md'
+import AppointmentFilters from '../../components/appointment/AppointmentFilters.tsx'
 interface Appointment {
   _id: string
   name: string
@@ -27,6 +28,8 @@ export default function AppointmentManagement() {
 
   const [currentPage, setCurrentPage] = useState(1)
   const ITEMS_PER_PAGE = 9
+
+  const [filters, setFilters] = useState({ search: '', status: '' })
 
   useEffect(() => {
     fetchAppointments()
@@ -84,15 +87,83 @@ export default function AppointmentManagement() {
     }
   }
 
-  const totalPages = Math.ceil(appointments.length / ITEMS_PER_PAGE)
-  const currentAppointments = appointments.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
+  const handleFilterChange = (newFilters: any) => {
+    setFilters(prev => ({ ...prev, ...newFilters }))
+    setCurrentPage(1)
+  }
+
+  // Stats calculation
+  const totalAppointments = appointments.length
+  const pendingCount = appointments.filter(a => a.status === 'pending').length
+  const confirmedCount = appointments.filter(a => a.status === 'confirmed').length
+  const cancelledCount = appointments.filter(a => a.status === 'cancelled').length
+
+  // Apply filters
+  const filteredAppointments = appointments.filter(a => {
+    const searchLower = filters.search.toLowerCase()
+    const matchSearch = 
+      (a.name || '').toLowerCase().includes(searchLower) ||
+      (a.phone || '').includes(searchLower) ||
+      (a.room?.name || '').toLowerCase().includes(searchLower)
+    
+    const matchStatus = filters.status ? a.status === filters.status : true
+    
+    return matchSearch && matchStatus
+  })
+
+  const totalPages = Math.ceil(filteredAppointments.length / ITEMS_PER_PAGE)
+  const currentAppointments = filteredAppointments.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
 
   return (
     <div className="page-shell">
       <div className="admin-page">
         <h1 className="admin-page-title">Quản lý lịch hẹn</h1>
 
+        {/* Thống kê */}
+        <div className="incident-stats-grid">
+          <div className="incident-stat-card">
+            <div className="incident-stat-stripe stripe-total" />
+            <div className="incident-stat-header">
+              <MdFormatListBulleted size={16} /> Tổng số lịch hẹn
+            </div>
+            <div className="incident-stat-content">
+              <span className="incident-stat-value total">{totalAppointments}</span>
+            </div>
+          </div>
+          <div className="incident-stat-card">
+            <div className="incident-stat-stripe stripe-progress" />
+            <div className="incident-stat-header">
+              <MdAssignment size={16} color="#ea580c" /> Chờ duyệt
+            </div>
+            <div className="incident-stat-content">
+              <span className="incident-stat-value progress">{pendingCount}</span>
+            </div>
+          </div>
+          <div className="incident-stat-card">
+            <div className="incident-stat-stripe stripe-completed" />
+            <div className="incident-stat-header">
+              <MdCheckCircle size={16} color="#059669" /> Đã xác nhận
+            </div>
+            <div className="incident-stat-content">
+              <span className="incident-stat-value completed">{confirmedCount}</span>
+            </div>
+          </div>
+          <div className="incident-stat-card">
+            <div className="incident-stat-stripe" style={{ background: '#dc2626' }} />
+            <div className="incident-stat-header">
+              <MdCancel size={16} color="#dc2626" /> Đã hủy
+            </div>
+            <div className="incident-stat-content">
+              <span className="incident-stat-value" style={{ color: '#dc2626' }}>{cancelledCount}</span>
+            </div>
+          </div>
+        </div>
+
       {error && <div className="alert alert-error mb-4">{error}</div>}
+
+      <div className="admin-table-wrap" style={{ background: '#fff', marginBottom: '20px' }}>
+        <AppointmentFilters filters={filters} onFilterChange={handleFilterChange} />
+      </div>
 
       <div className="apt-list">
         {loading ? (

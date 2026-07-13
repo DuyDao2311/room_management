@@ -106,7 +106,7 @@ export default function MyBookings() {
     <div className="page-shell">
       <div className="container" style={{ padding: '40px 0' }}>
         <h1 style={{ color: '#003e68', fontSize: '2rem', fontWeight: 800, margin: '0 0 32px 0' }}>
-          Lịch sử Đặt phòng <span style={{ color: '#667085', fontWeight: 400 }}>(Ngắn hạn)</span>
+          Lịch sử Đặt phòng <span style={{ color: '#667085', fontWeight: 400 }}></span>
         </h1>
 
         {error && <div className="alert alert-error">{error}</div>}

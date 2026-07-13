@@ -11,6 +11,7 @@ const cron = require("node-cron");
 const Contract = require("../models/Contract");
 const Room = require("../models/Room");
 const Invoice = require("../models/Invoice");
+const Promotion = require("../models/Promotion");
 const {
   notifyContractExpiring,
   notifyTenantContractExpiring,
@@ -43,7 +44,10 @@ const runDailyCronJobs = async (io) => {
     // Xử lý chấm dứt hợp đồng do nợ quá hạn > 19 ngày
     await autoTerminateOverdueInvoices(io);
 
-    console.log("✅ [CronJob] Hoàn tất kiểm tra hợp đồng và hóa đơn.");
+    // Cập nhật trạng thái khuyến mãi
+    await autoUpdatePromotionStatus();
+
+    console.log("✅ [CronJob] Hoàn tất kiểm tra hợp đồng, hóa đơn và khuyến mãi.");
   } catch (err) {
     console.error("❌ [CronJob] Lỗi:", err.message);
     throw err;
@@ -289,6 +293,59 @@ const autoTerminateOverdueInvoices = async (io) => {
     console.log("🔴 [CronJob] Không có hợp đồng nào cần chấm dứt do nợ quá hạn.");
   } else {
     console.log(`🔴 [CronJob] Đã chấm dứt ${terminatedCount} hợp đồng do nợ quá hạn.`);
+  }
+};
+
+// ─── 5. Tự động cập nhật trạng thái khuyến mãi ──────────────────────────────
+/**
+ * Cập nhật trạng thái promotion dựa trên ngày bắt đầu/kết thúc:
+ *   - upcoming → active: khi startDate <= now
+ *   - active/upcoming → expired: khi endDate (cuối ngày 23:59:59) < now
+ *   - Không động đến promotion bị disabled thủ công
+ */
+const autoUpdatePromotionStatus = async () => {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+  // Ngày hôm qua 23:59:59.999 (cuối ngày hôm qua)
+  const endOfYesterday = new Date(startOfToday.getTime() - 1);
+
+  try {
+    // 1. upcoming → active: startDate đã đến (startDate <= bắt đầu hôm nay)
+    const activatedResult = await Promotion.updateMany(
+      {
+        status: "upcoming",
+        startDate: { $lte: now },
+        endDate: { $gte: startOfToday },
+        deletedAt: null,
+      },
+      { $set: { status: "active" } }
+    );
+
+    if (activatedResult.modifiedCount > 0) {
+      console.log(`🏷️ [CronJob] Kích hoạt ${activatedResult.modifiedCount} khuyến mãi (upcoming → active).`);
+    }
+
+    // 2. active/upcoming → expired: endDate đã qua (cuối ngày endDate < now)
+    //    Ví dụ: endDate = 4/7/2026 → hết hạn vào 0h00 ngày 5/7/2026
+    const expiredResult = await Promotion.updateMany(
+      {
+        status: { $in: ["active", "upcoming"] },
+        endDate: { $lt: startOfToday },
+        deletedAt: null,
+      },
+      { $set: { status: "expired" } }
+    );
+
+    if (expiredResult.modifiedCount > 0) {
+      console.log(`🏷️ [CronJob] Kết thúc ${expiredResult.modifiedCount} khuyến mãi (→ expired).`);
+    }
+
+    if (activatedResult.modifiedCount === 0 && expiredResult.modifiedCount === 0) {
+      console.log("🏷️ [CronJob] Không có khuyến mãi nào cần cập nhật trạng thái.");
+    }
+  } catch (err) {
+    console.error("❌ [CronJob] Lỗi cập nhật trạng thái khuyến mãi:", err.message);
   }
 };
 

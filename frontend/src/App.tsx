@@ -30,6 +30,7 @@ import IncidentManagement from './pages/admin/IncidentManagement'
 import AdminLayout from './components/layout/AdminLayout'
 import ChatBox from './components/ui/ChatBox'
 import FeedbackManagement from './pages/admin/FeedbackManagement'
+import PromotionManagement from './pages/admin/PromotionManagement'
 import FavoritesPage from './pages/public/FavoritesPage'
 import Profile from './pages/profile/Profile'
 import UserProfileLayout from './pages/profile/UserProfileLayout'
@@ -90,6 +91,7 @@ function AppLayout() {
         {/* Payment callbacks */}
         <Route path="/payment/momo-callback" element={<PaymentCallback />} />
         <Route path="/payment/vnpay-callback" element={<PaymentCallback />} />
+        <Route path="/payment/success" element={<PaymentCallback />} />
         <Route path="/payment/success/:invoiceId" element={<PaymentCallback />} />
         <Route path="/payment/failed" element={<PaymentCallback />} />
 
@@ -107,6 +109,7 @@ function AppLayout() {
           <Route path="users" element={<RequireAuth role="admin"><UserManagement /></RequireAuth>} />
           <Route path="staff" element={<RequireAuth role="admin"><StaffManagement /></RequireAuth>} />
           <Route path="feedback" element={<FeedbackManagement />} />
+          <Route path="promotions" element={<PromotionManagement />} />
         </Route>
 
         {/* Profile — any authenticated user */}

@@ -315,9 +315,11 @@ class PaymentController {
 
             let targetId = null;
             let successRoute = '';
+            let invoice = null;
+            let booking = null;
 
             if (invoiceId) {
-                const invoice = await invoiceModel.findById(invoiceId);
+                invoice = await invoiceModel.findById(invoiceId);
                 if (!invoice) {
                     return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=invoice-not-found`);
                 }
@@ -336,11 +338,12 @@ class PaymentController {
                 successRoute = `/payment/success/${targetId}`;
             } else if (bookingId) {
                 const Booking = require('../models/Booking');
-                const booking = await Booking.findById(bookingId);
+                booking = await Booking.findById(bookingId);
                 if (!booking) {
                     return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=booking-not-found`);
                 }
                 booking.paymentStatus = 'paid';
+                booking.paymentMethod = 'MoMo';
                 if (booking.status === 'pending') {
                     booking.status = 'confirmed';
                 }
@@ -363,10 +366,12 @@ class PaymentController {
             } else {
                 // fallback: tạo mới nếu không có pendingPaymentId
                 await paymentModel.create({
-                    invoice:       invoice._id,
-                    contract:      invoice.contract,
+                    invoice:       invoice ? invoice._id : undefined,
+                    booking:       booking ? booking._id : undefined,
+                    contract:      invoice ? invoice.contract : undefined,
+                    tenant:        invoice ? invoice.tenantId : (booking ? booking.tenant : undefined),
                     paymentMethod: 'momo',
-                    amount:        invoice.totalAmount,
+                    amount:        invoice ? invoice.totalAmount : (booking ? booking.totalAmount : 0),
                     status:        'success',
                     paidAt:        new Date(),
                     momo: { orderId, transId, resultCode: 0, message, payType },
@@ -435,9 +440,11 @@ class PaymentController {
 
             let targetId = null;
             let successRoute = '';
+            let invoice = null;
+            let booking = null;
 
             if (invoiceId) {
-                const invoice = await invoiceModel.findById(invoiceId);
+                invoice = await invoiceModel.findById(invoiceId);
                 if (!invoice) return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=invoice-not-found`);
                 
                 invoice.status = 'paid';
@@ -451,10 +458,11 @@ class PaymentController {
                 successRoute = `/payment/success/${targetId}`;
             } else if (bookingId) {
                 const Booking = require('../models/Booking');
-                const booking = await Booking.findById(bookingId);
+                booking = await Booking.findById(bookingId);
                 if (!booking) return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=booking-not-found`);
                 
                 booking.paymentStatus = 'paid';
+                booking.paymentMethod = 'VNPay';
                 if (booking.status === 'pending') {
                     booking.status = 'confirmed';
                 }
@@ -477,10 +485,12 @@ class PaymentController {
             } else {
                 // fallback: tạo mới nếu không tìm thấy qua txnRef
                 await paymentModel.create({
-                    invoice:       invoice._id,
-                    contract:      invoice.contract,
+                    invoice:       invoice ? invoice._id : undefined,
+                    booking:       booking ? booking._id : undefined,
+                    contract:      invoice ? invoice.contract : undefined,
+                    tenant:        invoice ? invoice.tenantId : (booking ? booking.tenant : undefined),
                     paymentMethod: 'vnpay',
-                    amount:        invoice.totalAmount,
+                    amount:        invoice ? invoice.totalAmount : (booking ? booking.totalAmount : 0),
                     status:        'success',
                     paidAt:        new Date(),
                     vnpay: {

@@ -6,8 +6,31 @@ const Room = require("../models/Room");
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Calculate duration and price based on bookingType and room prices.
- * Frontend only sends: bookingType, checkInDateTime, checkOutDateTime
+ * Determine bookingType automatically from check-in/check-out duration.
+ * < 24h → hour | < 7 days → day | < 30 days → week | else → month (max 3 months)
+ */
+function determineBookingType(checkIn, checkOut) {
+  const msIn = new Date(checkIn).getTime();
+  const msOut = new Date(checkOut).getTime();
+  const diffMs = msOut - msIn;
+
+  const HOUR_24 = 1000 * 60 * 60 * 24;
+  const DAY_7 = HOUR_24 * 7;
+  const DAY_30 = HOUR_24 * 30;
+  const DAY_90 = HOUR_24 * 90; // ~3 tháng
+
+  if (diffMs > DAY_90) {
+    throw new Error("Thuê ngắn hạn tối đa 3 tháng. Vui lòng chọn khoảng thời gian ngắn hơn.");
+  }
+
+  if (diffMs < HOUR_24) return "hour";
+  if (diffMs < DAY_7) return "day";
+  if (diffMs < DAY_30) return "week";
+  return "month";
+}
+
+/**
+ * Calculate duration and price based on auto-determined bookingType and room prices.
  */
 function calculateBooking(bookingType, checkIn, checkOut, room) {
   const msIn = new Date(checkIn).getTime();
@@ -56,6 +79,7 @@ function calculateBooking(bookingType, checkIn, checkOut, room) {
         (checkOutDate.getMonth() - checkInDate.getMonth());
       if (checkOutDate.getDate() > checkInDate.getDate()) totalMonths++;
       if (totalMonths < 1) totalMonths = 1;
+      if (totalMonths > 3) throw new Error("Thuê ngắn hạn tối đa 3 tháng.");
       unitPrice = room.monthlyPrice;
       totalAmount = totalMonths * unitPrice;
       break;
@@ -70,7 +94,7 @@ function calculateBooking(bookingType, checkIn, checkOut, room) {
     );
   }
 
-  return { totalHours, totalDays, totalWeeks, totalMonths, unitPrice, totalAmount };
+  return { bookingType, totalHours, totalDays, totalWeeks, totalMonths, unitPrice, totalAmount };
 }
 
 /**
@@ -102,11 +126,11 @@ async function checkAvailability(roomId, checkIn, checkOut, excludeId = null) {
  */
 const createBooking = async (req, res) => {
   try {
-    const { roomId, bookingType, checkInDateTime, checkOutDateTime, note } = req.body;
+    const { roomId, bookingType, checkInDateTime, checkOutDateTime, note, guests } = req.body;
 
-    if (!roomId || !bookingType || !checkInDateTime || !checkOutDateTime) {
+    if (!roomId || !checkInDateTime || !checkOutDateTime) {
       return res.status(400).json({
-        message: "Vui lòng cung cấp đầy đủ: phòng, loại thuê, thời gian nhận/trả phòng.",
+        message: "Vui lòng cung cấp đầy đủ: phòng, thời gian nhận/trả phòng.",
       });
     }
 
@@ -121,6 +145,17 @@ const createBooking = async (req, res) => {
       });
     }
 
+    // Determine bookingType
+    const finalBookingType = bookingType || determineBookingType(checkInDateTime, checkOutDateTime);
+
+    // Validate guests
+    const guestCount = guests ? Math.max(1, Math.floor(Number(guests))) : 1;
+    if (guestCount > (room.maxGuests || 99)) {
+      return res.status(400).json({
+        message: `Phòng này tối đa ${room.maxGuests} khách. Bạn đã chọn ${guestCount} khách.`,
+      });
+    }
+
     // Check availability
     const available = await checkAvailability(roomId, checkInDateTime, checkOutDateTime);
     if (!available) {
@@ -130,15 +165,16 @@ const createBooking = async (req, res) => {
     }
 
     // Calculate pricing
-    const calc = calculateBooking(bookingType, checkInDateTime, checkOutDateTime, room);
+    const calc = calculateBooking(finalBookingType, checkInDateTime, checkOutDateTime, room);
 
     const booking = await Booking.create({
       room: roomId,
       tenant: req.user._id,
-      bookingType,
+      bookingType: calc.bookingType,
       checkInDateTime: new Date(checkInDateTime),
       checkOutDateTime: new Date(checkOutDateTime),
       ...calc,
+      guests: guestCount,
       paymentStatus: "pending",
       status: "pending",
       note: note || "",
@@ -148,7 +184,7 @@ const createBooking = async (req, res) => {
     await Room.findByIdAndUpdate(roomId, { status: "occupied" });
 
     const populated = await Booking.findById(booking._id)
-      .populate("room", "name address type images hourlyPrice dailyPrice weeklyPrice monthlyPrice")
+      .populate("room", "name address type images hourlyPrice dailyPrice weeklyPrice monthlyPrice maxGuests")
       .populate("tenant", "name email phone");
 
     res.status(201).json(populated);
@@ -379,11 +415,27 @@ const payBooking = async (req, res) => {
     }
 
     booking.paymentStatus = "paid";
+    booking.paymentMethod = "Cash";
     // Auto-confirm when paid
     if (booking.status === "pending") {
       booking.status = "confirmed";
     }
     await booking.save();
+
+    // Create a Payment record to track this cash payment
+    const Payment = require("../models/Payment");
+    await Payment.create({
+      booking: booking._id,
+      tenant: booking.tenant,
+      paymentMethod: "cash",
+      amount: booking.totalAmount,
+      status: "success",
+      paidAt: new Date(),
+      cash: {
+        receivedBy: req.user ? req.user._id : undefined,
+        note: "Xác nhận thanh toán Booking bằng tiền mặt",
+      },
+    });
 
     const populated = await Booking.findById(booking._id)
       .populate("room", "name address type images")

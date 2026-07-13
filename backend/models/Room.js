@@ -14,7 +14,12 @@ const roomSchema = new mongoose.Schema(
     },
     price: {
       type: Number,
-      required: [true, "Giá thuê không được để trống"],
+      required: [
+        function () {
+          return this.rentalMode !== "short_term";
+        },
+        "Giá thuê không được để trống",
+      ],
       min: [0, "Giá thuê phải lớn hơn 0"],
     },
     area: {
@@ -116,6 +121,12 @@ const roomSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // ── Max guests per room ─────────────────────────────────────────────────
+    maxGuests: {
+      type: Number,
+      default: 2,
+      min: 1,
+    },
   },
   { timestamps: true }
 );
@@ -126,6 +137,59 @@ roomSchema.pre("validate", function (next) {
   const shortTermTypes = ["Studio", "1 phòng ngủ"];
   this.rentalMode = shortTermTypes.includes(this.type) ? "short_term" : "long_term";
   next();
+});
+
+// ── Auto-calculate short-term prices ─────────────────────────────────────────
+const calculateShortTermPrices = (monthlyPrice) => {
+  if (!monthlyPrice || monthlyPrice <= 0) return null;
+  
+  // Bạn có thể sửa hệ số công thức tại đây
+  const coeffWeekly = 0.3;
+  const coeffDaily = 1 / 15;
+  const coeffHourly = 1 / 4; // Tính dựa trên giá ngày
+
+  const rawWeekly = monthlyPrice * coeffWeekly;
+  const rawDaily = monthlyPrice * coeffDaily;
+  const rawHourly = rawDaily * coeffHourly;
+
+  return {
+    weeklyPrice: Math.round(rawWeekly / 1000) * 1000,
+    dailyPrice: Math.round(rawDaily / 1000) * 1000,
+    hourlyPrice: Math.round(rawHourly / 1000) * 1000,
+  };
+};
+
+roomSchema.pre("save", function () {
+  if (this.monthlyPrice > 0) {
+    const prices = calculateShortTermPrices(this.monthlyPrice);
+    if (prices) {
+      this.weeklyPrice = prices.weeklyPrice;
+      this.dailyPrice = prices.dailyPrice;
+      this.hourlyPrice = prices.hourlyPrice;
+    }
+  }
+});
+
+roomSchema.pre("findOneAndUpdate", function () {
+  const update = this.getUpdate();
+  let monthlyPrice;
+  
+  if (update.$set && update.$set.monthlyPrice !== undefined) {
+    monthlyPrice = update.$set.monthlyPrice;
+  } else if (update.monthlyPrice !== undefined) {
+    monthlyPrice = update.monthlyPrice;
+  }
+
+  if (monthlyPrice !== undefined && monthlyPrice > 0) {
+    const prices = calculateShortTermPrices(monthlyPrice);
+    if (prices) {
+      this.set({
+        weeklyPrice: prices.weeklyPrice,
+        dailyPrice: prices.dailyPrice,
+        hourlyPrice: prices.hourlyPrice
+      });
+    }
+  }
 });
 
 // Text index để tìm kiếm

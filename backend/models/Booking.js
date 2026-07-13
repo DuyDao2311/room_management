@@ -54,6 +54,11 @@ const bookingSchema = new mongoose.Schema(
       enum: ["pending", "paid", "refunded"],
       default: "pending",
     },
+    paymentMethod: {
+      type: String,
+      enum: ["MoMo", "VNPay", "Cash"],
+      default: null,
+    },
     status: {
       type: String,
       enum: ["pending", "confirmed", "checked_in", "checked_out", "cancelled"],
@@ -63,6 +68,11 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: "",
+    },
+    guests: {
+      type: Number,
+      default: 1,
+      min: 1,
     },
   },
   { timestamps: true }

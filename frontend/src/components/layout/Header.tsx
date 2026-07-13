@@ -88,8 +88,6 @@ export default function Header() {
 
         {user?.role === 'tenant' && (
           <>
-            <Link to="/my-room" className={isActive('/my-room')}>Phòng của tôi</Link>
-            <Link to="/my-bookings" className={isActive('/my-bookings')}>Booking của tôi</Link>
             <Link to="/my-invoices" className={isActive('/my-invoices')}>Hóa đơn của tôi</Link>
           </>
         )}
@@ -129,6 +127,14 @@ export default function Header() {
                 <button className="dropdown-item" onClick={() => { setMenuOpen(false); navigate('/profile') }}>
                   <span className="dropdown-item-icon">👤</span>
                   Thông tin cá nhân
+                </button>
+                <button className="dropdown-item" onClick={() => { setMenuOpen(false); navigate('/my-room') }}>
+                  <span className="dropdown-item-icon">🏡</span>
+                  Phòng của tôi
+                </button>
+                <button className="dropdown-item" onClick={() => { setMenuOpen(false); navigate('/my-bookings') }}>
+                  <span className="dropdown-item-icon">🔖</span>
+                  Booking của tôi
                 </button>
                 <button className="dropdown-item" onClick={() => { setMenuOpen(false); navigate('/profile/payment') }}>
                   <span className="dropdown-item-icon">💳</span>

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import api from '../../api/axios'
 import { MdOutlineDeleteOutline } from "react-icons/md";
 import { useAuth } from '../../contexts/AuthContext';
@@ -20,6 +21,11 @@ interface RoomSuggestion {
   type?: string
   status?: string
   images?: any[]
+  rentalMode?: 'short_term' | 'long_term'
+  hourlyPrice?: number
+  dailyPrice?: number
+  weeklyPrice?: number
+  monthlyPrice?: number
 }
 
 const QUICK_SUGGESTIONS = [
@@ -43,7 +49,7 @@ function TypingIndicator() {
 function RoomCard({ room }: { room: RoomSuggestion }) {
   const img = room.images?.[0]?.url || room.images?.[0] || 'https://vinhomeoceanpark.net/wp-content/uploads/khong-sang-song-hien-dai-tien-ich-tai-studio-vinhomes-ocean-park.jpg'
   return (
-    <a href={`/rooms/${room._id}`} target="_blank" rel="noreferrer" className="chat-room-card">
+    <Link to={`/rooms/${room._id}`} className="chat-room-card">
       <div className="chat-room-img">
         {img
           ? <img src={img} alt={room.name} />
@@ -57,12 +63,17 @@ function RoomCard({ room }: { room: RoomSuggestion }) {
         <p className="chat-room-name">{room.name}</p>
         <p className="chat-room-addr">📍 {room.address}</p>
         <p className="chat-room-price">
-          {room.price.toLocaleString('vi-VN')}
-          <span>đ/tháng</span>
+          {room.rentalMode === 'short_term'
+            ? <>{(room.dailyPrice || room.price).toLocaleString('vi-VN')}<span>đ/ngày</span></>
+            : <>{room.price.toLocaleString('vi-VN')}<span>đ/tháng</span></>
+          }
         </p>
+        {room.rentalMode === 'short_term' && room.hourlyPrice && (
+          <p className="chat-room-meta">⏰ {room.hourlyPrice.toLocaleString('vi-VN')}đ/giờ</p>
+        )}
         {room.area && <p className="chat-room-meta">📐 {room.area} m²</p>}
       </div>
-    </a>
+    </Link>
   )
 }
 
