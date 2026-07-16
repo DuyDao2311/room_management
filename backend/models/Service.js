@@ -24,8 +24,8 @@ const serviceSchema = new mongoose.Schema(
     },
     unit: {
       type: String,
-      enum: ["lần", "buổi", "khách"],
       required: [true, "Đơn vị tính không được để trống"],
+      trim: true,
     },
     images: {
       type: [String],

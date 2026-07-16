@@ -76,6 +76,17 @@ describe("POST /api/services", () => {
 
     expect(res.status).toBe(400);
   });
+
+  test("tạo dịch vụ với đơn vị tính tự do (không thuộc enum cũ) vẫn thành công", async () => {
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ ...VALID_SERVICE, unit: "kg" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.unit).toBe("kg");
+  });
 });
 
 describe("GET /api/services", () => {
