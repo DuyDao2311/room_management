@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { serviceService, CATEGORY_LABELS, type Service, type ServiceCategory, type ServiceUnit } from '../../api/service.service'
+import { serviceService, CATEGORY_LABELS, UNIT_PRESETS, type Service, type ServiceCategory, type ServiceUnit } from '../../api/service.service'
 import Spinner from '../../components/ui/Spinner'
 import { Pencil, EyeOff, Eye, Trash2 } from 'lucide-react'
 
@@ -94,6 +94,7 @@ export default function ServiceManagement() {
   }
 
   const filteredServices = services.filter(s => !filterCategory || s.category === filterCategory)
+  const isPresetUnit = UNIT_PRESETS.includes(form.unit)
 
   return (
     <div className="page-shell">
@@ -195,11 +196,30 @@ export default function ServiceManagement() {
                   </div>
                   <div className="form-group">
                     <label htmlFor="s-unit">Đơn vị tính</label>
-                    <select id="s-unit" className="form-input" value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value as ServiceUnit })}>
-                      <option value="lần">Lần</option>
-                      <option value="buổi">Buổi</option>
-                      <option value="khách">Khách</option>
+                    <select
+                      id="s-unit"
+                      className="form-input"
+                      value={isPresetUnit ? form.unit : '__custom__'}
+                      onChange={e => {
+                        const val = e.target.value
+                        setForm({ ...form, unit: val === '__custom__' ? '' : val })
+                      }}
+                    >
+                      {UNIT_PRESETS.map(u => (
+                        <option key={u} value={u}>{u.charAt(0).toUpperCase() + u.slice(1)}</option>
+                      ))}
+                      <option value="__custom__">Khác (tự nhập)...</option>
                     </select>
+                    {!isPresetUnit && (
+                      <input
+                        className="form-input"
+                        style={{ marginTop: '8px' }}
+                        value={form.unit}
+                        onChange={e => setForm({ ...form, unit: e.target.value })}
+                        placeholder="VD: kg, phần, công"
+                        required
+                      />
+                    )}
                   </div>
                 </div>
                 <div className="form-group">

@@ -79,4 +79,27 @@ describe('ServiceManagement', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Xóa dịch vụ' }))
     await waitFor(() => expect(serviceService.deleteService).toHaveBeenCalledWith('1'))
   })
+
+  test('chọn "Khác (tự nhập)" hiện ô input và lưu đúng giá trị gõ tay', async () => {
+    vi.mocked(serviceService.createService).mockResolvedValue({ data: SERVICE_A } as any)
+    render(<ServiceManagement />)
+    await screen.findByText('Dọn phòng')
+    await userEvent.click(screen.getByText(/THÊM DỊCH VỤ/i))
+    await userEvent.selectOptions(screen.getByLabelText('Đơn vị tính'), '__custom__')
+    const customInput = screen.getByPlaceholderText('VD: kg, phần, công')
+    await userEvent.type(customInput, 'kg')
+    await userEvent.type(screen.getByLabelText('Tên dịch vụ'), 'Giặt ủi')
+    await userEvent.type(screen.getByLabelText('Giá (VNĐ)'), '50000')
+    await userEvent.click(screen.getByText('Thêm dịch vụ'))
+    await waitFor(() => expect(serviceService.createService).toHaveBeenCalledWith(expect.objectContaining({ unit: 'kg' })))
+  })
+
+  test('sửa dịch vụ có unit không khớp preset → select hiện "Khác" với giá trị đúng', async () => {
+    const SERVICE_CUSTOM_UNIT = { ...SERVICE_A, unit: 'kg' }
+    vi.mocked(serviceService.getServices).mockResolvedValue({ data: [SERVICE_CUSTOM_UNIT] } as any)
+    render(<ServiceManagement />)
+    await screen.findByText('Dọn phòng')
+    await userEvent.click(screen.getByTitle('Sửa'))
+    expect(screen.getByPlaceholderText('VD: kg, phần, công')).toHaveValue('kg')
+  })
 })
