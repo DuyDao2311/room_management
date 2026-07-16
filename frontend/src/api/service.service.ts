@@ -1,7 +1,9 @@
 import api from './axios'
 
 export type ServiceCategory = 'cleaning' | 'food' | 'laundry' | 'transport' | 'spa' | 'maintenance'
-export type ServiceUnit = 'lần' | 'buổi' | 'khách'
+export type ServiceUnit = string
+
+export const UNIT_PRESETS: ServiceUnit[] = ['lần', 'buổi', 'khách', 'chuyến']
 
 export interface Service {
   _id: string
@@ -14,6 +16,7 @@ export interface Service {
   avgRating: number
   ratingCount: number
   isActive: boolean
+  bookingCount?: number
   createdAt: string
   updatedAt: string
 }
@@ -74,4 +77,6 @@ export const serviceService = {
       isActive: boolean
     }>
   ) => api.put<Service>(`/services/${id}`, data),
+
+  deleteService: (id: string) => api.delete<{ message: string }>(`/services/${id}`),
 }
