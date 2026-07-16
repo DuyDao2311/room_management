@@ -124,6 +124,36 @@ describe("GET /api/services", () => {
     expect(res.body).toHaveLength(1);
     expect(res.body[0].name).toBe("Đưa đón");
   });
+
+  test("admin thấy bookingCount đúng cho từng dịch vụ", async () => {
+    const admin = await createUser("admin");
+    const tenant = await createUser("tenant");
+    const serviceWithBooking = await Service.create({ ...VALID_SERVICE, name: "Có booking" });
+    const serviceWithoutBooking = await Service.create({ ...VALID_SERVICE, name: "Chưa có booking" });
+    await ServiceBooking.create({
+      service: serviceWithBooking._id, tenant: tenant._id,
+      scheduledAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+      quantity: 1, unitPrice: 100000, totalAmount: 100000,
+    });
+
+    const res = await request(app)
+      .get("/api/services")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`);
+
+    expect(res.status).toBe(200);
+    const withBooking = res.body.find((s) => s.name === "Có booking");
+    const withoutBooking = res.body.find((s) => s.name === "Chưa có booking");
+    expect(withBooking.bookingCount).toBe(1);
+    expect(withoutBooking.bookingCount).toBe(0);
+  });
+
+  test("guest xem danh sách không có field bookingCount", async () => {
+    await Service.create(VALID_SERVICE);
+    const res = await request(app).get("/api/services");
+
+    expect(res.status).toBe(200);
+    expect(res.body[0].bookingCount).toBeUndefined();
+  });
 });
 
 describe("GET /api/services/:id", () => {

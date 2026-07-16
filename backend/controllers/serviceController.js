@@ -35,9 +35,28 @@ const getServices = async (req, res) => {
   try {
     const filter = {};
     if (req.query.category) filter.category = req.query.category;
-    if (!isStaffOrAdmin(req.user)) filter.isActive = true;
 
-    const services = await Service.find(filter).sort({ createdAt: -1 });
+    if (!isStaffOrAdmin(req.user)) {
+      filter.isActive = true;
+      const services = await Service.find(filter).sort({ createdAt: -1 });
+      return res.json(services);
+    }
+
+    // Admin/staff cần bookingCount để biết dịch vụ nào còn xóa được (xem deleteService).
+    const services = await Service.aggregate([
+      { $match: filter },
+      {
+        $lookup: {
+          from: "servicebookings",
+          localField: "_id",
+          foreignField: "service",
+          as: "bookings",
+        },
+      },
+      { $addFields: { bookingCount: { $size: "$bookings" } } },
+      { $project: { bookings: 0 } },
+      { $sort: { createdAt: -1 } },
+    ]);
     res.json(services);
   } catch (err) {
     console.error("Get services error:", err);
