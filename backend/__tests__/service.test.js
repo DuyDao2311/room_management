@@ -273,3 +273,60 @@ describe("GET /api/services/:id/reviews", () => {
   });
 });
 
+describe("DELETE /api/services/:id", () => {
+  test("admin xóa dịch vụ chưa có booking → 200, xóa thật khỏi DB", async () => {
+    const admin = await createUser("admin");
+    const service = await Service.create(VALID_SERVICE);
+
+    const res = await request(app)
+      .delete(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(admin)}`);
+
+    expect(res.status).toBe(200);
+    const found = await Service.findById(service._id);
+    expect(found).toBeNull();
+  });
+
+  test("dịch vụ đã có booking → 409, không xóa", async () => {
+    const admin = await createUser("admin");
+    const tenant = await createUser("tenant");
+    const service = await Service.create(VALID_SERVICE);
+    await ServiceBooking.create({
+      service: service._id, tenant: tenant._id,
+      scheduledAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+      quantity: 1, unitPrice: 100000, totalAmount: 100000,
+    });
+
+    const res = await request(app)
+      .delete(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(admin)}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toMatch(/1 lượt đặt/);
+    const found = await Service.findById(service._id);
+    expect(found).not.toBeNull();
+  });
+
+  test("tenant không được xóa dịch vụ → 403", async () => {
+    const tenant = await createUser("tenant");
+    const service = await Service.create(VALID_SERVICE);
+
+    const res = await request(app)
+      .delete(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  test("id không tồn tại → 404", async () => {
+    const admin = await createUser("admin");
+    const fakeId = new mongoose.Types.ObjectId();
+
+    const res = await request(app)
+      .delete(`/api/services/${fakeId}`)
+      .set("Authorization", `Bearer ${tokenFor(admin)}`);
+
+    expect(res.status).toBe(404);
+  });
+});
+

@@ -127,10 +127,31 @@ const updateService = async (req, res) => {
   }
 };
 
+const deleteService = async (req, res) => {
+  try {
+    const service = await Service.findById(req.params.id);
+    if (!service) return res.status(404).json({ message: "Không tìm thấy dịch vụ." });
+
+    const bookingCount = await ServiceBooking.countDocuments({ service: service._id });
+    if (bookingCount > 0) {
+      return res.status(409).json({
+        message: `Không thể xóa: dịch vụ đã có ${bookingCount} lượt đặt.`,
+      });
+    }
+
+    await Service.findByIdAndDelete(service._id);
+    res.status(200).json({ message: "Đã xóa dịch vụ." });
+  } catch (err) {
+    console.error("Delete service error:", err);
+    res.status(500).json({ message: "Lỗi server." });
+  }
+};
+
 module.exports = {
   createService,
   getServices,
   getServiceById,
   getServiceReviews,
   updateService,
+  deleteService,
 };
