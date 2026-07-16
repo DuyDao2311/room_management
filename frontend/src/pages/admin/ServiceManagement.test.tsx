@@ -12,6 +12,7 @@ vi.mock('../../api/service.service', async () => {
       getServices: vi.fn(),
       createService: vi.fn(),
       updateService: vi.fn(),
+      deleteService: vi.fn(),
     },
   }
 })
@@ -58,5 +59,24 @@ describe('ServiceManagement', () => {
     await userEvent.selectOptions(screen.getByRole('combobox'), 'transport')
     expect(screen.queryByText('Dọn phòng')).not.toBeInTheDocument()
     expect(screen.getByText('Xe đưa rước sân bay')).toBeInTheDocument()
+  })
+
+  test('nút xóa disabled khi dịch vụ đã có booking', async () => {
+    const SERVICE_WITH_BOOKING = { ...SERVICE_A, bookingCount: 2 }
+    vi.mocked(serviceService.getServices).mockResolvedValue({ data: [SERVICE_WITH_BOOKING] } as any)
+    render(<ServiceManagement />)
+    await screen.findByText('Dọn phòng')
+    expect(screen.getByRole('button', { name: 'Xóa dịch vụ' })).toBeDisabled()
+  })
+
+  test('xóa dịch vụ chưa có booking gọi deleteService rồi tải lại danh sách', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.mocked(serviceService.deleteService).mockResolvedValue({ data: { message: 'ok' } } as any)
+    const SERVICE_NO_BOOKING = { ...SERVICE_A, bookingCount: 0 }
+    vi.mocked(serviceService.getServices).mockResolvedValue({ data: [SERVICE_NO_BOOKING] } as any)
+    render(<ServiceManagement />)
+    await screen.findByText('Dọn phòng')
+    await userEvent.click(screen.getByRole('button', { name: 'Xóa dịch vụ' }))
+    await waitFor(() => expect(serviceService.deleteService).toHaveBeenCalledWith('1'))
   })
 })

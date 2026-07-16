@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { serviceService, CATEGORY_LABELS, type Service, type ServiceCategory, type ServiceUnit } from '../../api/service.service'
 import Spinner from '../../components/ui/Spinner'
-import { Pencil, EyeOff, Eye } from 'lucide-react'
+import { Pencil, EyeOff, Eye, Trash2 } from 'lucide-react'
 
 const EMPTY_FORM = {
   name: '', category: 'cleaning' as ServiceCategory, description: '',
@@ -83,6 +83,16 @@ export default function ServiceManagement() {
     }
   }
 
+  const handleDelete = async (s: Service) => {
+    if (!window.confirm('Xóa vĩnh viễn dịch vụ này? Không thể hoàn tác.')) return
+    try {
+      await serviceService.deleteService(s._id)
+      fetchServices()
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Xóa thất bại.')
+    }
+  }
+
   const filteredServices = services.filter(s => !filterCategory || s.category === filterCategory)
 
   return (
@@ -142,6 +152,15 @@ export default function ServiceManagement() {
                 <div style={{ display: 'flex', gap: '16px', marginLeft: '24px' }}>
                   <button onClick={() => openEdit(s)} title="Sửa" aria-label="Sửa dịch vụ">
                     <Pencil size={18} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(s)}
+                    disabled={!!s.bookingCount && s.bookingCount > 0}
+                    title={s.bookingCount ? `Không thể xóa: đã có ${s.bookingCount} lượt đặt` : 'Xóa dịch vụ'}
+                    aria-label="Xóa dịch vụ"
+                    style={{ opacity: s.bookingCount ? 0.4 : 1, cursor: s.bookingCount ? 'not-allowed' : 'pointer' }}
+                  >
+                    <Trash2 size={18} color="#d92d20" />
                   </button>
                   <button onClick={() => toggleActive(s)} title={s.isActive ? 'Tạm ngừng' : 'Kích hoạt lại'} aria-label={s.isActive ? 'Tạm ngừng dịch vụ' : 'Kích hoạt lại dịch vụ'}>
                     {s.isActive ? <EyeOff size={18} color="#d92d20" /> : <Eye size={18} color="#088373" />}
