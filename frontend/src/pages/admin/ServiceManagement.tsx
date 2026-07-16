@@ -5,7 +5,7 @@ import { Pencil, EyeOff, Eye, Trash2 } from 'lucide-react'
 
 const EMPTY_FORM = {
   name: '', category: 'cleaning' as ServiceCategory, description: '',
-  price: '', unit: 'lần' as ServiceUnit, images: '', isActive: true,
+  price: '', unit: 'lần' as ServiceUnit, images: '', isActive: false,
 }
 
 export default function ServiceManagement() {
@@ -156,10 +156,16 @@ export default function ServiceManagement() {
                   </button>
                   <button
                     onClick={() => handleDelete(s)}
-                    disabled={!!s.bookingCount && s.bookingCount > 0}
-                    title={s.bookingCount ? `Không thể xóa: đã có ${s.bookingCount} lượt đặt` : 'Xóa dịch vụ'}
+                    disabled={!!s.bookingCount || s.isActive}
+                    title={
+                      s.bookingCount
+                        ? `Không thể xóa: đã có ${s.bookingCount} lượt đặt`
+                        : s.isActive
+                        ? 'Không thể xóa: hãy tạm dừng dịch vụ trước'
+                        : 'Xóa dịch vụ'
+                    }
                     aria-label="Xóa dịch vụ"
-                    style={{ opacity: s.bookingCount ? 0.4 : 1, cursor: s.bookingCount ? 'not-allowed' : 'pointer' }}
+                    style={{ opacity: (s.bookingCount || s.isActive) ? 0.4 : 1, cursor: (s.bookingCount || s.isActive) ? 'not-allowed' : 'pointer' }}
                   >
                     <Trash2 size={18} color="#d92d20" />
                   </button>

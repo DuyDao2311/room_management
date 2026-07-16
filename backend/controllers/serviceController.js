@@ -158,6 +158,14 @@ const deleteService = async (req, res) => {
       });
     }
 
+    // Chỉ xóa khi đang tạm dừng — lúc đó serviceBookingController chặn mọi đặt mới
+    // (isActive:false), nên không còn race giữa đếm booking và xóa.
+    if (service.isActive) {
+      return res.status(409).json({
+        message: "Không thể xóa: hãy tạm dừng dịch vụ trước khi xóa.",
+      });
+    }
+
     await Service.findByIdAndDelete(service._id);
     res.status(200).json({ message: "Đã xóa dịch vụ." });
   } catch (err) {

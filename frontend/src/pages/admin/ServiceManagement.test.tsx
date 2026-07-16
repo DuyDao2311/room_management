@@ -48,7 +48,7 @@ describe('ServiceManagement', () => {
     await userEvent.type(screen.getByLabelText('Tên dịch vụ'), 'Giặt ủi')
     await userEvent.type(screen.getByLabelText('Giá (VNĐ)'), '50000')
     await userEvent.click(screen.getByText('Thêm dịch vụ'))
-    await waitFor(() => expect(serviceService.createService).toHaveBeenCalledWith(expect.objectContaining({ name: 'Giặt ủi', price: 50000 })))
+    await waitFor(() => expect(serviceService.createService).toHaveBeenCalledWith(expect.objectContaining({ name: 'Giặt ủi', price: 50000, isActive: false })))
   })
 
   test('lọc theo category chỉ hiện đúng loại', async () => {
@@ -69,10 +69,18 @@ describe('ServiceManagement', () => {
     expect(screen.getByRole('button', { name: 'Xóa dịch vụ' })).toBeDisabled()
   })
 
+  test('nút xóa disabled khi dịch vụ đang active dù chưa có booking', async () => {
+    const SERVICE_ACTIVE_NO_BOOKING = { ...SERVICE_A, bookingCount: 0, isActive: true }
+    vi.mocked(serviceService.getServices).mockResolvedValue({ data: [SERVICE_ACTIVE_NO_BOOKING] } as any)
+    render(<ServiceManagement />)
+    await screen.findByText('Dọn phòng')
+    expect(screen.getByRole('button', { name: 'Xóa dịch vụ' })).toBeDisabled()
+  })
+
   test('xóa dịch vụ chưa có booking gọi deleteService rồi tải lại danh sách', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     vi.mocked(serviceService.deleteService).mockResolvedValue({ data: { message: 'ok' } } as any)
-    const SERVICE_NO_BOOKING = { ...SERVICE_A, bookingCount: 0 }
+    const SERVICE_NO_BOOKING = { ...SERVICE_A, bookingCount: 0, isActive: false }
     vi.mocked(serviceService.getServices).mockResolvedValue({ data: [SERVICE_NO_BOOKING] } as any)
     render(<ServiceManagement />)
     await screen.findByText('Dọn phòng')

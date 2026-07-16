@@ -306,7 +306,7 @@ describe("GET /api/services/:id/reviews", () => {
 describe("DELETE /api/services/:id", () => {
   test("admin xóa dịch vụ chưa có booking → 200, xóa thật khỏi DB", async () => {
     const admin = await createUser("admin");
-    const service = await Service.create(VALID_SERVICE);
+    const service = await Service.create({ ...VALID_SERVICE, isActive: false });
 
     const res = await request(app)
       .delete(`/api/services/${service._id}`)
@@ -315,6 +315,20 @@ describe("DELETE /api/services/:id", () => {
     expect(res.status).toBe(200);
     const found = await Service.findById(service._id);
     expect(found).toBeNull();
+  });
+
+  test("dịch vụ đang active dù chưa có booking → 409, không xóa", async () => {
+    const admin = await createUser("admin");
+    const service = await Service.create({ ...VALID_SERVICE, isActive: true });
+
+    const res = await request(app)
+      .delete(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(admin)}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toMatch(/tạm dừng/);
+    const found = await Service.findById(service._id);
+    expect(found).not.toBeNull();
   });
 
   test("dịch vụ đã có booking → 409, không xóa", async () => {
@@ -332,7 +346,7 @@ describe("DELETE /api/services/:id", () => {
       .set("Authorization", `Bearer ${tokenFor(admin)}`);
 
     expect(res.status).toBe(409);
-    expect(res.body.message).toMatch(/1 lượt đặt/);
+    expect(res.body.message).toMatch(/có 1 lượt đặt/);
     const found = await Service.findById(service._id);
     expect(found).not.toBeNull();
   });
