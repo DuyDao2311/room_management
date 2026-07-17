@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react'
-import { serviceService, CATEGORY_LABELS, type Service, type ServiceCategory, type ServiceUnit } from '../../api/service.service'
+import { serviceService, CATEGORY_LABELS, getMinCarOptionPrice, type Service, type ServiceCategory, type ServiceUnit } from '../../api/service.service'
 import Spinner from '../../components/ui/Spinner'
 import { Pencil, EyeOff, Eye } from 'lucide-react'
+
+type ServiceCarOptionForm = { label: string; capacity: string; price: string }
 
 const EMPTY_FORM = {
   name: '', category: 'cleaning' as ServiceCategory, description: '',
   price: '', unit: 'lần' as ServiceUnit, images: '', isActive: true,
+  carOptions: [] as ServiceCarOptionForm[],
 }
 
 export default function ServiceManagement() {
@@ -42,6 +45,7 @@ export default function ServiceManagement() {
     setForm({
       name: s.name, category: s.category, description: s.description,
       price: String(s.price), unit: s.unit, images: s.images.join(', '), isActive: s.isActive,
+      carOptions: s.carOptions.map(o => ({ label: o.label, capacity: String(o.capacity), price: String(o.price) })),
     })
     setShowModal(true)
   }
@@ -49,16 +53,29 @@ export default function ServiceManagement() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setFormError('')
-    setSaving(true)
-    const payload = {
-      name: form.name,
-      category: form.category,
-      description: form.description,
-      price: Number(form.price),
-      unit: form.unit,
-      images: form.images.split(',').map(s => s.trim()).filter(Boolean),
-      isActive: form.isActive,
+    if (form.category === 'transport' && form.carOptions.some(o => !o.label.trim() || !o.capacity || !o.price)) {
+      setFormError('Vui lòng điền đầy đủ tên, sức chứa, giá cho từng loại xe.')
+      return
     }
+    setSaving(true)
+    const payload = form.category === 'transport'
+      ? {
+          name: form.name,
+          category: form.category,
+          description: form.description,
+          images: form.images.split(',').map(s => s.trim()).filter(Boolean),
+          isActive: form.isActive,
+          carOptions: form.carOptions.map(o => ({ label: o.label.trim(), capacity: Number(o.capacity), price: Number(o.price) })),
+        }
+      : {
+          name: form.name,
+          category: form.category,
+          description: form.description,
+          price: Number(form.price),
+          unit: form.unit,
+          images: form.images.split(',').map(s => s.trim()).filter(Boolean),
+          isActive: form.isActive,
+        }
     try {
       if (editing) {
         await serviceService.updateService(editing._id, payload)
@@ -136,7 +153,11 @@ export default function ServiceManagement() {
 
                 <div style={{ width: '160px', display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: '0.75rem', color: '#667085', fontWeight: 600, textTransform: 'uppercase' }}>Giá</span>
-                  <span style={{ fontSize: '1rem', fontWeight: 800, color: '#101828', marginTop: '2px' }}>{s.price.toLocaleString('vi-VN')} đ/{s.unit}</span>
+                  <span style={{ fontSize: '1rem', fontWeight: 800, color: '#101828', marginTop: '2px' }}>
+                    {s.category === 'transport'
+                      ? `Từ ${getMinCarOptionPrice(s.carOptions).toLocaleString('vi-VN')}đ`
+                      : `${s.price.toLocaleString('vi-VN')} đ/${s.unit}`}
+                  </span>
                 </div>
 
                 <div style={{ display: 'flex', gap: '16px', marginLeft: '24px' }}>
@@ -168,25 +189,70 @@ export default function ServiceManagement() {
                 <div className="form-row">
                   <div className="form-group">
                     <label htmlFor="s-category">Loại dịch vụ</label>
-                    <select id="s-category" className="form-input" value={form.category} onChange={e => setForm({ ...form, category: e.target.value as ServiceCategory })}>
+                    <select id="s-category" className="form-input" value={form.category} onChange={e => {
+                      const nextCategory = e.target.value as ServiceCategory
+                      setForm({
+                        ...form,
+                        category: nextCategory,
+                        carOptions: nextCategory === 'transport' && form.carOptions.length === 0
+                          ? [{ label: '', capacity: '', price: '' }]
+                          : form.carOptions,
+                      })
+                    }}>
                       {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
                         <option key={key} value={key}>{label}</option>
                       ))}
                     </select>
                   </div>
+                  {form.category !== 'transport' && (
+                    <div className="form-group">
+                      <label htmlFor="s-unit">Đơn vị tính</label>
+                      <select id="s-unit" className="form-input" value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value as ServiceUnit })}>
+                        <option value="lần">Lần</option>
+                        <option value="buổi">Buổi</option>
+                        <option value="khách">Khách</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+                {form.category === 'transport' ? (
                   <div className="form-group">
-                    <label htmlFor="s-unit">Đơn vị tính</label>
-                    <select id="s-unit" className="form-input" value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value as ServiceUnit })}>
-                      <option value="lần">Lần</option>
-                      <option value="buổi">Buổi</option>
-                      <option value="khách">Khách</option>
-                    </select>
+                    <label>Các loại xe</label>
+                    {form.carOptions.map((opt: { label: string; capacity: string; price: string }, i: number) => (
+                      <div key={i} className="form-row" style={{ marginBottom: '8px', alignItems: 'center' }}>
+                        <input
+                          className="form-input" placeholder="Tên loại xe (VD: 4 chỗ)" value={opt.label}
+                          onChange={e => setForm({ ...form, carOptions: form.carOptions.map((o: ServiceCarOptionForm, idx: number) => idx === i ? { ...o, label: e.target.value } : o) })}
+                          required
+                        />
+                        <input
+                          type="number" className="form-input" placeholder="Sức chứa (người)" min={1} value={opt.capacity}
+                          onChange={e => setForm({ ...form, carOptions: form.carOptions.map((o: ServiceCarOptionForm, idx: number) => idx === i ? { ...o, capacity: e.target.value } : o) })}
+                          required
+                        />
+                        <input
+                          type="number" className="form-input" placeholder="Giá xe (VNĐ)" min={0} value={opt.price}
+                          onChange={e => setForm({ ...form, carOptions: form.carOptions.map((o: ServiceCarOptionForm, idx: number) => idx === i ? { ...o, price: e.target.value } : o) })}
+                          required
+                        />
+                        <button
+                          type="button" className="button button-secondary" aria-label="Xóa loại xe"
+                          disabled={form.carOptions.length <= 1}
+                          onClick={() => setForm({ ...form, carOptions: form.carOptions.filter((_, idx) => idx !== i) })}
+                        >✕</button>
+                      </div>
+                    ))}
+                    <button
+                      type="button" className="button button-secondary"
+                      onClick={() => setForm({ ...form, carOptions: [...form.carOptions, { label: '', capacity: '', price: '' }] })}
+                    >+ Thêm loại xe</button>
                   </div>
-                </div>
-                <div className="form-group">
-                  <label htmlFor="s-price">Giá (VNĐ)</label>
-                  <input id="s-price" type="number" className="form-input" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required min={0} placeholder="100000" />
-                </div>
+                ) : (
+                  <div className="form-group">
+                    <label htmlFor="s-price">Giá (VNĐ)</label>
+                    <input id="s-price" type="number" className="form-input" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required min={0} placeholder="100000" />
+                  </div>
+                )}
                 <div className="form-group">
                   <label htmlFor="s-images">Ảnh (URL, phân cách bằng dấu phẩy)</label>
                   <input id="s-images" className="form-input" value={form.images} onChange={e => setForm({ ...form, images: e.target.value })} placeholder="https://..., https://..." />
