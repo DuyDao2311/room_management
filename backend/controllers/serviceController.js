@@ -22,6 +22,7 @@ const createService = async (req, res) => {
       unit,
       images: images || [],
       createdBy: req.user._id,
+      isActive: false,
     });
 
     res.status(201).json(service);

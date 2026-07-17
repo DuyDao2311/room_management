@@ -44,7 +44,7 @@ const serviceSchema = new mongoose.Schema(
     },
     isActive: {
       type: Boolean,
-      default: true,
+      default: false,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

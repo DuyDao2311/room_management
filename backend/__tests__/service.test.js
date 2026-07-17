@@ -43,6 +43,8 @@ const VALID_SERVICE = {
   unit: "lần",
 };
 
+const ACTIVE_SERVICE = { ...VALID_SERVICE, isActive: true };
+
 describe("POST /api/services", () => {
   test("admin tạo dịch vụ thành công", async () => {
     const admin = await createUser("admin");
@@ -53,8 +55,19 @@ describe("POST /api/services", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.name).toBe("Dọn phòng");
-    expect(res.body.isActive).toBe(true);
+    expect(res.body.isActive).toBe(false);
     expect(res.body.avgRating).toBe(0);
+  });
+
+  test("bỏ qua isActive gửi lên từ client, luôn tạo dịch vụ ở trạng thái tạm dừng", async () => {
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ ...VALID_SERVICE, isActive: true });
+
+    expect(res.status).toBe(201);
+    expect(res.body.isActive).toBe(false);
   });
 
   test("tenant không được tạo dịch vụ → 403", async () => {
@@ -115,8 +128,8 @@ describe("GET /api/services", () => {
   });
 
   test("filter theo category", async () => {
-    await Service.create({ ...VALID_SERVICE, name: "Dọn phòng", category: "cleaning" });
-    await Service.create({ ...VALID_SERVICE, name: "Đưa đón", category: "transport" });
+    await Service.create({ ...ACTIVE_SERVICE, name: "Dọn phòng", category: "cleaning" });
+    await Service.create({ ...ACTIVE_SERVICE, name: "Đưa đón", category: "transport" });
 
     const res = await request(app).get("/api/services?category=transport");
 
@@ -148,7 +161,7 @@ describe("GET /api/services", () => {
   });
 
   test("guest xem danh sách không có field bookingCount", async () => {
-    await Service.create(VALID_SERVICE);
+    await Service.create(ACTIVE_SERVICE);
     const res = await request(app).get("/api/services");
 
     expect(res.status).toBe(200);
@@ -199,7 +212,7 @@ describe("PUT /api/services/:id", () => {
     const tenantCompleted = await createUser("tenant");
     const tenantCancelled = await createUser("tenant");
     const tenantOtherService = await createUser("tenant");
-    const service = await Service.create(VALID_SERVICE);
+    const service = await Service.create(ACTIVE_SERVICE);
     const otherService = await Service.create({ ...VALID_SERVICE, name: "Dịch vụ khác" });
 
     await ServiceBooking.create({
