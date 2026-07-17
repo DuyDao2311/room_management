@@ -59,12 +59,12 @@ const serviceBookingSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
-    carType: {
+    selectedVariant: {
       type: String,
     },
-    passengerCount: {
+    matchQuantity: {
       type: Number,
-      min: [1, "Số hành khách tối thiểu là 1"],
+      min: [1, "Số lượng tối thiểu là 1"],
     },
   },
   { timestamps: true }

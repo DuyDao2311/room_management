@@ -570,12 +570,15 @@ describe("DELETE /api/service-bookings/:id", () => {
   });
 });
 
-describe("ServiceBooking model — carType/passengerCount", () => {
-  test("lưu carType + passengerCount cho booking transport", async () => {
+describe("ServiceBooking model — selectedVariant/matchQuantity", () => {
+  test("lưu selectedVariant + matchQuantity cho booking dùng variants", async () => {
     const tenant = await createUser("tenant");
     const service = await createActiveService({
       category: "transport",
-      carOptions: [{ label: "4 chỗ", capacity: 4, price: 200000 }],
+      usesVariants: true,
+      requiresCapacityMatch: true,
+      capacityFieldLabel: "Số hành khách",
+      variants: [{ label: "4 chỗ", capacity: 4, price: 200000 }],
     });
 
     const booking = await ServiceBooking.create({
@@ -585,15 +588,15 @@ describe("ServiceBooking model — carType/passengerCount", () => {
       quantity: 1,
       unitPrice: 200000,
       totalAmount: 200000,
-      carType: "4 chỗ",
-      passengerCount: 3,
+      selectedVariant: "4 chỗ",
+      matchQuantity: 3,
     });
 
-    expect(booking.carType).toBe("4 chỗ");
-    expect(booking.passengerCount).toBe(3);
+    expect(booking.selectedVariant).toBe("4 chỗ");
+    expect(booking.matchQuantity).toBe(3);
   });
 
-  test("passengerCount < 1 → lỗi validation", async () => {
+  test("matchQuantity < 1 → lỗi validation", async () => {
     const tenant = await createUser("tenant");
     const service = await createActiveService();
 
@@ -605,7 +608,7 @@ describe("ServiceBooking model — carType/passengerCount", () => {
         quantity: 1,
         unitPrice: 100000,
         totalAmount: 100000,
-        passengerCount: 0,
+        matchQuantity: 0,
       })
     ).rejects.toThrow();
   });
