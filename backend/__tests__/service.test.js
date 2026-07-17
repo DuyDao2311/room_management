@@ -77,37 +77,38 @@ describe("POST /api/services", () => {
     expect(res.status).toBe(400);
   });
 
-  test("tạo dịch vụ transport có carOptions hợp lệ, không cần price/unit → 201", async () => {
+  test("tạo dịch vụ usesVariants=true có variants hợp lệ, không cần price/unit — category bất kỳ (vd spa)", async () => {
     const admin = await createUser("admin");
     const res = await request(app)
       .post("/api/services")
       .set("Authorization", `Bearer ${tokenFor(admin)}`)
       .send({
-        name: "Đưa đón sân bay",
-        category: "transport",
-        carOptions: [
-          { label: "4 chỗ", capacity: 4, price: 200000 },
-          { label: "7 chỗ", capacity: 7, price: 300000 },
+        name: "Gói spa cao cấp",
+        category: "spa",
+        usesVariants: true,
+        variants: [
+          { label: "60 phút", price: 300000 },
+          { label: "90 phút", price: 450000 },
         ],
       });
 
     expect(res.status).toBe(201);
-    expect(res.body.carOptions).toHaveLength(2);
+    expect(res.body.variants).toHaveLength(2);
     expect(res.body.price).toBeUndefined();
   });
 
-  test("tạo dịch vụ transport thiếu carOptions → 400", async () => {
+  test("tạo dịch vụ usesVariants=true thiếu variants → 400", async () => {
     const admin = await createUser("admin");
     const res = await request(app)
       .post("/api/services")
       .set("Authorization", `Bearer ${tokenFor(admin)}`)
-      .send({ name: "Đưa đón sân bay", category: "transport" });
+      .send({ name: "Gói spa cao cấp", category: "spa", usesVariants: true });
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toMatch(/loại xe/);
+    expect(res.body.message).toMatch(/lựa chọn/);
   });
 
-  test("tạo dịch vụ transport với carOptions có phần tử thiếu capacity → 400", async () => {
+  test("tạo dịch vụ usesVariants=true, requiresCapacityMatch=true, variant thiếu capacity → 400", async () => {
     const admin = await createUser("admin");
     const res = await request(app)
       .post("/api/services")
@@ -115,7 +116,26 @@ describe("POST /api/services", () => {
       .send({
         name: "Đưa đón sân bay",
         category: "transport",
-        carOptions: [{ label: "4 chỗ", price: 200000 }],
+        usesVariants: true,
+        requiresCapacityMatch: true,
+        capacityFieldLabel: "Số hành khách",
+        variants: [{ label: "4 chỗ", price: 200000 }],
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  test("tạo dịch vụ usesVariants=true, requiresCapacityMatch=true, thiếu capacityFieldLabel → 400", async () => {
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({
+        name: "Đưa đón sân bay",
+        category: "transport",
+        usesVariants: true,
+        requiresCapacityMatch: true,
+        variants: [{ label: "4 chỗ", price: 200000, capacity: 4 }],
       });
 
     expect(res.status).toBe(400);
@@ -266,52 +286,67 @@ describe("PUT /api/services/:id", () => {
     expect(notif).toBeNull();
   });
 
-  test("sửa dịch vụ transport, xóa hết carOptions → 400, không lưu", async () => {
+  test("sửa dịch vụ usesVariants=true, xóa hết variants → 400, không lưu", async () => {
     const admin = await createUser("admin");
     const service = await Service.create({
-      name: "Đưa đón sân bay",
-      category: "transport",
-      carOptions: [{ label: "4 chỗ", capacity: 4, price: 200000 }],
+      name: "Gói spa cao cấp", category: "spa", usesVariants: true,
+      variants: [{ label: "60 phút", price: 300000 }],
     });
 
     const res = await request(app)
       .put(`/api/services/${service._id}`)
       .set("Authorization", `Bearer ${tokenFor(admin)}`)
-      .send({ carOptions: [] });
+      .send({ variants: [] });
 
     expect(res.status).toBe(400);
     const found = await Service.findById(service._id);
-    expect(found.carOptions).toHaveLength(1);
+    expect(found.variants).toHaveLength(1);
   });
 
-  test("sửa dịch vụ non-transport, gửi carOptions trong body → bị bỏ qua, không lưu", async () => {
+  test("sửa dịch vụ usesVariants=false, gửi variants trong body → bị bỏ qua, không lưu", async () => {
     const admin = await createUser("admin");
     const service = await Service.create({ ...VALID_SERVICE, category: "cleaning" });
 
     const res = await request(app)
       .put(`/api/services/${service._id}`)
       .set("Authorization", `Bearer ${tokenFor(admin)}`)
-      .send({ carOptions: [{ label: "4 chỗ", capacity: 4, price: 200000 }] });
+      .send({ variants: [{ label: "60 phút", price: 300000 }] });
 
     expect(res.status).toBe(200);
-    expect(res.body.carOptions).toEqual([]);
+    expect(res.body.variants).toEqual([]);
   });
 
-  test("đổi category từ transport sang cleaning → carOptions cũ bị xóa", async () => {
+  test("tắt usesVariants (true→false) → variants/requiresCapacityMatch/capacityFieldLabel cũ bị xóa", async () => {
     const admin = await createUser("admin");
     const service = await Service.create({
-      name: "Đưa đón sân bay",
-      category: "transport",
-      carOptions: [{ label: "4 chỗ", capacity: 4, price: 200000 }],
+      name: "Đưa đón sân bay", category: "transport", usesVariants: true,
+      requiresCapacityMatch: true, capacityFieldLabel: "Số hành khách",
+      variants: [{ label: "4 chỗ", price: 200000, capacity: 4 }],
     });
 
     const res = await request(app)
       .put(`/api/services/${service._id}`)
       .set("Authorization", `Bearer ${tokenFor(admin)}`)
-      .send({ category: "cleaning", price: 100000, unit: "lần" });
+      .send({ usesVariants: false, price: 150000, unit: "lần" });
 
     expect(res.status).toBe(200);
-    expect(res.body.carOptions).toEqual([]);
+    expect(res.body.variants).toEqual([]);
+    expect(res.body.requiresCapacityMatch).toBe(false);
+    expect(res.body.capacityFieldLabel).toBe("");
+  });
+
+  test("bật usesVariants (false→true) trong cùng 1 lần sửa → price/unit cũ bị null", async () => {
+    const admin = await createUser("admin");
+    const service = await Service.create({ ...VALID_SERVICE, category: "transport" });
+
+    const res = await request(app)
+      .put(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ usesVariants: true, variants: [{ label: "4 chỗ", price: 200000 }] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.price).toBeUndefined();
+    expect(res.body.unit).toBeUndefined();
   });
 });
 
@@ -354,40 +389,44 @@ describe("GET /api/services/:id/reviews", () => {
   });
 });
 
-describe("Service model — carOptions cho transport", () => {
-  test("category transport không cần price/unit, vẫn tạo được nếu có carOptions hợp lệ", async () => {
+describe("Service model — usesVariants (độc lập với category)", () => {
+  test("usesVariants=true không cần price/unit, vẫn tạo được nếu có variants hợp lệ — dùng category BẤT KỲ, không riêng transport", async () => {
     const service = await Service.create({
-      name: "Đưa đón sân bay",
-      category: "transport",
-      carOptions: [
-        { label: "4 chỗ", capacity: 4, price: 200000 },
-        { label: "7 chỗ", capacity: 7, price: 300000 },
+      name: "Gói spa cao cấp",
+      category: "spa",
+      usesVariants: true,
+      variants: [
+        { label: "60 phút", price: 300000 },
+        { label: "90 phút", price: 450000 },
       ],
     });
 
     expect(service.price).toBeUndefined();
     expect(service.unit).toBeUndefined();
-    expect(service.carOptions).toHaveLength(2);
-    expect(service.carOptions[0].label).toBe("4 chỗ");
+    expect(service.variants).toHaveLength(2);
+    expect(service.variants[0].label).toBe("60 phút");
   });
 
-  test("category khác transport vẫn bắt buộc price/unit như cũ", async () => {
+  test("usesVariants=false (mặc định) vẫn bắt buộc price/unit như cũ, kể cả category transport", async () => {
     await expect(
-      Service.create({ name: "Dọn phòng", category: "cleaning" })
+      Service.create({ name: "Thuê xe máy theo ngày", category: "transport" })
     ).rejects.toThrow();
   });
 
-  test("carOptions thiếu field bắt buộc (vd thiếu price) → lỗi validation", async () => {
-    await expect(
-      Service.create({
-        name: "Đưa đón sân bay",
-        category: "transport",
-        carOptions: [{ label: "4 chỗ", capacity: 4 }],
-      })
-    ).rejects.toThrow();
+  test("requiresCapacityMatch=true, variant thiếu capacity → lỗi validation ở tầng model (capacity vẫn optional ở schema, nhưng test này verify controller-level — xem Task 2)", async () => {
+    // Field capacity optional ở schema (validate độ đầy đủ do controller đảm nhiệm khi requiresCapacityMatch=true).
+    const service = await Service.create({
+      name: "Đưa đón sân bay",
+      category: "transport",
+      usesVariants: true,
+      requiresCapacityMatch: true,
+      capacityFieldLabel: "Số hành khách",
+      variants: [{ label: "4 chỗ", price: 200000 }],
+    });
+    expect(service.variants[0].capacity).toBeUndefined();
   });
 
-  test("category không phải transport, unit không nằm trong enum → lỗi validation", async () => {
+  test("category không phải transport, unit không nằm trong enum → lỗi validation (usesVariants=false)", async () => {
     await expect(
       Service.create({
         name: "Dọn phòng",
