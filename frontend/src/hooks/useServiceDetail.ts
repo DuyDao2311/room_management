@@ -22,10 +22,10 @@ export interface UseServiceDetailResult {
   setQuantity: (v: number) => void
   note: string
   setNote: (v: string) => void
-  passengerCount: number
-  setPassengerCount: (v: number) => void
-  carType: string
-  setCarType: (v: string) => void
+  matchQuantity: number
+  setMatchQuantity: (v: number) => void
+  selectedVariant: string
+  setSelectedVariant: (v: string) => void
   totalPreview: number
   filterBookingTime: (time: Date) => boolean
   handleBook: (e: FormEvent) => Promise<void>
@@ -51,8 +51,8 @@ export function useServiceDetail(id: string | undefined): UseServiceDetailResult
   const [scheduledAt, setScheduledAt] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [note, setNote] = useState('')
-  const [passengerCount, setPassengerCount] = useState(1)
-  const [carType, setCarType] = useState('')
+  const [matchQuantity, setMatchQuantity] = useState(1)
+  const [selectedVariant, setSelectedVariant] = useState('')
   const [bookLoading, setBookLoading] = useState(false)
   const [bookError, setBookError] = useState('')
   const [bookSent, setBookSent] = useState(false)
@@ -77,23 +77,26 @@ export function useServiceDetail(id: string | undefined): UseServiceDetailResult
   }, [id])
 
   useEffect(() => {
-    if (!service || service.category !== 'transport') return
-    const smallestSufficient = [...service.carOptions]
-      .sort((a, b) => a.capacity - b.capacity)
-      .find(o => o.capacity >= passengerCount)
-    setCarType(smallestSufficient ? smallestSufficient.label : '')
-  }, [passengerCount, service])
+    if (!service || !service.usesVariants || !service.requiresCapacityMatch) return
+    const smallestSufficient = [...service.variants]
+      .sort((a, b) => (a.capacity ?? 0) - (b.capacity ?? 0))
+      .find(v => (v.capacity ?? 0) >= matchQuantity)
+    setSelectedVariant(smallestSufficient ? smallestSufficient.label : '')
+  }, [matchQuantity, service])
 
   const openBookModal = useCallback(() => {
     if (!user) { navigate(`/login?redirect=${location.pathname}`); return }
     setScheduledAt('')
     setQuantity(1)
-    setPassengerCount(1)
+    setMatchQuantity(1)
     setNote('')
     setBookError('')
     setBookSent(false)
+    if (service && service.usesVariants && !service.requiresCapacityMatch) {
+      setSelectedVariant(service.variants[0]?.label ?? '')
+    }
     setShowBookModal(true)
-  }, [user, navigate, location.pathname])
+  }, [user, navigate, location.pathname, service])
 
   const closeBookModal = useCallback(() => setShowBookModal(false), [])
   const closeNoRoomModal = useCallback(() => setNoRoomModal(false), [])
@@ -107,14 +110,16 @@ export function useServiceDetail(id: string | undefined): UseServiceDetailResult
     if (!service) return
     setBookError('')
     if (!scheduledAt) { setBookError('Vui lòng chọn thời gian hẹn.'); return }
-    if (service.category === 'transport' && !carType) {
-      setBookError('Vui lòng chọn số hành khách hợp lệ.')
+    if (service.usesVariants && !selectedVariant) {
+      setBookError('Vui lòng chọn 1 lựa chọn hợp lệ.')
       return
     }
     setBookLoading(true)
     try {
-      if (service.category === 'transport') {
-        await serviceBookingService.createBooking({ serviceId: service._id, scheduledAt, note, carType, passengerCount })
+      if (service.usesVariants && service.requiresCapacityMatch) {
+        await serviceBookingService.createBooking({ serviceId: service._id, scheduledAt, note, selectedVariant, matchQuantity })
+      } else if (service.usesVariants) {
+        await serviceBookingService.createBooking({ serviceId: service._id, scheduledAt, note, selectedVariant, quantity })
       } else {
         await serviceBookingService.createBooking({ serviceId: service._id, scheduledAt, quantity, note })
       }
@@ -128,20 +133,22 @@ export function useServiceDetail(id: string | undefined): UseServiceDetailResult
     } finally {
       setBookLoading(false)
     }
-  }, [service, scheduledAt, quantity, note, carType, passengerCount])
+  }, [service, scheduledAt, quantity, note, selectedVariant, matchQuantity])
 
-  const totalPreview = service
-    ? service.category === 'transport'
-      ? (service.carOptions.find(o => o.label === carType)?.price ?? 0)
-      : service.price * quantity
-    : 0
+  const totalPreview = (() => {
+    if (!service) return 0
+    if (!service.usesVariants) return service.price * quantity
+    const variant = service.variants.find(v => v.label === selectedVariant)
+    if (!variant) return 0
+    return service.requiresCapacityMatch ? variant.price : variant.price * quantity
+  })()
 
   return {
     service, loading, error,
     reviews, reviewsLoading,
     showBookModal, openBookModal, closeBookModal,
     scheduledAt, setScheduledAt, quantity, setQuantity, note, setNote,
-    passengerCount, setPassengerCount, carType, setCarType,
+    matchQuantity, setMatchQuantity, selectedVariant, setSelectedVariant,
     totalPreview,
     filterBookingTime,
     handleBook, bookLoading, bookSent, bookError,
