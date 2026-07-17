@@ -24,6 +24,7 @@ const serviceSchema = new mongoose.Schema(
     },
     unit: {
       type: String,
+      enum: ["lần", "buổi", "khách"],
       required: function () { return this.category !== "transport"; },
       trim: true,
     },
