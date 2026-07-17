@@ -24,8 +24,8 @@ export interface ServiceBooking {
   rating?: number
   review?: string
   note?: string
-  carType?: string
-  passengerCount?: number
+  selectedVariant?: string
+  matchQuantity?: number
   createdAt: string
   updatedAt: string
 }
@@ -36,8 +36,8 @@ export const serviceBookingService = {
     scheduledAt: string
     note?: string
     quantity?: number
-    carType?: string
-    passengerCount?: number
+    selectedVariant?: string
+    matchQuantity?: number
   }) => api.post<ServiceBooking>('/service-bookings', data),
 
   getBookings: (params?: { status?: string; paymentStatus?: string }) =>
