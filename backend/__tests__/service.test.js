@@ -294,5 +294,16 @@ describe("Service model — carOptions cho transport", () => {
       })
     ).rejects.toThrow();
   });
+
+  test("category không phải transport, unit không nằm trong enum → lỗi validation", async () => {
+    await expect(
+      Service.create({
+        name: "Dọn phòng",
+        category: "cleaning",
+        price: 100000,
+        unit: "kg",
+      })
+    ).rejects.toThrow();
+  });
 });
 
