@@ -610,3 +610,128 @@ describe("ServiceBooking model — carType/passengerCount", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("POST /api/service-bookings — dịch vụ transport (carType/passengerCount)", () => {
+  const CAR_OPTIONS = [
+    { label: "4 chỗ", capacity: 4, price: 200000 },
+    { label: "7 chỗ", capacity: 7, price: 300000 },
+  ];
+
+  async function createTransportService(overrides = {}) {
+    return createActiveService({ category: "transport", carOptions: CAR_OPTIONS, ...overrides });
+  }
+
+  test("chọn đúng loại xe nhỏ nhất đủ chỗ → 201, totalAmount đúng giá xe, quantity=1", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createTransportService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), carType: "4 chỗ", passengerCount: 3 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.carType).toBe("4 chỗ");
+    expect(res.body.passengerCount).toBe(3);
+    expect(res.body.unitPrice).toBe(200000);
+    expect(res.body.totalAmount).toBe(200000);
+    expect(res.body.quantity).toBe(1);
+  });
+
+  test("passengerCount vượt capacity của loại xe đã chọn → 400", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createTransportService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), carType: "4 chỗ", passengerCount: 6 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/tối đa 4 người/);
+  });
+
+  test("chọn xe to hơn mức cần (né UI, gọi thẳng API) → 400 kèm gợi ý loại xe đúng", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createTransportService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), carType: "7 chỗ", passengerCount: 3 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/"4 chỗ"/);
+  });
+
+  test("passengerCount vượt capacity lớn nhất trong carOptions → 400", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createTransportService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), carType: "7 chỗ", passengerCount: 10 });
+
+    expect(res.status).toBe(400);
+  });
+
+  test("thiếu carType hoặc passengerCount → 400", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createTransportService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), passengerCount: 3 });
+
+    expect(res.status).toBe(400);
+  });
+
+  test("loại xe không tồn tại trong carOptions → 400", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createTransportService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), carType: "16 chỗ", passengerCount: 3 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Loại xe không hợp lệ.");
+  });
+});
+
+describe("POST /api/service-bookings — regression dịch vụ không phải transport", () => {
+  test("thiếu quantity → 400", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createActiveService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48) });
+
+    expect(res.status).toBe(400);
+  });
+
+  test("quantity < 1 → 400", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createActiveService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), quantity: 0 });
+
+    expect(res.status).toBe(400);
+  });
+});

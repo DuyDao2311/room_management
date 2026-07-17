@@ -57,18 +57,15 @@ const recomputeServiceRating = async (serviceId) => {
 
 const createServiceBooking = async (req, res) => {
   try {
-    const { serviceId, scheduledAt, quantity, note } = req.body;
+    const { serviceId, scheduledAt, quantity, note, carType, passengerCount } = req.body;
 
-    if (!serviceId || !scheduledAt || !quantity) {
+    if (!serviceId || !scheduledAt) {
       return res.status(400).json({
-        message: "Vui lòng cung cấp đầy đủ: dịch vụ, thời gian hẹn, số lượng.",
+        message: "Vui lòng cung cấp đầy đủ: dịch vụ, thời gian hẹn.",
       });
     }
     if (new Date(scheduledAt).getTime() - Date.now() < ONE_HOUR_MS) {
       return res.status(400).json({ message: "Thời gian hẹn phải cách hiện tại ít nhất 1 giờ." });
-    }
-    if (quantity < 1) {
-      return res.status(400).json({ message: "Số lượng tối thiểu là 1." });
     }
 
     const service = await Service.findById(serviceId);
@@ -84,16 +81,63 @@ const createServiceBooking = async (req, res) => {
       return res.status(403).json({ message: "Bạn cần đang thuê phòng để đặt dịch vụ này." });
     }
 
-    const unitPrice = service.price;
-    const totalAmount = unitPrice * quantity;
+    let unitPrice, totalAmount, bookingQuantity, bookingCarType, bookingPassengerCount;
+
+    if (service.category === "transport") {
+      if (!carType || !passengerCount) {
+        return res.status(400).json({ message: "Vui lòng chọn loại xe và số hành khách." });
+      }
+      if (passengerCount < 1) {
+        return res.status(400).json({ message: "Số hành khách tối thiểu là 1." });
+      }
+
+      const option = service.carOptions.find((o) => o.label === carType);
+      if (!option) {
+        return res.status(400).json({ message: "Loại xe không hợp lệ." });
+      }
+      if (passengerCount > option.capacity) {
+        return res.status(400).json({
+          message: `Xe "${carType}" chỉ chở tối đa ${option.capacity} người.`,
+        });
+      }
+
+      // Backend tự tính lại loại xe nhỏ nhất đủ chỗ — không tin client, kể cả khi
+      // UI đã khóa lựa chọn (chặn gọi thẳng API để né khóa UI).
+      const smallestSufficient = [...service.carOptions]
+        .sort((a, b) => a.capacity - b.capacity)
+        .find((o) => o.capacity >= passengerCount);
+      if (!smallestSufficient || smallestSufficient.label !== option.label) {
+        return res.status(400).json({
+          message: `Với ${passengerCount} khách, vui lòng chọn loại xe "${smallestSufficient?.label}".`,
+        });
+      }
+
+      unitPrice = option.price;
+      totalAmount = option.price;
+      bookingQuantity = 1;
+      bookingCarType = carType;
+      bookingPassengerCount = passengerCount;
+    } else {
+      if (!quantity) {
+        return res.status(400).json({ message: "Vui lòng cung cấp số lượng." });
+      }
+      if (quantity < 1) {
+        return res.status(400).json({ message: "Số lượng tối thiểu là 1." });
+      }
+      unitPrice = service.price;
+      totalAmount = unitPrice * quantity;
+      bookingQuantity = quantity;
+    }
 
     const booking = await ServiceBooking.create({
       service: serviceId,
       tenant: req.user._id,
       scheduledAt: new Date(scheduledAt),
-      quantity,
+      quantity: bookingQuantity,
       unitPrice,
       totalAmount,
+      carType: bookingCarType,
+      passengerCount: bookingPassengerCount,
       note: note || "",
     });
 
