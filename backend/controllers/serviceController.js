@@ -4,14 +4,17 @@ const { notifyTenantServiceDeactivated, sendSocketNotification } = require("../u
 
 const isStaffOrAdmin = (user) => !!user && ["admin", "staff"].includes(user.role);
 
-const isValidCarOptions = (carOptions) =>
-  Array.isArray(carOptions) &&
-  carOptions.length > 0 &&
-  carOptions.every((o) => o && o.label && Number(o.capacity) >= 1 && Number(o.price) >= 0);
+const isValidVariants = (variants, requiresCapacityMatch) =>
+  Array.isArray(variants) &&
+  variants.length > 0 &&
+  variants.every((v) =>
+    v && v.label && Number(v.price) >= 0 &&
+    (!requiresCapacityMatch || Number(v.capacity) >= 1)
+  );
 
 const createService = async (req, res) => {
   try {
-    const { name, category, description, price, unit, images, carOptions } = req.body;
+    const { name, category, description, price, unit, images, usesVariants, variants, requiresCapacityMatch, capacityFieldLabel } = req.body;
 
     if (!name || !category) {
       return res.status(400).json({
@@ -19,10 +22,15 @@ const createService = async (req, res) => {
       });
     }
 
-    if (category === "transport") {
-      if (!isValidCarOptions(carOptions)) {
+    if (usesVariants) {
+      if (!isValidVariants(variants, requiresCapacityMatch)) {
         return res.status(400).json({
-          message: "Dịch vụ đưa đón cần ít nhất 1 loại xe hợp lệ (tên, sức chứa, giá).",
+          message: "Vui lòng cung cấp ít nhất 1 lựa chọn hợp lệ (tên, giá" + (requiresCapacityMatch ? ", sức chứa" : "") + ").",
+        });
+      }
+      if (requiresCapacityMatch && !capacityFieldLabel) {
+        return res.status(400).json({
+          message: "Vui lòng đặt tên nhãn cho trường số lượng (vd: Số hành khách).",
         });
       }
     } else if (price == null || !unit) {
@@ -35,9 +43,12 @@ const createService = async (req, res) => {
       name,
       category,
       description: description || "",
-      price: category === "transport" ? undefined : price,
-      unit: category === "transport" ? undefined : unit,
-      carOptions: category === "transport" ? carOptions : [],
+      price: usesVariants ? undefined : price,
+      unit: usesVariants ? undefined : unit,
+      usesVariants: !!usesVariants,
+      variants: usesVariants ? variants : [],
+      requiresCapacityMatch: usesVariants ? !!requiresCapacityMatch : false,
+      capacityFieldLabel: usesVariants && requiresCapacityMatch ? capacityFieldLabel : "",
       images: images || [],
       createdBy: req.user._id,
     });
@@ -95,7 +106,7 @@ const getServiceReviews = async (req, res) => {
 
 const updateService = async (req, res) => {
   try {
-    const { name, category, description, price, unit, images, isActive, carOptions } = req.body;
+    const { name, category, description, price, unit, images, isActive, usesVariants, variants, requiresCapacityMatch, capacityFieldLabel } = req.body;
 
     const service = await Service.findById(req.params.id);
     if (!service) return res.status(404).json({ message: "Không tìm thấy dịch vụ." });
@@ -109,16 +120,30 @@ const updateService = async (req, res) => {
     if (unit !== undefined) service.unit = unit;
     if (images !== undefined) service.images = images;
     if (isActive !== undefined) service.isActive = isActive;
-    if (carOptions !== undefined) service.carOptions = service.category === "transport" ? carOptions : [];
+    if (usesVariants !== undefined) service.usesVariants = usesVariants;
+    if (variants !== undefined) service.variants = variants;
+    if (requiresCapacityMatch !== undefined) service.requiresCapacityMatch = requiresCapacityMatch;
+    if (capacityFieldLabel !== undefined) service.capacityFieldLabel = capacityFieldLabel;
 
-    // Ensure carOptions is cleared for non-transport services
-    if (service.category !== "transport") {
-      service.carOptions = [];
+    if (service.usesVariants) {
+      // Bật variants → price/unit cũ không còn ý nghĩa, null để tránh dữ liệu thừa.
+      service.price = undefined;
+      service.unit = undefined;
+    } else {
+      // Tắt variants → dọn sạch toàn bộ cấu hình variants cũ.
+      service.variants = [];
+      service.requiresCapacityMatch = false;
+      service.capacityFieldLabel = "";
     }
 
-    if (service.category === "transport" && !isValidCarOptions(service.carOptions)) {
+    if (service.usesVariants && !isValidVariants(service.variants, service.requiresCapacityMatch)) {
       return res.status(400).json({
-        message: "Dịch vụ đưa đón cần ít nhất 1 loại xe hợp lệ (tên, sức chứa, giá).",
+        message: "Vui lòng cung cấp ít nhất 1 lựa chọn hợp lệ (tên, giá" + (service.requiresCapacityMatch ? ", sức chứa" : "") + ").",
+      });
+    }
+    if (service.usesVariants && service.requiresCapacityMatch && !service.capacityFieldLabel) {
+      return res.status(400).json({
+        message: "Vui lòng đặt tên nhãn cho trường số lượng (vd: Số hành khách).",
       });
     }
 
