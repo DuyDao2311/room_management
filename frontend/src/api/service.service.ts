@@ -3,6 +3,12 @@ import api from './axios'
 export type ServiceCategory = 'cleaning' | 'food' | 'laundry' | 'transport' | 'spa' | 'maintenance'
 export type ServiceUnit = 'lần' | 'buổi' | 'khách'
 
+export interface ServiceCarOption {
+  label: string
+  capacity: number
+  price: number
+}
+
 export interface Service {
   _id: string
   name: string
@@ -14,8 +20,13 @@ export interface Service {
   avgRating: number
   ratingCount: number
   isActive: boolean
+  carOptions: ServiceCarOption[]
   createdAt: string
   updatedAt: string
+}
+
+export function getMinCarOptionPrice(carOptions: ServiceCarOption[]): number {
+  return carOptions.length > 0 ? Math.min(...carOptions.map(o => o.price)) : 0
 }
 
 export const CATEGORY_LABELS: Record<ServiceCategory, string> = {
@@ -57,9 +68,10 @@ export const serviceService = {
     name: string
     category: ServiceCategory
     description?: string
-    price: number
-    unit: ServiceUnit
+    price?: number
+    unit?: ServiceUnit
     images?: string[]
+    carOptions?: ServiceCarOption[]
   }) => api.post<Service>('/services', data),
 
   updateService: (
@@ -72,6 +84,7 @@ export const serviceService = {
       unit: ServiceUnit
       images: string[]
       isActive: boolean
+      carOptions: ServiceCarOption[]
     }>
   ) => api.put<Service>(`/services/${id}`, data),
 }
