@@ -41,7 +41,7 @@ beforeAll(() => {
 
 const SERVICE_A = {
   _id: '1', name: 'Dọn phòng', category: 'cleaning', description: 'Mô tả', price: 100000,
-  unit: 'lần', images: [], avgRating: 4.5, ratingCount: 2, isActive: true, carOptions: [],
+  unit: 'lần', images: [], avgRating: 4.5, ratingCount: 2, isActive: true,
   usesVariants: false, variants: [], requiresCapacityMatch: false, capacityFieldLabel: '',
   createdAt: '', updatedAt: '',
 }
