@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
-import { serviceService, CATEGORY_LABELS, getMinCarOptionPrice, type Service, type ServiceCategory, type ServiceUnit } from '../../api/service.service'
+import { serviceService, CATEGORY_LABELS, getMinVariantPrice, type Service, type ServiceCategory, type ServiceUnit } from '../../api/service.service'
 import Spinner from '../../components/ui/Spinner'
 import { Pencil, EyeOff, Eye } from 'lucide-react'
 
-type ServiceCarOptionForm = { label: string; capacity: string; price: string }
+type ServiceVariantForm = { label: string; capacity: string; price: string }
 
 const EMPTY_FORM = {
   name: '', category: 'cleaning' as ServiceCategory, description: '',
   price: '', unit: 'lần' as ServiceUnit, images: '', isActive: true,
-  carOptions: [] as ServiceCarOptionForm[],
+  usesVariants: false, requiresCapacityMatch: false, capacityFieldLabel: '',
+  variants: [] as ServiceVariantForm[],
 }
 
 export default function ServiceManagement() {
@@ -45,7 +46,8 @@ export default function ServiceManagement() {
     setForm({
       name: s.name, category: s.category, description: s.description,
       price: String(s.price), unit: s.unit, images: s.images.join(', '), isActive: s.isActive,
-      carOptions: s.carOptions.map(o => ({ label: o.label, capacity: String(o.capacity), price: String(o.price) })),
+      usesVariants: s.usesVariants, requiresCapacityMatch: s.requiresCapacityMatch, capacityFieldLabel: s.capacityFieldLabel,
+      variants: s.variants.map(v => ({ label: v.label, capacity: v.capacity != null ? String(v.capacity) : '', price: String(v.price) })),
     })
     setShowModal(true)
   }
@@ -53,19 +55,39 @@ export default function ServiceManagement() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setFormError('')
-    if (form.category === 'transport' && form.carOptions.some(o => !o.label.trim() || !o.capacity || !o.price)) {
-      setFormError('Vui lòng điền đầy đủ tên, sức chứa, giá cho từng loại xe.')
-      return
+    if (form.usesVariants) {
+      if (form.variants.length === 0) {
+        setFormError('Vui lòng thêm ít nhất 1 lựa chọn.')
+        return
+      }
+      const incomplete = form.variants.some(v =>
+        !v.label.trim() || !v.price || (form.requiresCapacityMatch && !v.capacity)
+      )
+      if (incomplete) {
+        setFormError(`Vui lòng điền đầy đủ tên, giá${form.requiresCapacityMatch ? ', sức chứa' : ''} cho từng lựa chọn.`)
+        return
+      }
+      if (form.requiresCapacityMatch && !form.capacityFieldLabel.trim()) {
+        setFormError('Vui lòng đặt tên nhãn cho trường số lượng.')
+        return
+      }
     }
     setSaving(true)
-    const payload = form.category === 'transport'
+    const payload = form.usesVariants
       ? {
           name: form.name,
           category: form.category,
           description: form.description,
           images: form.images.split(',').map(s => s.trim()).filter(Boolean),
           isActive: form.isActive,
-          carOptions: form.carOptions.map(o => ({ label: o.label.trim(), capacity: Number(o.capacity), price: Number(o.price) })),
+          usesVariants: true,
+          requiresCapacityMatch: form.requiresCapacityMatch,
+          capacityFieldLabel: form.requiresCapacityMatch ? form.capacityFieldLabel.trim() : '',
+          variants: form.variants.map(v => ({
+            label: v.label.trim(),
+            price: Number(v.price),
+            ...(form.requiresCapacityMatch ? { capacity: Number(v.capacity) } : {}),
+          })),
         }
       : {
           name: form.name,
@@ -75,6 +97,7 @@ export default function ServiceManagement() {
           unit: form.unit,
           images: form.images.split(',').map(s => s.trim()).filter(Boolean),
           isActive: form.isActive,
+          usesVariants: false,
         }
     try {
       if (editing) {
@@ -154,8 +177,8 @@ export default function ServiceManagement() {
                 <div style={{ width: '160px', display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: '0.75rem', color: '#667085', fontWeight: 600, textTransform: 'uppercase' }}>Giá</span>
                   <span style={{ fontSize: '1rem', fontWeight: 800, color: '#101828', marginTop: '2px' }}>
-                    {s.category === 'transport'
-                      ? `Từ ${getMinCarOptionPrice(s.carOptions).toLocaleString('vi-VN')}đ`
+                    {s.usesVariants
+                      ? `Từ ${getMinVariantPrice(s.variants).toLocaleString('vi-VN')}đ`
                       : `${s.price.toLocaleString('vi-VN')} đ/${s.unit}`}
                   </span>
                 </div>
@@ -189,22 +212,13 @@ export default function ServiceManagement() {
                 <div className="form-row">
                   <div className="form-group">
                     <label htmlFor="s-category">Loại dịch vụ</label>
-                    <select id="s-category" className="form-input" value={form.category} onChange={e => {
-                      const nextCategory = e.target.value as ServiceCategory
-                      setForm({
-                        ...form,
-                        category: nextCategory,
-                        carOptions: nextCategory === 'transport' && form.carOptions.length === 0
-                          ? [{ label: '', capacity: '', price: '' }]
-                          : form.carOptions,
-                      })
-                    }}>
+                    <select id="s-category" className="form-input" value={form.category} onChange={e => setForm({ ...form, category: e.target.value as ServiceCategory })}>
                       {Object.entries(CATEGORY_LABELS).map(([key, label]) => (
                         <option key={key} value={key}>{label}</option>
                       ))}
                     </select>
                   </div>
-                  {form.category !== 'transport' && (
+                  {!form.usesVariants && (
                     <div className="form-group">
                       <label htmlFor="s-unit">Đơn vị tính</label>
                       <select id="s-unit" className="form-input" value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value as ServiceUnit })}>
@@ -215,37 +229,80 @@ export default function ServiceManagement() {
                     </div>
                   )}
                 </div>
-                {form.category === 'transport' ? (
+
+                <div className="form-group">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox" checked={form.usesVariants}
+                      onChange={e => {
+                        const checked = e.target.checked
+                        setForm({
+                          ...form,
+                          usesVariants: checked,
+                          variants: checked && form.variants.length === 0 ? [{ label: '', capacity: '', price: '' }] : form.variants,
+                        })
+                      }}
+                    />
+                    Dịch vụ này có nhiều lựa chọn giá
+                  </label>
+                </div>
+
+                {form.usesVariants && (
                   <div className="form-group">
-                    <label>Các loại xe</label>
-                    {form.carOptions.map((opt: { label: string; capacity: string; price: string }, i: number) => (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="checkbox" checked={form.requiresCapacityMatch}
+                        onChange={e => setForm({ ...form, requiresCapacityMatch: e.target.checked })}
+                      />
+                      Yêu cầu khớp số lượng (khóa chọn tự động theo sức chứa)
+                    </label>
+                  </div>
+                )}
+
+                {form.usesVariants && form.requiresCapacityMatch && (
+                  <div className="form-group">
+                    <label htmlFor="s-capacity-label">Nhãn số lượng hiển thị cho khách</label>
+                    <input
+                      id="s-capacity-label" className="form-input" value={form.capacityFieldLabel}
+                      onChange={e => setForm({ ...form, capacityFieldLabel: e.target.value })}
+                      placeholder="VD: Số hành khách" required
+                    />
+                  </div>
+                )}
+
+                {form.usesVariants ? (
+                  <div className="form-group">
+                    <label>Các lựa chọn</label>
+                    {form.variants.map((v, i) => (
                       <div key={i} className="form-row" style={{ marginBottom: '8px', alignItems: 'center' }}>
                         <input
-                          className="form-input" placeholder="Tên loại xe (VD: 4 chỗ)" value={opt.label}
-                          onChange={e => setForm({ ...form, carOptions: form.carOptions.map((o: ServiceCarOptionForm, idx: number) => idx === i ? { ...o, label: e.target.value } : o) })}
+                          className="form-input" placeholder="Tên lựa chọn (VD: 4 chỗ)" value={v.label}
+                          onChange={e => setForm({ ...form, variants: form.variants.map((o: ServiceVariantForm, idx: number) => idx === i ? { ...o, label: e.target.value } : o) })}
                           required
                         />
+                        {form.requiresCapacityMatch && (
+                          <input
+                            type="number" className="form-input" placeholder="Sức chứa" min={1} value={v.capacity}
+                            onChange={e => setForm({ ...form, variants: form.variants.map((o: ServiceVariantForm, idx: number) => idx === i ? { ...o, capacity: e.target.value } : o) })}
+                            required
+                          />
+                        )}
                         <input
-                          type="number" className="form-input" placeholder="Sức chứa (người)" min={1} value={opt.capacity}
-                          onChange={e => setForm({ ...form, carOptions: form.carOptions.map((o: ServiceCarOptionForm, idx: number) => idx === i ? { ...o, capacity: e.target.value } : o) })}
-                          required
-                        />
-                        <input
-                          type="number" className="form-input" placeholder="Giá xe (VNĐ)" min={0} value={opt.price}
-                          onChange={e => setForm({ ...form, carOptions: form.carOptions.map((o: ServiceCarOptionForm, idx: number) => idx === i ? { ...o, price: e.target.value } : o) })}
+                          type="number" className="form-input" placeholder="Giá (VNĐ)" min={0} value={v.price}
+                          onChange={e => setForm({ ...form, variants: form.variants.map((o: ServiceVariantForm, idx: number) => idx === i ? { ...o, price: e.target.value } : o) })}
                           required
                         />
                         <button
-                          type="button" className="button button-secondary" aria-label="Xóa loại xe"
-                          disabled={form.carOptions.length <= 1}
-                          onClick={() => setForm({ ...form, carOptions: form.carOptions.filter((_, idx) => idx !== i) })}
+                          type="button" className="button button-secondary" aria-label="Xóa lựa chọn"
+                          disabled={form.variants.length <= 1}
+                          onClick={() => setForm({ ...form, variants: form.variants.filter((_, idx) => idx !== i) })}
                         >✕</button>
                       </div>
                     ))}
                     <button
                       type="button" className="button button-secondary"
-                      onClick={() => setForm({ ...form, carOptions: [...form.carOptions, { label: '', capacity: '', price: '' }] })}
-                    >+ Thêm loại xe</button>
+                      onClick={() => setForm({ ...form, variants: [...form.variants, { label: '', capacity: '', price: '' }] })}
+                    >+ Thêm lựa chọn</button>
                   </div>
                 ) : (
                   <div className="form-group">
