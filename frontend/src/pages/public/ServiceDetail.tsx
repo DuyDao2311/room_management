@@ -1,7 +1,7 @@
 // frontend/src/pages/public/ServiceDetail.tsx
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import Spinner from '../../components/ui/Spinner.tsx'
-import { CATEGORY_LABELS } from '../../api/service.service'
+import { CATEGORY_LABELS, getMinCarOptionPrice } from '../../api/service.service'
 import { useServiceDetail } from '../../hooks/useServiceDetail'
 import DatePicker, { registerLocale } from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -17,6 +17,7 @@ export default function ServiceDetail() {
     reviews, reviewsLoading,
     showBookModal, openBookModal, closeBookModal,
     scheduledAt, setScheduledAt, quantity, setQuantity, note, setNote,
+    passengerCount, setPassengerCount, carType, setCarType,
     totalPreview, filterBookingTime,
     handleBook, bookLoading, bookSent, bookError,
     noRoomModal, closeNoRoomModal,
@@ -79,7 +80,11 @@ export default function ServiceDetail() {
 
         <div style={{ position: 'sticky', top: '24px', background: 'white', borderRadius: '16px', padding: '28px', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#101828', marginBottom: '4px' }}>
-            {service.price.toLocaleString('vi-VN')} đ <span style={{ fontSize: '1rem', fontWeight: 500, color: '#667085' }}>/{service.unit}</span>
+            {service.category === 'transport' ? (
+              <>Từ {getMinCarOptionPrice(service.carOptions).toLocaleString('vi-VN')} đ</>
+            ) : (
+              <>{service.price.toLocaleString('vi-VN')} đ <span style={{ fontSize: '1rem', fontWeight: 500, color: '#667085' }}>/{service.unit}</span></>
+            )}
           </div>
           <button className="button button-primary" style={{ width: '100%', marginTop: '16px', padding: '14px' }} onClick={openBookModal}>
             Đặt dịch vụ
@@ -119,10 +124,45 @@ export default function ServiceDetail() {
                     required
                   />
                 </div>
-                <div className="form-group">
-                  <label htmlFor="sd-quantity">Số lượng ({service.unit})</label>
-                  <input id="sd-quantity" type="number" className="form-input" value={quantity} min={1} onChange={e => setQuantity(Math.max(1, Number(e.target.value)))} required />
-                </div>
+                {service.category === 'transport' ? (
+                  <>
+                    <div className="form-group">
+                      <label htmlFor="sd-passengers">Số hành khách</label>
+                      <input
+                        id="sd-passengers" type="number" className="form-input" min={1}
+                        value={passengerCount}
+                        onChange={e => setPassengerCount(Math.max(1, Number(e.target.value)))}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Loại xe</label>
+                      {service.carOptions.map(opt => {
+                        const disabled = opt.label !== carType
+                        return (
+                          <label key={opt.label} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 0', opacity: disabled ? 0.4 : 1 }}>
+                            <input
+                              type="radio" name="carType" value={opt.label}
+                              checked={carType === opt.label} disabled={disabled}
+                              onChange={() => setCarType(opt.label)}
+                            />
+                            {opt.label} — {disabled ? 'không khả dụng' : `${opt.price.toLocaleString('vi-VN')}đ`}
+                          </label>
+                        )
+                      })}
+                    </div>
+                    {carType === '' && (
+                      <div className="alert alert-error" style={{ marginBottom: '16px' }}>
+                        Vượt quá sức chứa tối đa ({Math.max(...service.carOptions.map(o => o.capacity))} người).
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="form-group">
+                    <label htmlFor="sd-quantity">Số lượng ({service.unit})</label>
+                    <input id="sd-quantity" type="number" className="form-input" value={quantity} min={1} onChange={e => setQuantity(Math.max(1, Number(e.target.value)))} required />
+                  </div>
+                )}
                 <div className="form-group">
                   <label htmlFor="sd-note">Ghi chú (tùy chọn)</label>
                   <textarea id="sd-note" className="form-input" value={note} onChange={e => setNote(e.target.value)} rows={2} placeholder="Yêu cầu thêm..." />
@@ -133,7 +173,7 @@ export default function ServiceDetail() {
                 </div>
                 <div className="modal-actions">
                   <button type="button" className="button button-secondary" onClick={closeBookModal}>Hủy</button>
-                  <button type="submit" className="button button-primary" disabled={bookLoading}>
+                  <button type="submit" className="button button-primary" disabled={bookLoading || (service.category === 'transport' && !carType)}>
                     {bookLoading ? 'Đang gửi...' : 'Xác nhận đặt'}
                   </button>
                 </div>

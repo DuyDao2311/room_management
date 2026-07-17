@@ -41,7 +41,7 @@ beforeAll(() => {
 
 const SERVICE_A = {
   _id: '1', name: 'Dọn phòng', category: 'cleaning', description: 'Mô tả', price: 100000,
-  unit: 'lần', images: [], avgRating: 4.5, ratingCount: 2, isActive: true,
+  unit: 'lần', images: [], avgRating: 4.5, ratingCount: 2, isActive: true, carOptions: [],
   createdAt: '', updatedAt: '',
 }
 
@@ -52,6 +52,19 @@ describe('ServiceList', () => {
     expect(await screen.findByText('Dọn phòng')).toBeInTheDocument()
     await userEvent.click(screen.getByText('Đưa đón'))
     await waitFor(() => expect(serviceService.getServices).toHaveBeenLastCalledWith({ category: 'transport' }))
+  })
+
+  test('dịch vụ transport hiện "Từ X đ" theo giá nhỏ nhất trong carOptions', async () => {
+    const TRANSPORT_SERVICE = {
+      ...SERVICE_A, _id: '2', name: 'Đưa đón sân bay', category: 'transport',
+      carOptions: [
+        { label: '4 chỗ', capacity: 4, price: 200000 },
+        { label: '7 chỗ', capacity: 7, price: 300000 },
+      ],
+    }
+    vi.mocked(serviceService.getServices).mockResolvedValue({ data: [TRANSPORT_SERVICE] } as any)
+    render(<MemoryRouter><ServiceList /></MemoryRouter>)
+    expect(await screen.findByText('Từ 200.000đ')).toBeInTheDocument()
   })
 })
 
@@ -160,5 +173,78 @@ describe('ServiceDetail', () => {
     expect(await screen.findByText('Khách A')).toBeInTheDocument()
     expect(screen.getByText('Rất hài lòng')).toBeInTheDocument()
     expect(screen.getByText('Sạch sẽ')).toBeInTheDocument()
+  })
+})
+
+describe('ServiceDetail — dịch vụ transport', () => {
+  beforeEach(() => {
+    vi.mocked(useAuth).mockReturnValue({ user: { _id: 'u1', role: 'tenant' } } as any)
+  })
+
+  const TRANSPORT_SERVICE = {
+    _id: '2', name: 'Đưa đón sân bay', category: 'transport', description: '',
+    images: [], avgRating: 0, ratingCount: 0, isActive: true,
+    carOptions: [
+      { label: '4 chỗ', capacity: 4, price: 200000 },
+      { label: '7 chỗ', capacity: 7, price: 300000 },
+    ],
+    createdAt: '', updatedAt: '',
+  }
+
+  test('hiện giá "Từ X đ" thay vì price/unit', async () => {
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: TRANSPORT_SERVICE } as any)
+    render(
+      <MemoryRouter initialEntries={['/services/2']}>
+        <Routes><Route path="/services/:id" element={<ServiceDetail />} /></Routes>
+      </MemoryRouter>
+    )
+    expect(await screen.findByText(/Từ 200.000 đ/)).toBeInTheDocument()
+  })
+
+  test('mở modal đặt dịch vụ hiện ô số hành khách + danh sách loại xe, khóa xe to hơn mức cần', async () => {
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: TRANSPORT_SERVICE } as any)
+    render(
+      <MemoryRouter initialEntries={['/services/2']}>
+        <Routes><Route path="/services/:id" element={<ServiceDetail />} /></Routes>
+      </MemoryRouter>
+    )
+    await userEvent.click(await screen.findByText('Đặt dịch vụ'))
+
+    expect(screen.getByLabelText('Số hành khách')).toBeInTheDocument()
+    expect(screen.getByLabelText(/4 chỗ/)).toBeChecked()
+    expect(screen.getByLabelText(/7 chỗ/)).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('Số hành khách'), { target: { value: '5' } })
+
+    expect(screen.getByLabelText(/7 chỗ/)).toBeChecked()
+    expect(screen.getByLabelText(/4 chỗ/)).toBeDisabled()
+  })
+
+  test('điền form transport và xác nhận đặt → gọi createBooking với carType/passengerCount', async () => {
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: TRANSPORT_SERVICE } as any)
+    vi.mocked(serviceBookingService.createBooking).mockResolvedValue({ data: {} } as any)
+    render(
+      <MemoryRouter initialEntries={['/services/2']}>
+        <Routes><Route path="/services/:id" element={<ServiceDetail />} /></Routes>
+      </MemoryRouter>
+    )
+    await userEvent.click(await screen.findByText('Đặt dịch vụ'))
+
+    fireEvent.change(screen.getByLabelText('Số hành khách'), { target: { value: '3' } })
+
+    const dateInput = screen.getByPlaceholderText('Chọn ngày và giờ')
+    const future = new Date(Date.now() + 24 * 3600 * 1000)
+    const dd = String(future.getDate()).padStart(2, '0')
+    const mm = String(future.getMonth() + 1).padStart(2, '0')
+    const yyyy = future.getFullYear()
+    await userEvent.type(dateInput, `${dd}/${mm}/${yyyy} 10:00`)
+    fireEvent.keyDown(dateInput, { key: 'Enter', code: 'Enter' })
+
+    await userEvent.click(screen.getByText('Xác nhận đặt'))
+
+    await waitFor(() => expect(serviceBookingService.createBooking).toHaveBeenCalledWith(
+      expect.objectContaining({ serviceId: '2', carType: '4 chỗ', passengerCount: 3 })
+    ))
+    expect(await screen.findByText('Đặt dịch vụ thành công!')).toBeInTheDocument()
   })
 })
