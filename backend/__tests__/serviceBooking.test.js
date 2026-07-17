@@ -569,3 +569,44 @@ describe("DELETE /api/service-bookings/:id", () => {
     expect(updatedService.ratingCount).toBe(1);
   });
 });
+
+describe("ServiceBooking model — carType/passengerCount", () => {
+  test("lưu carType + passengerCount cho booking transport", async () => {
+    const tenant = await createUser("tenant");
+    const service = await createActiveService({
+      category: "transport",
+      carOptions: [{ label: "4 chỗ", capacity: 4, price: 200000 }],
+    });
+
+    const booking = await ServiceBooking.create({
+      service: service._id,
+      tenant: tenant._id,
+      scheduledAt: futureDate(48),
+      quantity: 1,
+      unitPrice: 200000,
+      totalAmount: 200000,
+      carType: "4 chỗ",
+      passengerCount: 3,
+    });
+
+    expect(booking.carType).toBe("4 chỗ");
+    expect(booking.passengerCount).toBe(3);
+  });
+
+  test("passengerCount < 1 → lỗi validation", async () => {
+    const tenant = await createUser("tenant");
+    const service = await createActiveService();
+
+    await expect(
+      ServiceBooking.create({
+        service: service._id,
+        tenant: tenant._id,
+        scheduledAt: futureDate(48),
+        quantity: 1,
+        unitPrice: 100000,
+        totalAmount: 100000,
+        passengerCount: 0,
+      })
+    ).rejects.toThrow();
+  });
+});
