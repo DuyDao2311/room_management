@@ -4,11 +4,28 @@ const { notifyTenantServiceDeactivated, sendSocketNotification } = require("../u
 
 const isStaffOrAdmin = (user) => !!user && ["admin", "staff"].includes(user.role);
 
+const isValidCarOptions = (carOptions) =>
+  Array.isArray(carOptions) &&
+  carOptions.length > 0 &&
+  carOptions.every((o) => o && o.label && Number(o.capacity) >= 1 && Number(o.price) >= 0);
+
 const createService = async (req, res) => {
   try {
-    const { name, category, description, price, unit, images } = req.body;
+    const { name, category, description, price, unit, images, carOptions } = req.body;
 
-    if (!name || !category || price == null || !unit) {
+    if (!name || !category) {
+      return res.status(400).json({
+        message: "Vui lòng cung cấp đầy đủ: tên, loại dịch vụ.",
+      });
+    }
+
+    if (category === "transport") {
+      if (!isValidCarOptions(carOptions)) {
+        return res.status(400).json({
+          message: "Dịch vụ đưa đón cần ít nhất 1 loại xe hợp lệ (tên, sức chứa, giá).",
+        });
+      }
+    } else if (price == null || !unit) {
       return res.status(400).json({
         message: "Vui lòng cung cấp đầy đủ: tên, loại dịch vụ, giá, đơn vị tính.",
       });
@@ -18,8 +35,9 @@ const createService = async (req, res) => {
       name,
       category,
       description: description || "",
-      price,
-      unit,
+      price: category === "transport" ? undefined : price,
+      unit: category === "transport" ? undefined : unit,
+      carOptions: category === "transport" ? carOptions : [],
       images: images || [],
       createdBy: req.user._id,
     });
@@ -77,7 +95,7 @@ const getServiceReviews = async (req, res) => {
 
 const updateService = async (req, res) => {
   try {
-    const { name, category, description, price, unit, images, isActive } = req.body;
+    const { name, category, description, price, unit, images, isActive, carOptions } = req.body;
 
     const service = await Service.findById(req.params.id);
     if (!service) return res.status(404).json({ message: "Không tìm thấy dịch vụ." });
@@ -91,6 +109,13 @@ const updateService = async (req, res) => {
     if (unit !== undefined) service.unit = unit;
     if (images !== undefined) service.images = images;
     if (isActive !== undefined) service.isActive = isActive;
+    if (carOptions !== undefined) service.carOptions = carOptions;
+
+    if (service.category === "transport" && !isValidCarOptions(service.carOptions)) {
+      return res.status(400).json({
+        message: "Dịch vụ đưa đón cần ít nhất 1 loại xe hợp lệ (tên, sức chứa, giá).",
+      });
+    }
 
     await service.save();
 

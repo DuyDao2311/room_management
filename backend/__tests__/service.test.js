@@ -76,6 +76,50 @@ describe("POST /api/services", () => {
 
     expect(res.status).toBe(400);
   });
+
+  test("tạo dịch vụ transport có carOptions hợp lệ, không cần price/unit → 201", async () => {
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({
+        name: "Đưa đón sân bay",
+        category: "transport",
+        carOptions: [
+          { label: "4 chỗ", capacity: 4, price: 200000 },
+          { label: "7 chỗ", capacity: 7, price: 300000 },
+        ],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.carOptions).toHaveLength(2);
+    expect(res.body.price).toBeUndefined();
+  });
+
+  test("tạo dịch vụ transport thiếu carOptions → 400", async () => {
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ name: "Đưa đón sân bay", category: "transport" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/loại xe/);
+  });
+
+  test("tạo dịch vụ transport với carOptions có phần tử thiếu capacity → 400", async () => {
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({
+        name: "Đưa đón sân bay",
+        category: "transport",
+        carOptions: [{ label: "4 chỗ", price: 200000 }],
+      });
+
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("GET /api/services", () => {
@@ -220,6 +264,24 @@ describe("PUT /api/services/:id", () => {
     expect(res.status).toBe(200);
     const notif = await Notification.findOne({ userId: tenant._id, type: "SERVICE" });
     expect(notif).toBeNull();
+  });
+
+  test("sửa dịch vụ transport, xóa hết carOptions → 400, không lưu", async () => {
+    const admin = await createUser("admin");
+    const service = await Service.create({
+      name: "Đưa đón sân bay",
+      category: "transport",
+      carOptions: [{ label: "4 chỗ", capacity: 4, price: 200000 }],
+    });
+
+    const res = await request(app)
+      .put(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ carOptions: [] });
+
+    expect(res.status).toBe(400);
+    const found = await Service.findById(service._id);
+    expect(found.carOptions).toHaveLength(1);
   });
 });
 
