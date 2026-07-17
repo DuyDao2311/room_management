@@ -8,6 +8,11 @@ const EMPTY_FORM = {
   price: '', unit: 'lần' as ServiceUnit, images: '', isActive: false,
 }
 
+const ICON_BUTTON_STYLE = {
+  width: 32, height: 32, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  borderRadius: 6, background: 'transparent',
+}
+
 export default function ServiceManagement() {
   const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading] = useState(true)
@@ -122,13 +127,14 @@ export default function ServiceManagement() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {filteredServices.length === 0 ? (
               <div style={{ padding: '32px', textAlign: 'center', color: '#667085', background: 'white', borderRadius: '12px' }}>Chưa có dịch vụ nào.</div>
-            ) : filteredServices.map(s => (
+            ) : filteredServices.map(s => {
+              const contentOpacity = s.isActive ? 1 : 0.6
+              return (
               <div key={s._id} style={{
                 display: 'flex', alignItems: 'center', background: 'white',
                 padding: '16px 24px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
-                opacity: s.isActive ? 1 : 0.6,
               }}>
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', opacity: contentOpacity }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#101828' }}>{s.name}</span>
                     <span style={{ background: '#d1e4ff', color: '#003e68', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>
@@ -145,13 +151,13 @@ export default function ServiceManagement() {
                   </div>
                 </div>
 
-                <div style={{ width: '160px', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ width: '160px', display: 'flex', flexDirection: 'column', opacity: contentOpacity }}>
                   <span style={{ fontSize: '0.75rem', color: '#667085', fontWeight: 600, textTransform: 'uppercase' }}>Giá</span>
                   <span style={{ fontSize: '1rem', fontWeight: 800, color: '#101828', marginTop: '2px' }}>{s.price.toLocaleString('vi-VN')} đ/{s.unit}</span>
                 </div>
 
                 <div style={{ display: 'flex', gap: '16px', marginLeft: '24px' }}>
-                  <button onClick={() => openEdit(s)} title="Sửa" aria-label="Sửa dịch vụ">
+                  <button onClick={() => openEdit(s)} title="Sửa" aria-label="Sửa dịch vụ" style={ICON_BUTTON_STYLE}>
                     <Pencil size={18} />
                   </button>
                   <button
@@ -165,16 +171,17 @@ export default function ServiceManagement() {
                         : 'Xóa dịch vụ'
                     }
                     aria-label="Xóa dịch vụ"
-                    style={{ opacity: (s.bookingCount || s.isActive) ? 0.4 : 1, cursor: (s.bookingCount || s.isActive) ? 'not-allowed' : 'pointer' }}
+                    style={{ ...ICON_BUTTON_STYLE, opacity: (s.bookingCount || s.isActive) ? 0.4 : 1, cursor: (s.bookingCount || s.isActive) ? 'not-allowed' : 'pointer' }}
                   >
                     <Trash2 size={18} color="#d92d20" />
                   </button>
-                  <button onClick={() => toggleActive(s)} title={s.isActive ? 'Tạm ngừng' : 'Kích hoạt lại'} aria-label={s.isActive ? 'Tạm ngừng dịch vụ' : 'Kích hoạt lại dịch vụ'}>
+                  <button onClick={() => toggleActive(s)} title={s.isActive ? 'Tạm ngừng' : 'Kích hoạt lại'} aria-label={s.isActive ? 'Tạm ngừng dịch vụ' : 'Kích hoạt lại dịch vụ'} style={ICON_BUTTON_STYLE}>
                     {s.isActive ? <EyeOff size={18} color="#d92d20" /> : <Eye size={18} color="#088373" />}
                   </button>
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
