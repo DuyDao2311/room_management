@@ -262,3 +262,37 @@ describe("GET /api/services/:id/reviews", () => {
   });
 });
 
+describe("Service model — carOptions cho transport", () => {
+  test("category transport không cần price/unit, vẫn tạo được nếu có carOptions hợp lệ", async () => {
+    const service = await Service.create({
+      name: "Đưa đón sân bay",
+      category: "transport",
+      carOptions: [
+        { label: "4 chỗ", capacity: 4, price: 200000 },
+        { label: "7 chỗ", capacity: 7, price: 300000 },
+      ],
+    });
+
+    expect(service.price).toBeUndefined();
+    expect(service.unit).toBeUndefined();
+    expect(service.carOptions).toHaveLength(2);
+    expect(service.carOptions[0].label).toBe("4 chỗ");
+  });
+
+  test("category khác transport vẫn bắt buộc price/unit như cũ", async () => {
+    await expect(
+      Service.create({ name: "Dọn phòng", category: "cleaning" })
+    ).rejects.toThrow();
+  });
+
+  test("carOptions thiếu field bắt buộc (vd thiếu price) → lỗi validation", async () => {
+    await expect(
+      Service.create({
+        name: "Đưa đón sân bay",
+        category: "transport",
+        carOptions: [{ label: "4 chỗ", capacity: 4 }],
+      })
+    ).rejects.toThrow();
+  });
+});
+

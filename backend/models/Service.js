@@ -19,13 +19,21 @@ const serviceSchema = new mongoose.Schema(
     },
     price: {
       type: Number,
-      required: [true, "Giá dịch vụ không được để trống"],
+      required: function () { return this.category !== "transport"; },
       min: [0, "Giá dịch vụ không được âm"],
     },
     unit: {
       type: String,
-      enum: ["lần", "buổi", "khách"],
-      required: [true, "Đơn vị tính không được để trống"],
+      required: function () { return this.category !== "transport"; },
+      trim: true,
+    },
+    carOptions: {
+      type: [{
+        label: { type: String, required: true, trim: true },
+        capacity: { type: Number, required: true, min: 1 },
+        price: { type: Number, required: true, min: 0 },
+      }],
+      default: [],
     },
     images: {
       type: [String],
