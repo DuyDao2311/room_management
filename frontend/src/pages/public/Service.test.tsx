@@ -42,6 +42,7 @@ beforeAll(() => {
 const SERVICE_A = {
   _id: '1', name: 'Dọn phòng', category: 'cleaning', description: 'Mô tả', price: 100000,
   unit: 'lần', images: [], avgRating: 4.5, ratingCount: 2, isActive: true, carOptions: [],
+  usesVariants: false, variants: [], requiresCapacityMatch: false, capacityFieldLabel: '',
   createdAt: '', updatedAt: '',
 }
 
@@ -54,15 +55,15 @@ describe('ServiceList', () => {
     await waitFor(() => expect(serviceService.getServices).toHaveBeenLastCalledWith({ category: 'transport' }))
   })
 
-  test('dịch vụ transport hiện "Từ X đ" theo giá nhỏ nhất trong carOptions', async () => {
-    const TRANSPORT_SERVICE = {
+  test('dịch vụ usesVariants hiện "Từ X đ" theo giá nhỏ nhất trong variants', async () => {
+    const VARIANTS_SERVICE = {
       ...SERVICE_A, _id: '2', name: 'Đưa đón sân bay', category: 'transport',
-      carOptions: [
+      usesVariants: true, variants: [
         { label: '4 chỗ', capacity: 4, price: 200000 },
         { label: '7 chỗ', capacity: 7, price: 300000 },
       ],
     }
-    vi.mocked(serviceService.getServices).mockResolvedValue({ data: [TRANSPORT_SERVICE] } as any)
+    vi.mocked(serviceService.getServices).mockResolvedValue({ data: [VARIANTS_SERVICE] } as any)
     render(<MemoryRouter><ServiceList /></MemoryRouter>)
     expect(await screen.findByText('Từ 200.000đ')).toBeInTheDocument()
   })
@@ -176,15 +177,16 @@ describe('ServiceDetail', () => {
   })
 })
 
-describe('ServiceDetail — dịch vụ transport', () => {
+describe('ServiceDetail — dịch vụ usesVariants + requiresCapacityMatch=true (vd xe)', () => {
   beforeEach(() => {
     vi.mocked(useAuth).mockReturnValue({ user: { _id: 'u1', role: 'tenant' } } as any)
   })
 
-  const TRANSPORT_SERVICE = {
+  const CAPACITY_MATCH_SERVICE = {
     _id: '2', name: 'Đưa đón sân bay', category: 'transport', description: '',
     images: [], avgRating: 0, ratingCount: 0, isActive: true,
-    carOptions: [
+    usesVariants: true, requiresCapacityMatch: true, capacityFieldLabel: 'Số hành khách',
+    variants: [
       { label: '4 chỗ', capacity: 4, price: 200000 },
       { label: '7 chỗ', capacity: 7, price: 300000 },
     ],
@@ -192,7 +194,7 @@ describe('ServiceDetail — dịch vụ transport', () => {
   }
 
   test('hiện giá "Từ X đ" thay vì price/unit', async () => {
-    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: TRANSPORT_SERVICE } as any)
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: CAPACITY_MATCH_SERVICE } as any)
     render(
       <MemoryRouter initialEntries={['/services/2']}>
         <Routes><Route path="/services/:id" element={<ServiceDetail />} /></Routes>
@@ -201,8 +203,8 @@ describe('ServiceDetail — dịch vụ transport', () => {
     expect(await screen.findByText(/Từ 200.000 đ/)).toBeInTheDocument()
   })
 
-  test('mở modal đặt dịch vụ hiện ô số hành khách + danh sách loại xe, khóa xe to hơn mức cần', async () => {
-    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: TRANSPORT_SERVICE } as any)
+  test('mở modal hiện ô nhãn động (capacityFieldLabel) + danh sách lựa chọn, khóa lựa chọn to hơn mức cần', async () => {
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: CAPACITY_MATCH_SERVICE } as any)
     render(
       <MemoryRouter initialEntries={['/services/2']}>
         <Routes><Route path="/services/:id" element={<ServiceDetail />} /></Routes>
@@ -220,8 +222,8 @@ describe('ServiceDetail — dịch vụ transport', () => {
     expect(screen.getByLabelText(/4 chỗ/)).toBeDisabled()
   })
 
-  test('điền form transport và xác nhận đặt → gọi createBooking với carType/passengerCount', async () => {
-    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: TRANSPORT_SERVICE } as any)
+  test('điền form và xác nhận đặt → gọi createBooking với selectedVariant/matchQuantity', async () => {
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: CAPACITY_MATCH_SERVICE } as any)
     vi.mocked(serviceBookingService.createBooking).mockResolvedValue({ data: {} } as any)
     render(
       <MemoryRouter initialEntries={['/services/2']}>
@@ -243,8 +245,38 @@ describe('ServiceDetail — dịch vụ transport', () => {
     await userEvent.click(screen.getByText('Xác nhận đặt'))
 
     await waitFor(() => expect(serviceBookingService.createBooking).toHaveBeenCalledWith(
-      expect.objectContaining({ serviceId: '2', carType: '4 chỗ', passengerCount: 3 })
+      expect.objectContaining({ serviceId: '2', selectedVariant: '4 chỗ', matchQuantity: 3 })
     ))
     expect(await screen.findByText('Đặt dịch vụ thành công!')).toBeInTheDocument()
+  })
+})
+
+describe('ServiceDetail — dịch vụ usesVariants + requiresCapacityMatch=false (vd spa gói giờ)', () => {
+  beforeEach(() => {
+    vi.mocked(useAuth).mockReturnValue({ user: { _id: 'u1', role: 'tenant' } } as any)
+  })
+
+  const FREE_CHOICE_SERVICE = {
+    _id: '3', name: 'Gói spa', category: 'spa', description: '',
+    images: [], avgRating: 0, ratingCount: 0, isActive: true,
+    usesVariants: true, requiresCapacityMatch: false, capacityFieldLabel: '',
+    variants: [{ label: '60 phút', price: 300000 }, { label: '90 phút', price: 450000 }],
+    createdAt: '', updatedAt: '',
+  }
+
+  test('khách chọn tự do lựa chọn, không có ô nhập số lượng để khóa, radio không bị disabled', async () => {
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: FREE_CHOICE_SERVICE } as any)
+    render(
+      <MemoryRouter initialEntries={['/services/3']}>
+        <Routes><Route path="/services/:id" element={<ServiceDetail />} /></Routes>
+      </MemoryRouter>
+    )
+    await userEvent.click(await screen.findByText('Đặt dịch vụ'))
+
+    expect(screen.getByLabelText(/60 phút/)).not.toBeDisabled()
+    expect(screen.getByLabelText(/90 phút/)).not.toBeDisabled()
+
+    await userEvent.click(screen.getByLabelText(/90 phút/))
+    expect(screen.getByLabelText(/90 phút/)).toBeChecked()
   })
 })

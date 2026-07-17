@@ -1,7 +1,7 @@
 // frontend/src/pages/public/ServiceDetail.tsx
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import Spinner from '../../components/ui/Spinner.tsx'
-import { CATEGORY_LABELS, getMinCarOptionPrice } from '../../api/service.service'
+import { CATEGORY_LABELS, getMinVariantPrice } from '../../api/service.service'
 import { useServiceDetail } from '../../hooks/useServiceDetail'
 import DatePicker, { registerLocale } from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
@@ -17,7 +17,7 @@ export default function ServiceDetail() {
     reviews, reviewsLoading,
     showBookModal, openBookModal, closeBookModal,
     scheduledAt, setScheduledAt, quantity, setQuantity, note, setNote,
-    passengerCount, setPassengerCount, carType, setCarType,
+    matchQuantity, setMatchQuantity, selectedVariant, setSelectedVariant,
     totalPreview, filterBookingTime,
     handleBook, bookLoading, bookSent, bookError,
     noRoomModal, closeNoRoomModal,
@@ -80,8 +80,8 @@ export default function ServiceDetail() {
 
         <div style={{ position: 'sticky', top: '24px', background: 'white', borderRadius: '16px', padding: '28px', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
           <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#101828', marginBottom: '4px' }}>
-            {service.category === 'transport' ? (
-              <>Từ {getMinCarOptionPrice(service.carOptions).toLocaleString('vi-VN')} đ</>
+            {service.usesVariants ? (
+              <>Từ {getMinVariantPrice(service.variants).toLocaleString('vi-VN')} đ</>
             ) : (
               <>{service.price.toLocaleString('vi-VN')} đ <span style={{ fontSize: '1rem', fontWeight: 500, color: '#667085' }}>/{service.unit}</span></>
             )}
@@ -124,38 +124,58 @@ export default function ServiceDetail() {
                     required
                   />
                 </div>
-                {service.category === 'transport' ? (
+                {service.usesVariants && service.requiresCapacityMatch ? (
                   <>
                     <div className="form-group">
-                      <label htmlFor="sd-passengers">Số hành khách</label>
+                      <label htmlFor="sd-match-quantity">{service.capacityFieldLabel || 'Số lượng'}</label>
                       <input
-                        id="sd-passengers" type="number" className="form-input" min={1}
-                        value={passengerCount}
-                        onChange={e => setPassengerCount(Math.max(1, Number(e.target.value)))}
+                        id="sd-match-quantity" type="number" className="form-input" min={1}
+                        value={matchQuantity}
+                        onChange={e => setMatchQuantity(Math.max(1, Number(e.target.value)))}
                         required
                       />
                     </div>
                     <div className="form-group">
-                      <label>Loại xe</label>
-                      {service.carOptions.map(opt => {
-                        const disabled = opt.label !== carType
+                      <label>Lựa chọn</label>
+                      {service.variants.map(v => {
+                        const disabled = v.label !== selectedVariant
                         return (
-                          <label key={opt.label} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 0', opacity: disabled ? 0.4 : 1 }}>
+                          <label key={v.label} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 0', opacity: disabled ? 0.4 : 1 }}>
                             <input
-                              type="radio" name="carType" value={opt.label}
-                              checked={carType === opt.label} disabled={disabled}
-                              onChange={() => setCarType(opt.label)}
+                              type="radio" name="selectedVariant" value={v.label}
+                              checked={selectedVariant === v.label} disabled={disabled}
+                              onChange={() => setSelectedVariant(v.label)}
                             />
-                            {opt.label} — {disabled ? 'không khả dụng' : `${opt.price.toLocaleString('vi-VN')}đ`}
+                            {v.label} — {disabled ? 'không khả dụng' : `${v.price.toLocaleString('vi-VN')}đ`}
                           </label>
                         )
                       })}
                     </div>
-                    {carType === '' && (
+                    {selectedVariant === '' && (
                       <div className="alert alert-error" style={{ marginBottom: '16px' }}>
-                        Vượt quá sức chứa tối đa ({Math.max(...service.carOptions.map(o => o.capacity))} người).
+                        Vượt quá sức chứa tối đa ({Math.max(...service.variants.map(v => v.capacity ?? 0))}).
                       </div>
                     )}
+                  </>
+                ) : service.usesVariants ? (
+                  <>
+                    <div className="form-group">
+                      <label>Lựa chọn</label>
+                      {service.variants.map(v => (
+                        <label key={v.label} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 0' }}>
+                          <input
+                            type="radio" name="selectedVariant" value={v.label}
+                            checked={selectedVariant === v.label}
+                            onChange={() => setSelectedVariant(v.label)}
+                          />
+                          {v.label} — {v.price.toLocaleString('vi-VN')}đ
+                        </label>
+                      ))}
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="sd-quantity">Số lượng</label>
+                      <input id="sd-quantity" type="number" className="form-input" value={quantity} min={1} onChange={e => setQuantity(Math.max(1, Number(e.target.value)))} required />
+                    </div>
                   </>
                 ) : (
                   <div className="form-group">
@@ -173,7 +193,7 @@ export default function ServiceDetail() {
                 </div>
                 <div className="modal-actions">
                   <button type="button" className="button button-secondary" onClick={closeBookModal}>Hủy</button>
-                  <button type="submit" className="button button-primary" disabled={bookLoading || (service.category === 'transport' && !carType)}>
+                  <button type="submit" className="button button-primary" disabled={bookLoading || (service.usesVariants && !selectedVariant)}>
                     {bookLoading ? 'Đang gửi...' : 'Xác nhận đặt'}
                   </button>
                 </div>
