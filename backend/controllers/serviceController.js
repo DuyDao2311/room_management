@@ -109,7 +109,12 @@ const updateService = async (req, res) => {
     if (unit !== undefined) service.unit = unit;
     if (images !== undefined) service.images = images;
     if (isActive !== undefined) service.isActive = isActive;
-    if (carOptions !== undefined) service.carOptions = carOptions;
+    if (carOptions !== undefined) service.carOptions = service.category === "transport" ? carOptions : [];
+
+    // Ensure carOptions is cleared for non-transport services
+    if (service.category !== "transport") {
+      service.carOptions = [];
+    }
 
     if (service.category === "transport" && !isValidCarOptions(service.carOptions)) {
       return res.status(400).json({

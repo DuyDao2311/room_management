@@ -283,6 +283,36 @@ describe("PUT /api/services/:id", () => {
     const found = await Service.findById(service._id);
     expect(found.carOptions).toHaveLength(1);
   });
+
+  test("sửa dịch vụ non-transport, gửi carOptions trong body → bị bỏ qua, không lưu", async () => {
+    const admin = await createUser("admin");
+    const service = await Service.create({ ...VALID_SERVICE, category: "cleaning" });
+
+    const res = await request(app)
+      .put(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ carOptions: [{ label: "4 chỗ", capacity: 4, price: 200000 }] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.carOptions).toEqual([]);
+  });
+
+  test("đổi category từ transport sang cleaning → carOptions cũ bị xóa", async () => {
+    const admin = await createUser("admin");
+    const service = await Service.create({
+      name: "Đưa đón sân bay",
+      category: "transport",
+      carOptions: [{ label: "4 chỗ", capacity: 4, price: 200000 }],
+    });
+
+    const res = await request(app)
+      .put(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ category: "cleaning", price: 100000, unit: "lần" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.carOptions).toEqual([]);
+  });
 });
 
 describe("GET /api/services/:id/reviews", () => {
