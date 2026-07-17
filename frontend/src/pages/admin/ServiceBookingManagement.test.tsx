@@ -85,4 +85,15 @@ describe('ServiceBookingManagement', () => {
     expect(screen.queryByText('Hủy')).not.toBeInTheDocument()
     expect(screen.queryByText('Đánh dấu đã trả')).not.toBeInTheDocument()
   })
+
+  test('booking dịch vụ transport hiện loại xe + số hành khách thay vì SL', async () => {
+    const TRANSPORT_BOOKING = {
+      ...BOOKING_PENDING, _id: 'b2',
+      service: { ...BOOKING_PENDING.service, name: 'Đưa đón sân bay', category: 'transport' },
+      carType: '4 chỗ', passengerCount: 3,
+    }
+    vi.mocked(serviceBookingService.getBookings).mockResolvedValue({ data: [TRANSPORT_BOOKING] } as any)
+    render(<MemoryRouter><ServiceBookingManagement /></MemoryRouter>)
+    expect(await screen.findByText(/4 chỗ • 3 khách/)).toBeInTheDocument()
+  })
 })
