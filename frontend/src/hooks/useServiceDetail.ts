@@ -22,6 +22,10 @@ export interface UseServiceDetailResult {
   setQuantity: (v: number) => void
   note: string
   setNote: (v: string) => void
+  passengerCount: number
+  setPassengerCount: (v: number) => void
+  carType: string
+  setCarType: (v: string) => void
   totalPreview: number
   filterBookingTime: (time: Date) => boolean
   handleBook: (e: FormEvent) => Promise<void>
@@ -47,6 +51,8 @@ export function useServiceDetail(id: string | undefined): UseServiceDetailResult
   const [scheduledAt, setScheduledAt] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [note, setNote] = useState('')
+  const [passengerCount, setPassengerCount] = useState(1)
+  const [carType, setCarType] = useState('')
   const [bookLoading, setBookLoading] = useState(false)
   const [bookError, setBookError] = useState('')
   const [bookSent, setBookSent] = useState(false)
@@ -70,10 +76,19 @@ export function useServiceDetail(id: string | undefined): UseServiceDetailResult
       .finally(() => setReviewsLoading(false))
   }, [id])
 
+  useEffect(() => {
+    if (!service || service.category !== 'transport') return
+    const smallestSufficient = [...service.carOptions]
+      .sort((a, b) => a.capacity - b.capacity)
+      .find(o => o.capacity >= passengerCount)
+    setCarType(smallestSufficient ? smallestSufficient.label : '')
+  }, [passengerCount, service])
+
   const openBookModal = useCallback(() => {
     if (!user) { navigate(`/login?redirect=${location.pathname}`); return }
     setScheduledAt('')
     setQuantity(1)
+    setPassengerCount(1)
     setNote('')
     setBookError('')
     setBookSent(false)
@@ -92,9 +107,17 @@ export function useServiceDetail(id: string | undefined): UseServiceDetailResult
     if (!service) return
     setBookError('')
     if (!scheduledAt) { setBookError('Vui lòng chọn thời gian hẹn.'); return }
+    if (service.category === 'transport' && !carType) {
+      setBookError('Vui lòng chọn số hành khách hợp lệ.')
+      return
+    }
     setBookLoading(true)
     try {
-      await serviceBookingService.createBooking({ serviceId: service._id, scheduledAt, quantity, note })
+      if (service.category === 'transport') {
+        await serviceBookingService.createBooking({ serviceId: service._id, scheduledAt, note, carType, passengerCount })
+      } else {
+        await serviceBookingService.createBooking({ serviceId: service._id, scheduledAt, quantity, note })
+      }
       setBookSent(true)
     } catch (err: any) {
       if (err.response?.status === 403 && err.response?.data?.message === NO_ROOM_MESSAGE) {
@@ -105,15 +128,20 @@ export function useServiceDetail(id: string | undefined): UseServiceDetailResult
     } finally {
       setBookLoading(false)
     }
-  }, [service, scheduledAt, quantity, note])
+  }, [service, scheduledAt, quantity, note, carType, passengerCount])
 
-  const totalPreview = service ? service.price * quantity : 0
+  const totalPreview = service
+    ? service.category === 'transport'
+      ? (service.carOptions.find(o => o.label === carType)?.price ?? 0)
+      : service.price * quantity
+    : 0
 
   return {
     service, loading, error,
     reviews, reviewsLoading,
     showBookModal, openBookModal, closeBookModal,
     scheduledAt, setScheduledAt, quantity, setQuantity, note, setNote,
+    passengerCount, setPassengerCount, carType, setCarType,
     totalPreview,
     filterBookingTime,
     handleBook, bookLoading, bookSent, bookError,

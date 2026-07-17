@@ -102,3 +102,74 @@ describe('useServiceDetail', () => {
     expect(result.current.reviews[0].tenant.name).toBe('Khách A')
   })
 })
+
+const TRANSPORT_SERVICE = {
+  _id: '2', name: 'Đưa đón sân bay', category: 'transport', description: '',
+  price: 0, unit: 'khách',
+  images: [], avgRating: 0, ratingCount: 0, isActive: true,
+  carOptions: [
+    { label: '4 chỗ', capacity: 4, price: 200000 },
+    { label: '7 chỗ', capacity: 7, price: 300000 },
+  ],
+  createdAt: '', updatedAt: '',
+}
+
+describe('useServiceDetail — dịch vụ transport (carType/passengerCount)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(useAuth).mockReturnValue({ user: { _id: 'u1', role: 'tenant' } } as any)
+  })
+
+  test('mở modal đặt dịch vụ transport → tự chọn loại xe nhỏ nhất (mặc định 1 khách)', async () => {
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: TRANSPORT_SERVICE } as any)
+    const { result } = renderHook(() => useServiceDetail('2'), { wrapper })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => { result.current.openBookModal() })
+
+    expect(result.current.carType).toBe('4 chỗ')
+    expect(result.current.totalPreview).toBe(200000)
+  })
+
+  test('tăng số hành khách vượt sức chứa xe nhỏ → tự chuyển sang loại xe lớn hơn', async () => {
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: TRANSPORT_SERVICE } as any)
+    const { result } = renderHook(() => useServiceDetail('2'), { wrapper })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => { result.current.openBookModal() })
+    act(() => { result.current.setPassengerCount(5) })
+
+    expect(result.current.carType).toBe('7 chỗ')
+    expect(result.current.totalPreview).toBe(300000)
+  })
+
+  test('số hành khách vượt sức chứa tối đa toàn bộ carOptions → carType rỗng, totalPreview = 0', async () => {
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: TRANSPORT_SERVICE } as any)
+    const { result } = renderHook(() => useServiceDetail('2'), { wrapper })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => { result.current.openBookModal() })
+    act(() => { result.current.setPassengerCount(10) })
+
+    expect(result.current.carType).toBe('')
+    expect(result.current.totalPreview).toBe(0)
+  })
+
+  test('handleBook dịch vụ transport gửi carType/passengerCount, không gửi quantity', async () => {
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: TRANSPORT_SERVICE } as any)
+    vi.mocked(serviceBookingService.createBooking).mockResolvedValue({ data: {} } as any)
+    const { result } = renderHook(() => useServiceDetail('2'), { wrapper })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => { result.current.openBookModal() })
+    act(() => { result.current.setScheduledAt(new Date(Date.now() + 3600_000).toISOString()) })
+    act(() => { result.current.setPassengerCount(3) })
+    await act(async () => { await result.current.handleBook({ preventDefault: () => {} } as any) })
+
+    expect(serviceBookingService.createBooking).toHaveBeenCalledWith(expect.objectContaining({
+      serviceId: '2', carType: '4 chỗ', passengerCount: 3,
+    }))
+    const callArg = vi.mocked(serviceBookingService.createBooking).mock.calls[0][0] as any
+    expect(callArg.quantity).toBeUndefined()
+  })
+})
