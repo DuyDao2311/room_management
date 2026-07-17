@@ -86,14 +86,14 @@ describe('ServiceBookingManagement', () => {
     expect(screen.queryByText('Đánh dấu đã trả')).not.toBeInTheDocument()
   })
 
-  test('booking dịch vụ transport hiện loại xe + số hành khách thay vì SL', async () => {
-    const TRANSPORT_BOOKING = {
+  test('booking dùng variant hiện lựa chọn + SL thay vì SL cũ', async () => {
+    const VARIANT_BOOKING = {
       ...BOOKING_PENDING, _id: 'b2',
       service: { ...BOOKING_PENDING.service, name: 'Đưa đón sân bay', category: 'transport' },
-      carType: '4 chỗ', passengerCount: 3,
+      selectedVariant: '4 chỗ', matchQuantity: 3,
     }
-    vi.mocked(serviceBookingService.getBookings).mockResolvedValue({ data: [TRANSPORT_BOOKING] } as any)
+    vi.mocked(serviceBookingService.getBookings).mockResolvedValue({ data: [VARIANT_BOOKING] } as any)
     render(<MemoryRouter><ServiceBookingManagement /></MemoryRouter>)
-    expect(await screen.findByText(/4 chỗ • 3 khách/)).toBeInTheDocument()
+    expect(await screen.findByText(/4 chỗ • SL: 3/)).toBeInTheDocument()
   })
 })

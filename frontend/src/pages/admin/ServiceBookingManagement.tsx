@@ -121,7 +121,7 @@ export default function ServiceBookingManagement() {
                       <td style={{ padding: '16px 24px' }}>
                         <div style={{ fontWeight: 700, color: '#101828' }}>{b.service?.name || 'Dịch vụ đã ẩn'}</div>
                         <div style={{ fontSize: '0.8rem', color: '#667085' }}>
-                          {b.service ? CATEGORY_LABELS[b.service.category] : ''} • {b.carType ? `${b.carType} • ${b.passengerCount} khách` : `SL: ${b.quantity}`}
+                          {b.service ? CATEGORY_LABELS[b.service.category] : ''} • {b.selectedVariant ? `${b.selectedVariant} • SL: ${b.matchQuantity ?? b.quantity}` : `SL: ${b.quantity}`}
                         </div>
                       </td>
                       <td style={{ padding: '16px 24px' }}>
