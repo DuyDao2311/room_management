@@ -57,10 +57,10 @@ describe('ServiceBookingManagement', () => {
     expect(screen.queryByText('Hoàn thành')).not.toBeInTheDocument()
   })
 
-  test('bấm Đánh dấu đã trả gọi payBooking', async () => {
+  test('bấm nút Đã thanh toán gọi payBooking', async () => {
     vi.mocked(serviceBookingService.payBooking).mockResolvedValue({ data: { ...BOOKING_PENDING, paymentStatus: 'paid' } } as any)
     render(<MemoryRouter><ServiceBookingManagement /></MemoryRouter>)
-    await userEvent.click(await screen.findByText('Đánh dấu đã trả'))
+    await userEvent.click(await screen.findByRole('button', { name: 'Đã thanh toán' }))
     await waitFor(() => expect(serviceBookingService.payBooking).toHaveBeenCalledWith('b1'))
   })
 
@@ -83,7 +83,7 @@ describe('ServiceBookingManagement', () => {
     expect(screen.queryByText('Xác nhận')).not.toBeInTheDocument()
     expect(screen.queryByText('Hoàn thành')).not.toBeInTheDocument()
     expect(screen.queryByText('Hủy')).not.toBeInTheDocument()
-    expect(screen.queryByText('Đánh dấu đã trả')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Đã thanh toán' })).not.toBeInTheDocument()
   })
 
   test('booking dùng variant hiện lựa chọn + SL thay vì SL cũ', async () => {
