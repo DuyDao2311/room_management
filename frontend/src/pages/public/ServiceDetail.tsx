@@ -368,10 +368,17 @@ export default function ServiceDetail() {
                               disabled={disabled}
                               onChange={() => setSelectedVariant(v.label)}
                             />
-                            {v.label} —{" "}
-                            {disabled
-                              ? "không khả dụng"
-                              : `${v.price.toLocaleString("vi-VN")}đ`}
+                            <span>
+                              {v.label} —{" "}
+                              {disabled
+                                ? "không khả dụng"
+                                : `${v.price.toLocaleString("vi-VN")}đ`}
+                              {v.description && (
+                                <div style={{ fontSize: "0.8rem", color: "#667085" }}>
+                                  {v.description}
+                                </div>
+                              )}
+                            </span>
                           </label>
                         );
                       })}
@@ -410,7 +417,14 @@ export default function ServiceDetail() {
                             checked={selectedVariant === v.label}
                             onChange={() => setSelectedVariant(v.label)}
                           />
-                          {v.label} — {v.price.toLocaleString("vi-VN")}đ
+                          <span>
+                            {v.label} — {v.price.toLocaleString("vi-VN")}đ
+                            {v.description && (
+                              <div style={{ fontSize: "0.8rem", color: "#667085" }}>
+                                {v.description}
+                              </div>
+                            )}
+                          </span>
                         </label>
                       ))}
                     </div>

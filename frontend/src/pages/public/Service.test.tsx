@@ -279,4 +279,24 @@ describe('ServiceDetail — dịch vụ usesVariants + requiresCapacityMatch=fal
     await userEvent.click(screen.getByLabelText(/90 phút/))
     expect(screen.getByLabelText(/90 phút/)).toBeChecked()
   })
+
+  test('hiện description dưới mỗi lựa chọn khi variant có description', async () => {
+    const SERVICE_WITH_DESC = {
+      ...FREE_CHOICE_SERVICE, _id: '4',
+      variants: [
+        { label: '60 phút', price: 300000, description: 'Massage thư giãn toàn thân' },
+        { label: '90 phút', price: 450000, description: 'Massage + xông hơi' },
+      ],
+    }
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: SERVICE_WITH_DESC } as any)
+    render(
+      <MemoryRouter initialEntries={['/services/4']}>
+        <Routes><Route path="/services/:id" element={<ServiceDetail />} /></Routes>
+      </MemoryRouter>
+    )
+    await userEvent.click(await screen.findByText('Đặt dịch vụ'))
+
+    expect(screen.getByText('Massage thư giãn toàn thân')).toBeInTheDocument()
+    expect(screen.getByText('Massage + xông hơi')).toBeInTheDocument()
+  })
 })
