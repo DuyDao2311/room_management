@@ -24,7 +24,6 @@ const serviceSchema = new mongoose.Schema(
     },
     unit: {
       type: String,
-      enum: ["lần", "buổi", "khách"],
       required: function () { return !this.usesVariants; },
       trim: true,
     },
@@ -66,7 +65,7 @@ const serviceSchema = new mongoose.Schema(
     },
     isActive: {
       type: Boolean,
-      default: true,
+      default: false,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

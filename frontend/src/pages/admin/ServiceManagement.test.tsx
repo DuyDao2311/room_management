@@ -12,6 +12,7 @@ vi.mock('../../api/service.service', async () => {
       getServices: vi.fn(),
       createService: vi.fn(),
       updateService: vi.fn(),
+      deleteService: vi.fn(),
     },
   }
 })
@@ -28,6 +29,7 @@ describe('ServiceManagement', () => {
     vi.mocked(serviceService.getServices).mockClear().mockResolvedValue({ data: [SERVICE_A] } as any)
     vi.mocked(serviceService.createService).mockClear()
     vi.mocked(serviceService.updateService).mockClear()
+    vi.mocked(serviceService.deleteService).mockClear()
   })
 
   test('render danh sách dịch vụ từ API', async () => {
@@ -50,7 +52,7 @@ describe('ServiceManagement', () => {
     await userEvent.type(screen.getByLabelText('Tên dịch vụ'), 'Giặt ủi')
     await userEvent.type(screen.getByLabelText('Giá (VNĐ)'), '50000')
     await userEvent.click(screen.getByText('Thêm dịch vụ'))
-    await waitFor(() => expect(serviceService.createService).toHaveBeenCalledWith(expect.objectContaining({ name: 'Giặt ủi', price: 50000 })))
+    await waitFor(() => expect(serviceService.createService).toHaveBeenCalledWith(expect.objectContaining({ name: 'Giặt ủi', price: 50000, isActive: false })))
   })
 
   test('lọc theo category chỉ hiện đúng loại', async () => {
@@ -149,5 +151,55 @@ describe('ServiceManagement', () => {
     expect(screen.getAllByPlaceholderText('Tên lựa chọn (VD: 4 chỗ)')).toHaveLength(2)
     expect(screen.getByDisplayValue('4 chỗ')).toBeInTheDocument()
     expect(screen.getByDisplayValue('300000')).toBeInTheDocument()
+  })
+
+  test('nút xóa disabled khi dịch vụ đã có booking', async () => {
+    const SERVICE_WITH_BOOKING = { ...SERVICE_A, bookingCount: 2 }
+    vi.mocked(serviceService.getServices).mockResolvedValue({ data: [SERVICE_WITH_BOOKING] } as any)
+    render(<ServiceManagement />)
+    await screen.findByText('Dọn phòng')
+    expect(screen.getByRole('button', { name: 'Xóa dịch vụ' })).toBeDisabled()
+  })
+
+  test('nút xóa disabled khi dịch vụ đang active dù chưa có booking', async () => {
+    const SERVICE_ACTIVE_NO_BOOKING = { ...SERVICE_A, bookingCount: 0, isActive: true }
+    vi.mocked(serviceService.getServices).mockResolvedValue({ data: [SERVICE_ACTIVE_NO_BOOKING] } as any)
+    render(<ServiceManagement />)
+    await screen.findByText('Dọn phòng')
+    expect(screen.getByRole('button', { name: 'Xóa dịch vụ' })).toBeDisabled()
+  })
+
+  test('xóa dịch vụ chưa có booking gọi deleteService rồi tải lại danh sách', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.mocked(serviceService.deleteService).mockResolvedValue({ data: { message: 'ok' } } as any)
+    const SERVICE_NO_BOOKING = { ...SERVICE_A, bookingCount: 0, isActive: false }
+    vi.mocked(serviceService.getServices).mockResolvedValue({ data: [SERVICE_NO_BOOKING] } as any)
+    render(<ServiceManagement />)
+    await screen.findByText('Dọn phòng')
+    await userEvent.click(screen.getByRole('button', { name: 'Xóa dịch vụ' }))
+    await waitFor(() => expect(serviceService.deleteService).toHaveBeenCalledWith('1'))
+  })
+
+  test('chọn "Khác (tự nhập)" hiện ô input và lưu đúng giá trị gõ tay', async () => {
+    vi.mocked(serviceService.createService).mockResolvedValue({ data: SERVICE_A } as any)
+    render(<ServiceManagement />)
+    await screen.findByText('Dọn phòng')
+    await userEvent.click(screen.getByText(/THÊM DỊCH VỤ/i))
+    await userEvent.selectOptions(screen.getByLabelText('Đơn vị tính'), '__custom__')
+    const customInput = screen.getByPlaceholderText('VD: kg, phần, công')
+    await userEvent.type(customInput, 'kg')
+    await userEvent.type(screen.getByLabelText('Tên dịch vụ'), 'Giặt ủi')
+    await userEvent.type(screen.getByLabelText('Giá (VNĐ)'), '50000')
+    await userEvent.click(screen.getByText('Thêm dịch vụ'))
+    await waitFor(() => expect(serviceService.createService).toHaveBeenCalledWith(expect.objectContaining({ unit: 'kg' })))
+  })
+
+  test('sửa dịch vụ có unit không khớp preset → select hiện "Khác" với giá trị đúng', async () => {
+    const SERVICE_CUSTOM_UNIT = { ...SERVICE_A, unit: 'kg' }
+    vi.mocked(serviceService.getServices).mockResolvedValue({ data: [SERVICE_CUSTOM_UNIT] } as any)
+    render(<ServiceManagement />)
+    await screen.findByText('Dọn phòng')
+    await userEvent.click(screen.getByTitle('Sửa'))
+    expect(screen.getByPlaceholderText('VD: kg, phần, công')).toHaveValue('kg')
   })
 })

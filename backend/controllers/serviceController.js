@@ -51,6 +51,7 @@ const createService = async (req, res) => {
       capacityFieldLabel: usesVariants && requiresCapacityMatch ? capacityFieldLabel : "",
       images: images || [],
       createdBy: req.user._id,
+      isActive: false,
     });
 
     res.status(201).json(service);
@@ -64,9 +65,28 @@ const getServices = async (req, res) => {
   try {
     const filter = {};
     if (req.query.category) filter.category = req.query.category;
-    if (!isStaffOrAdmin(req.user)) filter.isActive = true;
 
-    const services = await Service.find(filter).sort({ createdAt: -1 });
+    if (!isStaffOrAdmin(req.user)) {
+      filter.isActive = true;
+      const services = await Service.find(filter).sort({ createdAt: -1 });
+      return res.json(services);
+    }
+
+    // Admin/staff cần bookingCount để biết dịch vụ nào còn xóa được (xem deleteService).
+    const services = await Service.aggregate([
+      { $match: filter },
+      {
+        $lookup: {
+          from: "servicebookings",
+          localField: "_id",
+          foreignField: "service",
+          as: "bookings",
+        },
+      },
+      { $addFields: { bookingCount: { $size: "$bookings" } } },
+      { $project: { bookings: 0 } },
+      { $sort: { createdAt: -1 } },
+    ]);
     res.json(services);
   } catch (err) {
     console.error("Get services error:", err);
@@ -182,10 +202,39 @@ const updateService = async (req, res) => {
   }
 };
 
+const deleteService = async (req, res) => {
+  try {
+    const service = await Service.findById(req.params.id);
+    if (!service) return res.status(404).json({ message: "Không tìm thấy dịch vụ." });
+
+    const bookingCount = await ServiceBooking.countDocuments({ service: service._id });
+    if (bookingCount > 0) {
+      return res.status(409).json({
+        message: `Không thể xóa: dịch vụ đã có ${bookingCount} lượt đặt.`,
+      });
+    }
+
+    // Chỉ xóa khi đang tạm dừng — lúc đó serviceBookingController chặn mọi đặt mới
+    // (isActive:false), nên không còn race giữa đếm booking và xóa.
+    if (service.isActive) {
+      return res.status(409).json({
+        message: "Không thể xóa: hãy tạm dừng dịch vụ trước khi xóa.",
+      });
+    }
+
+    await Service.findByIdAndDelete(service._id);
+    res.status(200).json({ message: "Đã xóa dịch vụ." });
+  } catch (err) {
+    console.error("Delete service error:", err);
+    res.status(500).json({ message: "Lỗi server." });
+  }
+};
+
 module.exports = {
   createService,
   getServices,
   getServiceById,
   getServiceReviews,
   updateService,
+  deleteService,
 };

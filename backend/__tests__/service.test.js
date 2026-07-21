@@ -43,6 +43,8 @@ const VALID_SERVICE = {
   unit: "lần",
 };
 
+const ACTIVE_SERVICE = { ...VALID_SERVICE, isActive: true };
+
 describe("POST /api/services", () => {
   test("admin tạo dịch vụ thành công", async () => {
     const admin = await createUser("admin");
@@ -53,8 +55,19 @@ describe("POST /api/services", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.name).toBe("Dọn phòng");
-    expect(res.body.isActive).toBe(true);
+    expect(res.body.isActive).toBe(false);
     expect(res.body.avgRating).toBe(0);
+  });
+
+  test("bỏ qua isActive gửi lên từ client, luôn tạo dịch vụ ở trạng thái tạm dừng", async () => {
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ ...VALID_SERVICE, isActive: true });
+
+    expect(res.status).toBe(201);
+    expect(res.body.isActive).toBe(false);
   });
 
   test("tenant không được tạo dịch vụ → 403", async () => {
@@ -75,6 +88,17 @@ describe("POST /api/services", () => {
       .send({ name: "Thiếu giá" });
 
     expect(res.status).toBe(400);
+  });
+
+  test("tạo dịch vụ với đơn vị tính tự do (không thuộc enum cũ) vẫn thành công", async () => {
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ ...VALID_SERVICE, unit: "kg" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.unit).toBe("kg");
   });
 
   test("tạo dịch vụ usesVariants=true có variants hợp lệ, không cần price/unit — category bất kỳ (vd spa)", async () => {
@@ -168,14 +192,44 @@ describe("GET /api/services", () => {
   });
 
   test("filter theo category", async () => {
-    await Service.create({ ...VALID_SERVICE, name: "Dọn phòng", category: "cleaning" });
-    await Service.create({ ...VALID_SERVICE, name: "Đưa đón", category: "transport" });
+    await Service.create({ ...ACTIVE_SERVICE, name: "Dọn phòng", category: "cleaning" });
+    await Service.create({ ...ACTIVE_SERVICE, name: "Đưa đón", category: "transport" });
 
     const res = await request(app).get("/api/services?category=transport");
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
     expect(res.body[0].name).toBe("Đưa đón");
+  });
+
+  test("admin thấy bookingCount đúng cho từng dịch vụ", async () => {
+    const admin = await createUser("admin");
+    const tenant = await createUser("tenant");
+    const serviceWithBooking = await Service.create({ ...VALID_SERVICE, name: "Có booking" });
+    const serviceWithoutBooking = await Service.create({ ...VALID_SERVICE, name: "Chưa có booking" });
+    await ServiceBooking.create({
+      service: serviceWithBooking._id, tenant: tenant._id,
+      scheduledAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+      quantity: 1, unitPrice: 100000, totalAmount: 100000,
+    });
+
+    const res = await request(app)
+      .get("/api/services")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`);
+
+    expect(res.status).toBe(200);
+    const withBooking = res.body.find((s) => s.name === "Có booking");
+    const withoutBooking = res.body.find((s) => s.name === "Chưa có booking");
+    expect(withBooking.bookingCount).toBe(1);
+    expect(withoutBooking.bookingCount).toBe(0);
+  });
+
+  test("guest xem danh sách không có field bookingCount", async () => {
+    await Service.create(ACTIVE_SERVICE);
+    const res = await request(app).get("/api/services");
+
+    expect(res.status).toBe(200);
+    expect(res.body[0].bookingCount).toBeUndefined();
   });
 });
 
@@ -222,7 +276,7 @@ describe("PUT /api/services/:id", () => {
     const tenantCompleted = await createUser("tenant");
     const tenantCancelled = await createUser("tenant");
     const tenantOtherService = await createUser("tenant");
-    const service = await Service.create(VALID_SERVICE);
+    const service = await Service.create(ACTIVE_SERVICE);
     const otherService = await Service.create({ ...VALID_SERVICE, name: "Dịch vụ khác" });
 
     await ServiceBooking.create({
@@ -389,6 +443,77 @@ describe("GET /api/services/:id/reviews", () => {
   });
 });
 
+describe("DELETE /api/services/:id", () => {
+  test("admin xóa dịch vụ chưa có booking → 200, xóa thật khỏi DB", async () => {
+    const admin = await createUser("admin");
+    const service = await Service.create({ ...VALID_SERVICE, isActive: false });
+
+    const res = await request(app)
+      .delete(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(admin)}`);
+
+    expect(res.status).toBe(200);
+    const found = await Service.findById(service._id);
+    expect(found).toBeNull();
+  });
+
+  test("dịch vụ đang active dù chưa có booking → 409, không xóa", async () => {
+    const admin = await createUser("admin");
+    const service = await Service.create({ ...VALID_SERVICE, isActive: true });
+
+    const res = await request(app)
+      .delete(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(admin)}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toMatch(/tạm dừng/);
+    const found = await Service.findById(service._id);
+    expect(found).not.toBeNull();
+  });
+
+  test("dịch vụ đã có booking → 409, không xóa", async () => {
+    const admin = await createUser("admin");
+    const tenant = await createUser("tenant");
+    const service = await Service.create(VALID_SERVICE);
+    await ServiceBooking.create({
+      service: service._id, tenant: tenant._id,
+      scheduledAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+      quantity: 1, unitPrice: 100000, totalAmount: 100000,
+    });
+
+    const res = await request(app)
+      .delete(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(admin)}`);
+
+    expect(res.status).toBe(409);
+    expect(res.body.message).toMatch(/có 1 lượt đặt/);
+    const found = await Service.findById(service._id);
+    expect(found).not.toBeNull();
+  });
+
+  test("tenant không được xóa dịch vụ → 403", async () => {
+    const tenant = await createUser("tenant");
+    const service = await Service.create(VALID_SERVICE);
+
+    const res = await request(app)
+      .delete(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  test("id không tồn tại → 404", async () => {
+    const admin = await createUser("admin");
+    const fakeId = new mongoose.Types.ObjectId();
+
+    const res = await request(app)
+      .delete(`/api/services/${fakeId}`)
+      .set("Authorization", `Bearer ${tokenFor(admin)}`);
+
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("Service model — usesVariants (độc lập với category)", () => {
   test("usesVariants=true không cần price/unit, vẫn tạo được nếu có variants hợp lệ — dùng category BẤT KỲ, không riêng transport", async () => {
     const service = await Service.create({
@@ -425,16 +550,4 @@ describe("Service model — usesVariants (độc lập với category)", () => {
     });
     expect(service.variants[0].capacity).toBeUndefined();
   });
-
-  test("category không phải transport, unit không nằm trong enum → lỗi validation (usesVariants=false)", async () => {
-    await expect(
-      Service.create({
-        name: "Dọn phòng",
-        category: "cleaning",
-        price: 100000,
-        unit: "kg",
-      })
-    ).rejects.toThrow();
-  });
 });
-
