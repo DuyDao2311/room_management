@@ -3,7 +3,7 @@ import { serviceService, CATEGORY_LABELS, getMinVariantPrice, UNIT_PRESETS, type
 import Spinner from '../../components/ui/Spinner'
 import { Pencil, EyeOff, Eye, Trash2 } from 'lucide-react'
 
-type ServiceVariantForm = { label: string; capacity: string; price: string }
+type ServiceVariantForm = { label: string; capacity: string; price: string; description: string }
 
 const EMPTY_FORM = {
   name: '', category: 'cleaning' as ServiceCategory, description: '',
@@ -52,7 +52,7 @@ export default function ServiceManagement() {
       name: s.name, category: s.category, description: s.description,
       price: String(s.price), unit: s.unit, images: s.images.join(', '), isActive: s.isActive,
       usesVariants: s.usesVariants, requiresCapacityMatch: s.requiresCapacityMatch, capacityFieldLabel: s.capacityFieldLabel,
-      variants: s.variants.map(v => ({ label: v.label, capacity: v.capacity != null ? String(v.capacity) : '', price: String(v.price) })),
+      variants: s.variants.map(v => ({ label: v.label, capacity: v.capacity != null ? String(v.capacity) : '', price: String(v.price), description: v.description ?? '' })),
     })
     setShowModal(true)
   }
@@ -92,6 +92,7 @@ export default function ServiceManagement() {
             label: v.label.trim(),
             price: Number(v.price),
             ...(form.requiresCapacityMatch ? { capacity: Number(v.capacity) } : {}),
+            ...(v.description.trim() ? { description: v.description.trim() } : {}),
           })),
         }
       : {
@@ -291,7 +292,7 @@ export default function ServiceManagement() {
                         setForm({
                           ...form,
                           usesVariants: checked,
-                          variants: checked && form.variants.length === 0 ? [{ label: '', capacity: '', price: '' }] : form.variants,
+                          variants: checked && form.variants.length === 0 ? [{ label: '', capacity: '', price: '', description: '' }] : form.variants,
                         })
                       }}
                     />
@@ -344,6 +345,10 @@ export default function ServiceManagement() {
                           onChange={e => setForm({ ...form, variants: form.variants.map((o: ServiceVariantForm, idx: number) => idx === i ? { ...o, price: e.target.value } : o) })}
                           required
                         />
+                        <input
+                          className="form-input" placeholder="Mô tả lựa chọn (VD: chỉ dọn qua, không thay ga)" value={v.description}
+                          onChange={e => setForm({ ...form, variants: form.variants.map((o: ServiceVariantForm, idx: number) => idx === i ? { ...o, description: e.target.value } : o) })}
+                        />
                         <button
                           type="button" className="button button-secondary" aria-label="Xóa lựa chọn"
                           disabled={form.variants.length <= 1}
@@ -353,7 +358,7 @@ export default function ServiceManagement() {
                     ))}
                     <button
                       type="button" className="button button-secondary"
-                      onClick={() => setForm({ ...form, variants: [...form.variants, { label: '', capacity: '', price: '' }] })}
+                      onClick={() => setForm({ ...form, variants: [...form.variants, { label: '', capacity: '', price: '', description: '' }] })}
                     >+ Thêm lựa chọn</button>
                   </div>
                 ) : (

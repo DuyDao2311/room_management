@@ -153,6 +153,37 @@ describe('ServiceManagement', () => {
     expect(screen.getByDisplayValue('300000')).toBeInTheDocument()
   })
 
+  test('nhập description cho variant, submit gửi đúng payload', async () => {
+    vi.mocked(serviceService.createService).mockResolvedValue({ data: SERVICE_A } as any)
+    render(<ServiceManagement />)
+    await screen.findByText('Dọn phòng')
+    await userEvent.click(screen.getByText(/THÊM DỊCH VỤ/i))
+    await userEvent.type(screen.getByLabelText('Tên dịch vụ'), 'Dọn giường & thay ga gối')
+    await userEvent.click(screen.getByLabelText('Dịch vụ này có nhiều lựa chọn giá'))
+    await userEvent.type(screen.getByPlaceholderText('Tên lựa chọn (VD: 4 chỗ)'), 'Nhẹ')
+    await userEvent.type(screen.getByPlaceholderText('Giá (VNĐ)'), '15000')
+    await userEvent.type(screen.getByPlaceholderText('Mô tả lựa chọn (VD: chỉ dọn qua, không thay ga)'), 'Chỉnh lại ga giường, gấp gối gọn gàng')
+    await userEvent.click(screen.getByText('Thêm dịch vụ'))
+
+    await waitFor(() => expect(serviceService.createService).toHaveBeenCalledWith(expect.objectContaining({
+      variants: [{ label: 'Nhẹ', price: 15000, description: 'Chỉnh lại ga giường, gấp gối gọn gàng' }],
+    })))
+  })
+
+  test('sửa dịch vụ usesVariants hiện đúng description đã lưu', async () => {
+    const SERVICE_VARIANTS_DESC = {
+      ...SERVICE_A, _id: '2', name: 'Dọn giường & thay ga gối', category: 'cleaning',
+      usesVariants: true,
+      variants: [{ label: 'Nhẹ', price: 15000, description: 'Chỉnh lại ga giường, gấp gối gọn gàng' }],
+    }
+    vi.mocked(serviceService.getServices).mockResolvedValue({ data: [SERVICE_VARIANTS_DESC] } as any)
+    render(<ServiceManagement />)
+    await screen.findByText('Dọn giường & thay ga gối')
+    await userEvent.click(screen.getByTitle('Sửa'))
+
+    expect(screen.getByDisplayValue('Chỉnh lại ga giường, gấp gối gọn gàng')).toBeInTheDocument()
+  })
+
   test('nút xóa disabled khi dịch vụ đã có booking', async () => {
     const SERVICE_WITH_BOOKING = { ...SERVICE_A, bookingCount: 2 }
     vi.mocked(serviceService.getServices).mockResolvedValue({ data: [SERVICE_WITH_BOOKING] } as any)

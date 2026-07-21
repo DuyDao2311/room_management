@@ -9,6 +9,7 @@ export interface ServiceVariant {
   label: string
   price: number
   capacity?: number
+  description?: string
 }
 
 export interface Service {
