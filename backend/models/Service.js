@@ -36,6 +36,7 @@ const serviceSchema = new mongoose.Schema(
         label: { type: String, required: true, trim: true },
         price: { type: Number, required: true, min: 0 },
         capacity: { type: Number, min: 1 },
+        description: { type: String, trim: true, default: "" },
       }],
       default: [],
     },

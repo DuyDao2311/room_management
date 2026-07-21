@@ -551,3 +551,31 @@ describe("Service model — usesVariants (độc lập với category)", () => {
     expect(service.variants[0].capacity).toBeUndefined();
   });
 });
+
+describe("Service model — variants description", () => {
+  test("variant lưu đúng description khi được cung cấp", async () => {
+    const service = await Service.create({
+      name: "Dọn giường & thay ga gối",
+      category: "cleaning",
+      usesVariants: true,
+      variants: [
+        { label: "Nhẹ", price: 15000, description: "Chỉnh lại ga giường, gấp gối gọn gàng" },
+        { label: "Sâu", price: 40000, description: "Thay ga trải giường + vỏ gối mới, giặt/khử mùi nệm" },
+      ],
+    });
+
+    expect(service.variants[0].description).toBe("Chỉnh lại ga giường, gấp gối gọn gàng");
+    expect(service.variants[1].description).toBe("Thay ga trải giường + vỏ gối mới, giặt/khử mùi nệm");
+  });
+
+  test("variant không truyền description → mặc định chuỗi rỗng, không lỗi validate", async () => {
+    const service = await Service.create({
+      name: "Đưa đón sân bay",
+      category: "transport",
+      usesVariants: true,
+      variants: [{ label: "4 chỗ", price: 200000 }],
+    });
+
+    expect(service.variants[0].description).toBe("");
+  });
+});
