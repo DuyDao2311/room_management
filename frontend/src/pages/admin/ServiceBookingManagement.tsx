@@ -169,80 +169,17 @@ export default function ServiceBookingManagement() {
                 Không có dữ liệu.
               </div>
             ) : (
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  textAlign: "left",
-                }}
-              >
-                <thead
-                  style={{
-                    background: "#f9fafb",
-                    borderBottom: "1px solid #eaecf0",
-                  }}
-                >
+              <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead style={{ background: '#f9fafb', borderBottom: '1px solid #eaecf0' }}>
                   <tr>
-                    <th
-                      style={{
-                        padding: "16px 24px",
-                        color: "#667085",
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Dịch vụ
-                    </th>
-                    <th
-                      style={{
-                        padding: "16px 24px",
-                        color: "#667085",
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Khách hàng
-                    </th>
-                    <th
-                      style={{
-                        padding: "16px 24px",
-                        color: "#667085",
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Hẹn lúc
-                    </th>
-                    <th
-                      style={{
-                        padding: "16px 24px",
-                        color: "#667085",
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Tổng tiền
-                    </th>
-                    <th
-                      style={{
-                        padding: "16px 24px",
-                        color: "#667085",
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Trạng thái
-                    </th>
-                    <th
-                      style={{
-                        padding: "16px 24px",
-                        color: "#667085",
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                      }}
-                    >
-                      Hành động
-                    </th>
+                    <th style={{ padding: '12px 16px', color: '#667085', fontSize: '0.85rem', fontWeight: 600 }}>Dịch vụ</th>
+                    <th style={{ padding: '12px 16px', color: '#667085', fontSize: '0.85rem', fontWeight: 600 }}>Khách hàng</th>
+                    <th style={{ padding: '12px 16px', color: '#667085', fontSize: '0.85rem', fontWeight: 600 }}>Hẹn lúc</th>
+                    <th style={{ padding: '12px 16px', color: '#667085', fontSize: '0.85rem', fontWeight: 600 }}>Tổng tiền</th>
+                    <th style={{ padding: '12px 16px', color: '#667085', fontSize: '0.85rem', fontWeight: 600 }}>Trạng thái xử lý</th>
+                    <th style={{ padding: '12px 16px', color: '#667085', fontSize: '0.85rem', fontWeight: 600 }}>Thanh toán</th>
+                    <th style={{ padding: '12px 16px', color: '#667085', fontSize: '0.85rem', fontWeight: 600 }}>Hành động</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -257,138 +194,66 @@ export default function ServiceBookingManagement() {
                         transition: "background 0.3s ease",
                       }}
                     >
-                      <td style={{ padding: "16px 24px" }}>
-                        <div style={{ fontWeight: 700, color: "#101828" }}>
-                          {b.service?.name || "Dịch vụ đã ẩn"}
-                        </div>
-                        <div style={{ fontSize: "0.8rem", color: "#667085" }}>
-                          {b.service ? CATEGORY_LABELS[b.service.category] : ""}{" "}
-                          •{" "}
-                          {b.selectedVariant
-                            ? `${b.selectedVariant} • SL: ${b.matchQuantity ?? b.quantity}`
-                            : `SL: ${b.quantity}`}
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ fontWeight: 700, color: '#101828' }}>{b.service?.name || 'Dịch vụ đã ẩn'}</div>
+                        <div style={{ fontSize: '0.8rem', color: '#667085' }}>
+                          {b.service ? CATEGORY_LABELS[b.service.category] : ''} •{' '}
+                          {b.selectedVariant ? `${b.selectedVariant} • SL: ${b.matchQuantity ?? b.quantity}` : `SL: ${b.quantity}`}
                         </div>
                       </td>
-                      <td style={{ padding: "16px 24px" }}>
-                        <div style={{ fontWeight: 600, color: "#101828" }}>
-                          {b.tenant?.name}
-                        </div>
-                        <div style={{ fontSize: "0.8rem", color: "#667085" }}>
-                          {b.tenant?.phone || b.tenant?.email}
-                        </div>
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ fontWeight: 600, color: '#101828' }}>{b.tenant?.name}</div>
+                        <div style={{ fontSize: '0.8rem', color: '#667085' }}>{b.tenant?.phone || b.tenant?.email}</div>
                       </td>
-                      <td
-                        style={{
-                          padding: "16px 24px",
-                          fontSize: "0.9rem",
-                          color: "#101828",
-                        }}
-                      >
-                        {new Date(b.scheduledAt).toLocaleString("vi-VN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                        })}
+                      <td style={{ padding: '12px 16px', fontSize: '0.9rem', color: '#101828' }}>
+                        {new Date(b.scheduledAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}
                       </td>
-                      <td style={{ padding: "16px 24px" }}>
-                        <div style={{ fontWeight: 700, color: "#101828" }}>
-                          {b.totalAmount.toLocaleString("vi-VN")} đ
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "0.8rem",
-                            fontWeight: 600,
-                            color: PAYMENT_MAP[b.paymentStatus]?.color,
-                          }}
-                        >
-                          {PAYMENT_MAP[b.paymentStatus]?.label}
-                        </div>
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ fontWeight: 700, color: '#101828' }}>{b.totalAmount.toLocaleString('vi-VN')} đ</div>
                       </td>
-                      <td style={{ padding: "16px 24px" }}>
-                        <span
-                          style={{
-                            background: STATUS_MAP[b.status]?.bg,
-                            color: STATUS_MAP[b.status]?.color,
-                            padding: "4px 8px",
-                            borderRadius: "4px",
-                            fontSize: "0.75rem",
-                            fontWeight: 700,
-                          }}
-                        >
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{ background: STATUS_MAP[b.status]?.bg, color: STATUS_MAP[b.status]?.color, padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>
                           {STATUS_MAP[b.status]?.label}
                         </span>
                       </td>
-                      <td
-                        style={{
-                          padding: "16px 24px",
-                          display: "flex",
-                          gap: "8px",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        {processing === b._id ? (
-                          <Spinner />
-                        ) : (
-                          <>
-                            {b.status === "pending" && (
-                              <button
-                                className="button button-primary"
-                                onClick={() => handleAction(b._id, "confirm")}
-                                style={{
-                                  fontSize: "0.8rem",
-                                  padding: "6px 12px",
-                                }}
-                              >
-                                Xác nhận
-                              </button>
+                      <td style={{ padding: '12px 16px' }}>
+                        <span style={{ background: b.paymentStatus === 'paid' ? '#d3f2ec' : '#fee4e2', color: PAYMENT_MAP[b.paymentStatus]?.color, padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>
+                          {PAYMENT_MAP[b.paymentStatus]?.label}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                        {processing === b._id ? <Spinner /> : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {(b.status === 'pending' || b.status === 'confirmed') && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '0.7rem', color: '#98a2b3', fontWeight: 600, minWidth: '62px', display: 'inline-block' }}>Xử lý:</span>
+                                <div style={{ display: 'flex', gap: '6px', width: '150px' }}>
+                                  {b.status === 'pending' && (
+                                    <button className="button button-primary" onClick={() => handleAction(b._id, 'confirm')} style={{ fontSize: '0.75rem', padding: '5px 10px' }}>Xác nhận</button>
+                                  )}
+                                  {b.status === 'confirmed' && (
+                                    <button className="button button-primary" onClick={() => handleAction(b._id, 'complete')} style={{ fontSize: '0.75rem', padding: '5px 10px' }}>Hoàn thành</button>
+                                  )}
+                                  <button className="button button-secondary" onClick={() => handleAction(b._id, 'cancel')} style={{ fontSize: '0.75rem', padding: '5px 10px', flex: 1 }}>Hủy</button>
+                                </div>
+                              </div>
                             )}
-                            {b.status === "confirmed" && (
-                              <button
-                                className="button button-primary"
-                                onClick={() => handleAction(b._id, "complete")}
-                                style={{
-                                  fontSize: "0.8rem",
-                                  padding: "6px 12px",
-                                }}
-                              >
-                                Hoàn thành
-                              </button>
+                            {b.paymentStatus === 'unpaid' && b.status !== 'cancelled' && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '0.7rem', color: '#98a2b3', fontWeight: 600, minWidth: '62px', display: 'inline-block' }}>Thanh toán:</span>
+                                <div style={{ display: 'flex', gap: '6px', width: '150px' }}>
+                                  <button className="button" onClick={() => handleAction(b._id, 'pay')} style={{ fontSize: '0.75rem', padding: '5px 10px', flex: 1, background: '#d3f2ec', color: '#088373' }}>Đã thanh toán</button>
+                                </div>
+                              </div>
                             )}
-                            {(b.status === "pending" ||
-                              b.status === "confirmed") && (
-                              <button
-                                className="button button-secondary"
-                                onClick={() => handleAction(b._id, "cancel")}
-                                style={{
-                                  fontSize: "0.8rem",
-                                  padding: "6px 12px",
-                                }}
-                              >
-                                Hủy
-                              </button>
-                            )}
-                            {b.paymentStatus === "unpaid" &&
-                              b.status !== "cancelled" && (
-                                <button
-                                  className="button button-secondary"
-                                  onClick={() => handleAction(b._id, "pay")}
-                                  style={{
-                                    fontSize: "0.8rem",
-                                    padding: "6px 12px",
-                                  }}
-                                >
-                                  Đã thanh toán
-                                </button>
-                              )}
-                          </>
+                          </div>
                         )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         )}
