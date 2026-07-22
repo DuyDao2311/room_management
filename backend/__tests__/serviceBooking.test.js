@@ -199,6 +199,26 @@ describe("POST /api/service-bookings", () => {
 
     expect(res.status).toBe(201);
   });
+
+  test("tạo booking → tạo Notification type SERVICE cho tenant và staff", async () => {
+    const tenant = await createUser("tenant");
+    const staff = await createUser("staff");
+    await createActiveContract(tenant);
+    const service = await createActiveService({ price: 100000 });
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), quantity: 1 });
+
+    expect(res.status).toBe(201);
+
+    const tenantNotif = await Notification.findOne({ userId: tenant._id, type: "SERVICE" });
+    expect(tenantNotif).toBeTruthy();
+
+    const staffNotif = await Notification.findOne({ userId: staff._id, type: "SERVICE" });
+    expect(staffNotif).toBeTruthy();
+  });
 });
 
 describe("GET /api/service-bookings", () => {

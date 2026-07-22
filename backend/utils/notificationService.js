@@ -1040,6 +1040,48 @@ const notifyTenantServiceDeactivated = async (booking, service) => {
   });
 };
 
+/**
+ * Gửi thông báo (in-app + email) cho tenant khi vừa tạo ServiceBooking mới (status='pending').
+ * `booking.service` và `booking.tenant` phải đã populate.
+ */
+const notifyTenantServiceBookingCreated = async (booking) => {
+  const serviceName = booking.service?.name || "Dịch vụ";
+  const title = "📝 Booking dịch vụ đã được ghi nhận";
+  const message = `Kính gửi Quý khách,\n\nBooking dịch vụ "${serviceName}" (số lượng ${booking.quantity}, hẹn lúc ${fmtDate(booking.scheduledAt)}, tổng ${fmt(booking.totalAmount)}đ) của Quý khách đã được ghi nhận và đang chờ xác nhận từ chúng tôi.\n\nTrân trọng,\nCăn Hộ F4`;
+
+  return dispatch({
+    recipients: [{ _id: booking.tenant._id, email: booking.tenant.email, name: booking.tenant.name }],
+    data: {
+      type: "SERVICE",
+      title,
+      message,
+      serviceBookingId: booking._id,
+    },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/my-service-bookings"),
+  });
+};
+
+/**
+ * Gửi thông báo (in-app + email) cho toàn bộ staff/admin khi có ServiceBooking mới cần xử lý.
+ * `booking.service` và `booking.tenant` phải đã populate.
+ */
+const notifyStaffNewServiceBooking = async (booking) => {
+  const tenantName = booking.tenant?.name || "";
+  const tenantPhone = booking.tenant?.phone || "";
+  const serviceName = booking.service?.name || "Dịch vụ";
+  const title = "🛎️ Booking dịch vụ mới cần xác nhận";
+  const message = `${tenantName} (${tenantPhone}) đặt dịch vụ "${serviceName}" (SL: ${booking.quantity}), hẹn lúc ${fmtDate(booking.scheduledAt)}.`;
+
+  return notifyStaff({
+    type: "SERVICE",
+    title,
+    message,
+    serviceBookingId: booking._id,
+    actionUrl: buildFrontendUrl("/admin/service-bookings"),
+  });
+};
+
 module.exports = {
   // Dispatcher (export để test)
   dispatch,
@@ -1054,6 +1096,7 @@ module.exports = {
   notifyStaffCashPaymentRequest,
   notifyInvoiceOverdue,
   notifyContractExpiring,
+  notifyStaffNewServiceBooking,
   // Tenant
   notifyTenantInvoiceDue,
   notifyTenantInvoiceOverdue,
@@ -1065,6 +1108,7 @@ module.exports = {
   notifyTenantAppointmentConfirmed,
   notifyTenantAppointmentCancelled,
   notifyTenantIncidentStatus,
+  notifyTenantServiceBookingCreated,
   notifyTenantServiceBookingStatusChanged,
   notifyTenantServiceDeactivated,
   // Extension
