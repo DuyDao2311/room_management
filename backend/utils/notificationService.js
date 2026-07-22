@@ -1082,6 +1082,28 @@ const notifyStaffNewServiceBooking = async (booking) => {
   });
 };
 
+/**
+ * Gửi email biên lai cho tenant khi ServiceBooking được xác nhận đã thanh toán (paymentStatus='paid').
+ * `booking.service` và `booking.tenant` phải đã populate.
+ */
+const notifyTenantServiceBookingPaid = async (booking) => {
+  const serviceName = booking.service?.name || "Dịch vụ";
+  const title = `✅ Xác nhận thanh toán dịch vụ thành công — ${serviceName}`;
+  const message = `Kính gửi Quý khách,\n\nBooking dịch vụ "${serviceName}" (tổng ${fmt(booking.totalAmount)}đ) của Quý khách đã được xác nhận thanh toán thành công. Cảm ơn Quý khách.\n\nTrân trọng,\nCăn Hộ F4`;
+
+  return dispatch({
+    recipients: [{ _id: booking.tenant._id, email: booking.tenant.email, name: booking.tenant.name }],
+    data: {
+      type: "SERVICE",
+      title,
+      message,
+      serviceBookingId: booking._id,
+    },
+    channels: ["inapp", "email"],
+    actionUrl: buildFrontendUrl("/my-service-bookings"),
+  });
+};
+
 module.exports = {
   // Dispatcher (export để test)
   dispatch,
@@ -1111,6 +1133,7 @@ module.exports = {
   notifyTenantServiceBookingCreated,
   notifyTenantServiceBookingStatusChanged,
   notifyTenantServiceDeactivated,
+  notifyTenantServiceBookingPaid,
   // Extension
   notifyTenantExtensionRequest,
   notifyAdminTenantAgreedExtension,

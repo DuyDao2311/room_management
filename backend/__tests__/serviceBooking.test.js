@@ -10,6 +10,7 @@ const Service = require("../models/Service");
 const ServiceBooking = require("../models/ServiceBooking");
 const Contract = require("../models/Contract");
 const Booking = require("../models/Booking");
+const Notification = require("../models/Notification");
 const serviceBookingRoutes = require("../routes/serviceBookings");
 const { createUser, tokenFor } = require("./testHelpers");
 
@@ -36,6 +37,7 @@ beforeEach(async () => {
   await ServiceBooking.deleteMany({});
   await Contract.deleteMany({});
   await Booking.deleteMany({});
+  await Notification.deleteMany({});
   await require("../models/Room").deleteMany({});
 });
 
@@ -271,8 +273,6 @@ describe("GET /api/service-bookings/:id", () => {
   });
 });
 
-const Notification = require("../models/Notification");
-
 describe("PUT /api/service-bookings/:id/confirm", () => {
   test("admin confirm booking pending → 200 + tạo Notification", async () => {
     const admin = await createUser("admin");
@@ -450,6 +450,22 @@ describe("PUT /api/service-bookings/:id/pay", () => {
       .set("Authorization", `Bearer ${tokenFor(admin)}`);
 
     expect(res.status).toBe(400);
+  });
+
+  test("admin đánh dấu paid → tạo Notification type SERVICE cho tenant", async () => {
+    const admin = await createUser("admin");
+    const tenant = await createUser("tenant");
+    const service = await createActiveService();
+    const booking = await createBooking({ service: service._id, tenant: tenant._id });
+
+    const res = await request(app)
+      .put(`/api/service-bookings/${booking._id}/pay`)
+      .set("Authorization", `Bearer ${tokenFor(admin)}`);
+
+    expect(res.status).toBe(200);
+
+    const notif = await Notification.findOne({ userId: tenant._id, type: "SERVICE" });
+    expect(notif).toBeTruthy();
   });
 });
 
