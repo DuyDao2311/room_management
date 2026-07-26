@@ -15,7 +15,9 @@ const searchServiceImages = async (req, res) => {
   }
 
   try {
-    const url = `${PIXABAY_API_URL}?key=${apiKey}&q=${encodeURIComponent(q)}&image_type=photo&per_page=20&safesearch=true`;
+    // Pixabay mặc định coi query là tiếng Anh (lang=en) nếu không truyền lang —
+    // admin gõ tiếng Việt sẽ ra kết quả không liên quan nếu thiếu tham số này.
+    const url = `${PIXABAY_API_URL}?key=${apiKey}&q=${encodeURIComponent(q)}&image_type=photo&per_page=20&safesearch=true&lang=vi`;
     const pixabayRes = await fetch(url);
     if (!pixabayRes.ok) {
       return res.status(502).json({ message: "Không tìm được ảnh, thử lại sau." });
