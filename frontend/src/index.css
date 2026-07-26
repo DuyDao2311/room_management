@@ -3832,6 +3832,17 @@ body:has(.admin-main-content--no-padding) {
   box-shadow: 0 40px 120px rgba(0, 0, 0, 0.3);
   max-height: 90vh;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #e5e7eb transparent;
+}
+
+.modal::-webkit-scrollbar {
+  width: 4px;
+}
+
+.modal::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 4px;
 }
 
 .modal-header {
