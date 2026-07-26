@@ -9,6 +9,12 @@ const User = require("../models/User");
 const serviceRoutes = require("../routes/services");
 const { createUser, tokenFor } = require("./testHelpers");
 
+jest.mock("../middleware/upload", () => ({
+  cloudinary: { uploader: { upload: jest.fn() } },
+  uploadServiceImages: (req, res, next) => next(),
+}));
+const { cloudinary } = require("../middleware/upload");
+
 let mongoServer;
 let app;
 
@@ -93,6 +99,64 @@ describe("GET /api/services/images/search", () => {
     const res = await request(app)
       .get("/api/services/images/search?q=giuong")
       .set("Authorization", `Bearer ${tokenFor(admin)}`);
+    expect(res.status).toBe(502);
+  });
+});
+
+describe("POST /api/services/images/import", () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("tenant không được import ảnh → 403", async () => {
+    const tenant = await createUser("tenant");
+    const res = await request(app)
+      .post("/api/services/images/import")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ imageUrl: "https://pixabay.com/full1.jpg" });
+    expect(res.status).toBe(403);
+  });
+
+  test("thiếu imageUrl → 400", async () => {
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services/images/import")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  test("imageUrl không phải domain pixabay.com → 400", async () => {
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services/images/import")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ imageUrl: "https://evil.example.com/a.jpg" });
+    expect(res.status).toBe(400);
+  });
+
+  test("import thành công trả về url Cloudinary", async () => {
+    cloudinary.uploader.upload.mockResolvedValue({ secure_url: "https://res.cloudinary.com/demo/services/a.jpg" });
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services/images/import")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ imageUrl: "https://pixabay.com/full1.jpg" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ url: "https://res.cloudinary.com/demo/services/a.jpg" });
+    expect(cloudinary.uploader.upload).toHaveBeenCalledWith(
+      "https://pixabay.com/full1.jpg",
+      { folder: "room_management/services" }
+    );
+  });
+
+  test("Cloudinary lỗi → 502", async () => {
+    cloudinary.uploader.upload.mockRejectedValue(new Error("cloudinary down"));
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services/images/import")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ imageUrl: "https://pixabay.com/full1.jpg" });
     expect(res.status).toBe(502);
   });
 });

@@ -1,4 +1,7 @@
+const { cloudinary } = require("../middleware/upload");
+
 const PIXABAY_API_URL = "https://pixabay.com/api/";
+const ALLOWED_IMPORT_HOST = "pixabay.com";
 
 const searchServiceImages = async (req, res) => {
   const apiKey = process.env.PIXABAY_API_KEY;
@@ -30,4 +33,29 @@ const searchServiceImages = async (req, res) => {
   }
 };
 
-module.exports = { searchServiceImages };
+const importServiceImage = async (req, res) => {
+  const { imageUrl } = req.body;
+  if (!imageUrl) {
+    return res.status(400).json({ message: "Thiếu imageUrl." });
+  }
+
+  let hostname;
+  try {
+    hostname = new URL(imageUrl).hostname;
+  } catch {
+    return res.status(400).json({ message: "imageUrl không hợp lệ." });
+  }
+  if (hostname !== ALLOWED_IMPORT_HOST) {
+    return res.status(400).json({ message: "Chỉ chấp nhận ảnh từ Pixabay." });
+  }
+
+  try {
+    const result = await cloudinary.uploader.upload(imageUrl, { folder: "room_management/services" });
+    res.json({ url: result.secure_url });
+  } catch (err) {
+    console.error("Import service image error:", err);
+    res.status(502).json({ message: "Không thể tải ảnh, thử lại sau." });
+  }
+};
+
+module.exports = { searchServiceImages, importServiceImage };
