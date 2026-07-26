@@ -76,6 +76,54 @@ describe("POST /api/services", () => {
 
     expect(res.status).toBe(400);
   });
+
+  test("tạo dịch vụ với khung giờ hợp lệ", async () => {
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ ...VALID_SERVICE, bookingWindowStart: "08:00", bookingWindowEnd: "22:00" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.bookingWindowStart).toBe("08:00");
+    expect(res.body.bookingWindowEnd).toBe("22:00");
+  });
+
+  test("tạo dịch vụ không truyền khung giờ → mặc định rỗng, không lỗi", async () => {
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send(VALID_SERVICE);
+
+    expect(res.status).toBe(201);
+    expect(res.body.bookingWindowStart).toBe("");
+    expect(res.body.bookingWindowEnd).toBe("");
+  });
+
+  test("chỉ truyền 1 trong 2 field khung giờ → 400", async () => {
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ ...VALID_SERVICE, bookingWindowStart: "08:00" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe(
+      "Phải nhập đủ cả giờ bắt đầu và giờ kết thúc nhận đặt, hoặc để trống cả hai."
+    );
+  });
+
+  test("giờ bắt đầu không trước giờ kết thúc → 400", async () => {
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ ...VALID_SERVICE, bookingWindowStart: "22:00", bookingWindowEnd: "08:00" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Giờ bắt đầu nhận đặt phải trước giờ kết thúc.");
+  });
 });
 
 describe("GET /api/services", () => {
@@ -220,6 +268,35 @@ describe("PUT /api/services/:id", () => {
     expect(res.status).toBe(200);
     const notif = await Notification.findOne({ userId: tenant._id, type: "SERVICE" });
     expect(notif).toBeNull();
+  });
+
+  test("sửa dịch vụ thêm khung giờ hợp lệ", async () => {
+    const staff = await createUser("staff");
+    const service = await Service.create(VALID_SERVICE);
+
+    const res = await request(app)
+      .put(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(staff)}`)
+      .send({ bookingWindowStart: "08:00", bookingWindowEnd: "22:00" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.bookingWindowStart).toBe("08:00");
+    expect(res.body.bookingWindowEnd).toBe("22:00");
+  });
+
+  test("sửa chỉ 1 trong 2 field khung giờ (field kia đang trống) → 400", async () => {
+    const staff = await createUser("staff");
+    const service = await Service.create(VALID_SERVICE);
+
+    const res = await request(app)
+      .put(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(staff)}`)
+      .send({ bookingWindowStart: "08:00" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe(
+      "Phải nhập đủ cả giờ bắt đầu và giờ kết thúc nhận đặt, hoặc để trống cả hai."
+    );
   });
 });
 

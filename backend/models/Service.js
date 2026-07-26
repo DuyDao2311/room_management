@@ -27,6 +27,16 @@ const serviceSchema = new mongoose.Schema(
       enum: ["lần", "buổi", "khách"],
       required: [true, "Đơn vị tính không được để trống"],
     },
+    bookingWindowStart: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    bookingWindowEnd: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     images: {
       type: [String],
       default: [],
