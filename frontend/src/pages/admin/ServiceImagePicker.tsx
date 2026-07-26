@@ -5,10 +5,9 @@ interface Props {
   onDone: (urls: string[]) => void
   onClose: () => void
   serviceName?: string
-  serviceDescription?: string
 }
 
-export default function ServiceImagePicker({ onDone, onClose, serviceName, serviceDescription }: Props) {
+export default function ServiceImagePicker({ onDone, onClose, serviceName }: Props) {
   const [tab, setTab] = useState<'search' | 'upload'>('search')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<PixabayImageResult[]>([])
