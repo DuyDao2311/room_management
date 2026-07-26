@@ -9,6 +9,9 @@ const {
   updateService,
   deleteService,
 } = require("../controllers/serviceController");
+const { searchServiceImages } = require("../controllers/serviceImageController");
+
+router.get("/images/search", protect, verifyRole("admin", "staff"), searchServiceImages);
 
 // GET — public, optionalAuth để biết role (ẩn/hiện inactive)
 router.get("/", optionalAuth, getServices);
