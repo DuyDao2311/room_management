@@ -13,6 +13,11 @@ const serviceBookingSchema = new mongoose.Schema(
       ref: "User",
       required: [true, "Khách đặt không được để trống"],
     },
+    roomBooking: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Booking",
+      default: null,
+    },
     scheduledAt: {
       type: Date,
       required: [true, "Thời gian hẹn không được để trống"],

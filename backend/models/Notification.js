@@ -7,7 +7,7 @@ const notificationSchema = new mongoose.Schema({
   tenantId:  { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   type:      {
     type: String,
-    enum: ['INVOICE', 'REMINDER', 'SYSTEM', 'APPOINTMENT', 'CONTRACT', 'FEEDBACK', 'INCIDENT', 'SERVICE'],
+    enum: ['INVOICE', 'REMINDER', 'SYSTEM', 'APPOINTMENT', 'CONTRACT', 'FEEDBACK', 'INCIDENT', 'SERVICE', 'BOOKING'],
     default: 'INVOICE'
   },
   title:     { type: String, required: true },

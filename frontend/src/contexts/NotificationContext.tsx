@@ -8,7 +8,7 @@ export interface Notification {
   _id: string
   userId?: string
   tenantId?: string
-  type: 'INVOICE' | 'REMINDER' | 'SYSTEM' | 'APPOINTMENT' | 'CONTRACT' | 'FEEDBACK' | 'INCIDENT' | 'SERVICE'
+  type: 'INVOICE' | 'REMINDER' | 'SYSTEM' | 'APPOINTMENT' | 'CONTRACT' | 'FEEDBACK' | 'INCIDENT' | 'SERVICE' | 'BOOKING'
   title: string
   message: string
   invoiceId?: string
@@ -32,6 +32,7 @@ interface NotificationContextType {
   unreadInvoiceCount: number
   unreadIncidentCount: number
   unreadServiceCount: number
+  unreadBookingCount: number
   markAsRead: (id: string) => Promise<void>
   markAllAsRead: (type?: string) => Promise<void>
   deleteNotification: (id: string) => Promise<void>
@@ -54,6 +55,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const unreadInvoiceCount = notifications.filter(n => n.type === 'INVOICE' && !n.isRead).length
   const unreadIncidentCount = notifications.filter(n => n.type === 'INCIDENT' && !n.isRead).length
   const unreadServiceCount = notifications.filter(n => n.type === 'SERVICE' && !n.isRead).length
+  const unreadBookingCount = notifications.filter(n => n.type === 'BOOKING' && !n.isRead).length
 
   // ─── Fetch thông báo cũ khi mount ──────────────────────────────────────────
   useEffect(() => {
@@ -156,6 +158,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       unreadInvoiceCount,
       unreadIncidentCount,
       unreadServiceCount,
+      unreadBookingCount,
       markAsRead,
       markAllAsRead,
       deleteNotification,

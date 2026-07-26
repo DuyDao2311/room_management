@@ -130,13 +130,13 @@ export default function ServiceManagement() {
                     )}
                   </div>
                   <div style={{ fontSize: '0.85rem', color: '#667085', marginTop: '4px' }}>
-                    ★ {s.avgRating.toFixed(1)} ({s.ratingCount} đánh giá)
+                    ★ {(s.avgRating ?? 0).toFixed(1)} ({s.ratingCount ?? 0} đánh giá)
                   </div>
                 </div>
 
                 <div style={{ width: '160px', display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontSize: '0.75rem', color: '#667085', fontWeight: 600, textTransform: 'uppercase' }}>Giá</span>
-                  <span style={{ fontSize: '1rem', fontWeight: 800, color: '#101828', marginTop: '2px' }}>{s.price.toLocaleString('vi-VN')} đ/{s.unit}</span>
+                  <span style={{ fontSize: '1rem', fontWeight: 800, color: '#101828', marginTop: '2px' }}>{(s.price ?? 0).toLocaleString('vi-VN')} đ/{s.unit}</span>
                 </div>
 
                 <div style={{ display: 'flex', gap: '16px', marginLeft: '24px' }}>

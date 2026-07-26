@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { bookingService, type Booking } from '../../api/booking.service'
 import { createPayment, redirectToPayment } from '../../api/payment'
 import Spinner from '../../components/ui/Spinner'
@@ -8,6 +9,7 @@ import { BsHourglassSplit } from 'react-icons/bs'
 // import { QRCodeSVG } from 'qrcode.react'
 
 export default function MyBookings() {
+  const navigate = useNavigate()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -123,7 +125,7 @@ export default function MyBookings() {
                 const isPaid = b.paymentStatus === 'paid';
 
                 return (
-                  <div key={b._id} style={{
+                  <div key={b._id} onClick={() => navigate(`/my-bookings/${b._id}`)} style={{
                     background: 'white',
                     padding: '32px',
                     borderRadius: '12px',
@@ -131,7 +133,9 @@ export default function MyBookings() {
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '24px',
-                    borderLeft: isPaid ? '4px solid #005249' : 'none'
+                    borderLeft: isPaid ? '4px solid #005249' : 'none',
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s, box-shadow 0.2s'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
@@ -174,7 +178,10 @@ export default function MyBookings() {
 
                     <div style={{ background: '#f8f9fa', padding: '16px 24px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
-                        <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#667085', fontWeight: 500 }}>Tổng thanh toán</p>
+                        <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#667085', fontWeight: 500 }}>
+                          Tổng thanh toán
+                          {b.serviceTotal > 0 && <span style={{ fontSize: '0.75rem', color: '#98a2b3', marginLeft: '6px' }}>(Gồm {b.serviceBookings?.length || 0} dịch vụ)</span>}
+                        </p>
                         <div style={{ fontSize: '1.4rem', fontWeight: 700, color: isPaid ? '#d92d20' : '#101828', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           {b.totalAmount.toLocaleString('vi-VN')} đ
                         </div>
@@ -188,9 +195,14 @@ export default function MyBookings() {
                           <div style={{ color: '#667085', fontWeight: 700 }}>Đã hoàn tiền</div>
                         ) : b.status === 'cancelled' ? (
                           <div style={{ color: '#d92d20', fontWeight: 700 }}>Đã hủy</div>
+                        ) : b.status === 'pending' ? (
+                          <div style={{ color: '#b54708', fontWeight: 700 }}>Chờ xác nhận</div>
                         ) : (
                           <button
-                            onClick={() => handlePay(b)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handlePay(b)
+                            }}
                             style={{
                               background: '#103859', color: 'white', border: 'none', padding: '12px 24px',
                               borderRadius: '4px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem', textTransform: 'uppercase'
@@ -272,10 +284,27 @@ export default function MyBookings() {
                       <span style={{ color: '#6b7280' }}>Trả phòng</span>
                       <span style={{ fontWeight: 600, color: '#111827' }}>{new Date(paymentBooking.checkOutDateTime).toLocaleString('vi-VN')}</span>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-                      <span style={{ color: '#6b7280' }}>Đơn giá</span>
-                      <span style={{ fontWeight: 600, color: '#111827' }}>{paymentBooking.unitPrice?.toLocaleString('vi-VN')} đ / {paymentBooking.bookingType === 'hour' ? 'giờ' : paymentBooking.bookingType === 'day' ? 'ngày' : paymentBooking.bookingType === 'week' ? 'tuần' : 'tháng'}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', paddingBottom: paymentBooking.serviceTotal > 0 ? '16px' : '0', borderBottom: paymentBooking.serviceTotal > 0 ? '1px dashed #e5e7eb' : 'none' }}>
+                      <span style={{ color: '#6b7280' }}>Tiền phòng</span>
+                      <span style={{ fontWeight: 600, color: '#111827' }}>{paymentBooking.roomTotal?.toLocaleString('vi-VN')} đ</span>
                     </div>
+
+                    {paymentBooking.serviceTotal > 0 && (
+                      <div style={{ marginTop: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.9rem' }}>
+                          <span style={{ color: '#6b7280' }}>Tiền dịch vụ ({paymentBooking.serviceBookings?.length || 0})</span>
+                          <span style={{ fontWeight: 600, color: '#111827' }}>{paymentBooking.serviceTotal.toLocaleString('vi-VN')} đ</span>
+                        </div>
+                        <div style={{ paddingLeft: '12px', borderLeft: '2px solid #e5e7eb' }}>
+                          {paymentBooking.serviceBookings?.map((sb: any, idx: number) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '4px' }}>
+                              <span style={{ color: '#9ca3af' }}>- {sb.service?.name} (x{sb.quantity})</span>
+                              <span style={{ color: '#6b7280' }}>{sb.totalAmount.toLocaleString('vi-VN')} đ</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* QR Code for Momo/VNPay

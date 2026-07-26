@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { serviceBookingService, type ServiceBooking } from '../../api/serviceBooking.service'
 import { CATEGORY_LABELS, CATEGORY_TAGS } from '../../api/service.service'
+import { createPayment, redirectToPayment } from '../../api/payment'
 import Spinner from '../../components/ui/Spinner'
 import StarRating from '../../components/ui/StarRating'
+import { MdOutlineReceipt } from 'react-icons/md'
 
 const STATUS_MAP: Record<string, { label: string, color: string, bg: string }> = {
   pending: { label: 'Chờ xác nhận', color: '#175cd3', bg: '#eff8ff' },
@@ -27,6 +29,10 @@ export default function MyServiceBookings() {
   const [rateError, setRateError] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
+
+  const [paymentBooking, setPaymentBooking] = useState<ServiceBooking | null>(null)
+  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'vnpay' | 'cash'>('momo')
+  const [cashModal, setCashModal] = useState(false)
 
   const fetchBookings = () => {
     setLoading(true)
@@ -54,6 +60,15 @@ export default function MyServiceBookings() {
     }, { replace: true })
   }, [bookings, loading, searchParams, setSearchParams])
 
+  useEffect(() => {
+    if (paymentBooking || cashModal || rateModal) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = 'auto'
+    }
+    return () => { document.body.style.overflow = 'auto' }
+  }, [paymentBooking, cashModal, rateModal])
+
   const canCancel = (b: ServiceBooking) =>
     b.status === 'pending' && new Date(b.scheduledAt).getTime() - Date.now() >= ONE_HOUR_MS
 
@@ -66,6 +81,38 @@ export default function MyServiceBookings() {
     } catch (err: any) {
       alert(err.response?.data?.message || 'Hủy thất bại.')
     } finally {
+      setProcessing(null)
+    }
+  }
+
+  const handlePay = (booking: ServiceBooking) => {
+    setPaymentMethod('momo')
+    setPaymentBooking(booking)
+  }
+
+  const confirmPayment = async () => {
+    if (!paymentBooking) return
+
+    if (paymentMethod === 'cash') {
+      setPaymentBooking(null)
+      setCashModal(true)
+      return
+    }
+
+    setProcessing(paymentBooking._id)
+    try {
+      const response = await createPayment({
+        serviceBookingId: paymentBooking._id,
+        paymentMethod: paymentMethod as 'momo' | 'vnpay'
+      })
+
+      if (response.metadata.paymentUrl) {
+        localStorage.setItem('pendingPaymentBookingId', paymentBooking._id)
+        localStorage.setItem('pendingPaymentMethod', paymentMethod)
+        redirectToPayment(response.metadata.paymentUrl)
+      }
+    } catch (err: any) {
+      alert(err.message || err.response?.data?.message || 'Lỗi thanh toán.')
       setProcessing(null)
     }
   }
@@ -174,6 +221,19 @@ export default function MyServiceBookings() {
                             {processing === b._id ? 'Đang xử lý...' : 'Hủy booking'}
                           </button>
                         )}
+                        {b.status === 'confirmed' && b.paymentStatus === 'unpaid' && (
+                          <button
+                            onClick={() => handlePay(b)}
+                            className="button button-primary"
+                          >
+                            Thanh toán
+                          </button>
+                        )}
+                        {b.paymentStatus === 'paid' && b.status !== 'completed' && (
+                          <div style={{ color: '#005249', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '1rem' }}>
+                            <MdOutlineReceipt size={22} /> Đã thanh toán
+                          </div>
+                        )}
                         {b.status === 'completed' && !b.rating && (
                           <button onClick={() => openRateModal(b)} className="button button-primary">
                             Đánh Giá
@@ -248,6 +308,195 @@ export default function MyServiceBookings() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Modal */}
+        {paymentBooking && (
+          <div
+            className="rent-modal-overlay"
+            style={{ alignItems: 'center', padding: '20px', overflow: 'hidden', position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center' }}
+            onClick={(e) => { if (e.target === e.currentTarget) setPaymentBooking(null) }}
+          >
+            <div
+              className="rent-modal"
+              style={{
+                maxWidth: '860px', width: '100%', borderRadius: '12px', padding: 0,
+                overflow: 'hidden', background: '#f3f4f6', display: 'flex', flexDirection: 'column',
+                maxHeight: 'calc(100vh - 40px)',
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div style={{ background: '#fff', padding: '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: '1.5rem', color: '#111827', fontWeight: 800 }}>
+                    Thanh toán Dịch Vụ
+                  </h2>
+                  <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: '0.9rem' }}>
+                    Chọn phương thức thanh toán cho dịch vụ này.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setPaymentBooking(null)}
+                  style={{ background: 'none', border: '1px solid #d1d5db', borderRadius: '6px', padding: '6px 14px', cursor: 'pointer', fontWeight: 600, color: '#374151', fontSize: '1rem' }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Body */}
+              <div style={{ padding: '32px', display: 'flex', gap: '32px', alignItems: 'flex-start', overflowY: 'auto', flex: 1 }}>
+
+                {/* Left Column — Booking details */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                  <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#4b5563', fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px' }}>
+                      <MdOutlineReceipt size={18} /> THÔNG TIN DỊCH VỤ
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '0.9rem' }}>
+                      <span style={{ color: '#6b7280' }}>Tên dịch vụ</span>
+                      <span style={{ fontWeight: 600, color: '#111827' }}>{paymentBooking.service?.name}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '0.9rem' }}>
+                      <span style={{ color: '#6b7280' }}>Loại</span>
+                      <span style={{ fontWeight: 600, color: '#111827' }}>{paymentBooking.service?.category ? CATEGORY_LABELS[paymentBooking.service.category] : 'N/A'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '0.9rem' }}>
+                      <span style={{ color: '#6b7280' }}>Số lượng</span>
+                      <span style={{ fontWeight: 600, color: '#111827' }}>{paymentBooking.quantity} {paymentBooking.service?.unit}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', fontSize: '0.9rem' }}>
+                      <span style={{ color: '#6b7280' }}>Thời gian hẹn</span>
+                      <span style={{ fontWeight: 600, color: '#111827' }}>{new Date(paymentBooking.scheduledAt).toLocaleString('vi-VN')}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column — Payment Card (dark blue) */}
+                <div style={{ width: '340px', background: '#003e68', borderRadius: '16px', padding: '32px', color: '#fff', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)', flexShrink: 0 }}>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+                    TỔNG TIỀN THANH TOÁN
+                  </div>
+                  <div style={{ fontSize: '2.5rem', fontWeight: 800, marginBottom: '24px', display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                    {paymentBooking.totalAmount.toLocaleString('vi-VN')} <span style={{ fontSize: '1.2rem', fontWeight: 500, color: '#93c5fd' }}>đ</span>
+                  </div>
+
+                  {/* Payment Method Selection */}
+                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px' }}>
+                    PHƯƠNG THỨC THANH TOÁN
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '32px' }}>
+                    {/* Momo */}
+                    <div
+                      onClick={() => setPaymentMethod('momo')}
+                      style={{ background: 'rgba(255,255,255,0.1)', border: paymentMethod === 'momo' ? '1px solid #60a5fa' : '1px solid transparent', borderRadius: '8px', padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '32px', height: '32px', background: '#fff', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                          <img src="https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png" alt="MoMo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                        </div>
+                        <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>VÍ MOMO</span>
+                      </div>
+                      <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: paymentMethod === 'momo' ? '4px solid #fff' : '2px solid rgba(255,255,255,0.3)', background: paymentMethod === 'momo' ? '#60a5fa' : 'transparent' }} />
+                    </div>
+
+                    {/* VNPay */}
+                    <div
+                      onClick={() => setPaymentMethod('vnpay')}
+                      style={{ background: 'rgba(255,255,255,0.1)', border: paymentMethod === 'vnpay' ? '1px solid #60a5fa' : '1px solid transparent', borderRadius: '8px', padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '32px', height: '32px', background: '#fff', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                          <img src="https://vnpay.vn/s1/statics.vnpay.vn/2023/6/0oxhzjmxbksr1686814746087.png" alt="VNPay" style={{ width: '80%', height: '80%', objectFit: 'contain' }} />
+                        </div>
+                        <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>VNPAY</span>
+                      </div>
+                      <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: paymentMethod === 'vnpay' ? '4px solid #fff' : '2px solid rgba(255,255,255,0.3)', background: paymentMethod === 'vnpay' ? '#60a5fa' : 'transparent' }} />
+                    </div>
+
+                    {/* Cash */}
+                    <div
+                      onClick={() => setPaymentMethod('cash')}
+                      style={{ background: 'rgba(255,255,255,0.1)', border: paymentMethod === 'cash' ? '1px solid #60a5fa' : '1px solid transparent', borderRadius: '8px', padding: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', transition: 'all 0.2s' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '32px', height: '32px', background: '#fff', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', color: '#10b981' }}>
+                          <MdOutlineReceipt size={20} />
+                        </div>
+                        <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>TIỀN MẶT</span>
+                      </div>
+                      <div style={{ width: '16px', height: '16px', borderRadius: '50%', border: paymentMethod === 'cash' ? '4px solid #fff' : '2px solid rgba(255,255,255,0.3)', background: paymentMethod === 'cash' ? '#60a5fa' : 'transparent' }} />
+                    </div>
+                  </div>
+
+                  {paymentMethod === 'cash' && (
+                    <div style={{ background: 'rgba(255,255,255,0.1)', border: '1px dashed #60a5fa', borderRadius: '8px', padding: '12px', fontSize: '0.85rem', color: '#dbeafe', marginBottom: '16px', lineHeight: 1.5 }}>
+                      Vui lòng nộp tiền mặt trực tiếp cho nhân viên quản lý khu vực. Booking sẽ được cập nhật trạng thái sau khi nhân viên xác nhận.
+                    </div>
+                  )}
+
+                  <button
+                    onClick={confirmPayment}
+                    disabled={processing === paymentBooking._id}
+                    style={{
+                      width: '100%', background: '#fff', color: '#003e68', border: 'none',
+                      borderRadius: '8px', padding: '16px', fontWeight: 800, fontSize: '1rem',
+                      cursor: processing === paymentBooking._id ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      gap: '8px', transition: 'all 0.2s',
+                      opacity: processing === paymentBooking._id ? 0.7 : 1,
+                    }}
+                  >
+                    {processing === paymentBooking._id ? <Spinner size="sm" /> : <MdOutlineReceipt size={20} />}
+                    {processing === paymentBooking._id ? 'Đang xử lý...' : 'Thanh toán'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Tiền mặt thành công (chỉ hiện thông báo) */}
+        {cashModal && (
+          <div
+            onClick={(e) => { if (e.target === e.currentTarget) setCashModal(false) }}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 9999,
+              background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              animation: 'fadeIn 0.3s ease',
+            }}
+          >
+            <div style={{
+              background: '#fff', borderRadius: '16px', padding: '40px',
+              maxWidth: '420px', width: '90%', textAlign: 'center',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+              animation: 'slideUp 0.3s ease',
+            }}>
+              <div style={{
+                width: '72px', height: '72px', background: '#e0f2fe',
+                borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 20px',
+              }}>
+                <MdOutlineReceipt size={36} color="#0369a1" />
+              </div>
+              <h3 style={{ margin: '0 0 12px', fontSize: '1.3rem', fontWeight: 800, color: '#111827' }}>
+                Yêu cầu đã được gửi
+              </h3>
+              <p style={{ margin: '0 0 24px', color: '#4b5563', fontSize: '1rem', lineHeight: 1.6 }}>
+                Vui lòng liên hệ với Ban quản lý tòa nhà để tiến hành nộp tiền mặt. Booking dịch vụ của bạn sẽ được chuyển trạng thái ngay sau đó.
+              </p>
+              <button
+                className="button button-primary"
+                style={{ width: '100%', padding: '12px', fontSize: '1rem' }}
+                onClick={() => setCashModal(false)}
+              >
+                Đã hiểu
+              </button>
             </div>
           </div>
         )}

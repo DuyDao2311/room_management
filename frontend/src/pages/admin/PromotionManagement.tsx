@@ -10,7 +10,7 @@ import {
   type Promotion,
   type PromotionPayload,
 } from '../../api/promotion.service'
-import { Percent, Tag, Pencil, Trash2, ToggleLeft, ToggleRight, Plus, Search, X, SlidersHorizontal } from 'lucide-react'
+import { Percent, Tag, Pencil, Eye, Trash2, ToggleLeft, ToggleRight, Plus, Search, X, SlidersHorizontal } from 'lucide-react'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
@@ -483,50 +483,55 @@ export default function PromotionManagement() {
                     const statusInfo = STATUS_MAP[p.status] || STATUS_MAP.disabled
                     const roomCount = Array.isArray(p.roomIds) ? p.roomIds.length : 0
 
-                    // Lấy tên các phòng áp dụng
-                    const appliedRoomIds = Array.isArray(p.roomIds)
+                    // Lấy tên các phòng áp dụng (Đã lọc trùng lặp)
+                    const rawAppliedRoomIds = Array.isArray(p.roomIds)
                       ? p.roomIds.map((item: any) => typeof item === 'string' ? item : item._id)
                       : [];
+                    const appliedRoomIds = [...new Set(rawAppliedRoomIds)];
+
                     const appliedRoomNames = appliedRoomIds
                       .map(id => allRooms.find(room => room._id === id))
                       .filter(Boolean) as RoomOption[];
 
-                    // Kiểm tra xem có phải "tất cả phòng" hay không
-                    const availableRooms = allRooms.filter(r => r.status === 'available')
-                    const isAllRooms = availableRooms.length > 0 && availableRooms.every(r => appliedRoomIds.includes(r._id))
+                    // Kiểm tra gom nhóm (Tất cả phòng, theo quận, loại...)
+                    // Thay vì dùng availableRooms (sẽ bị thay đổi khi có người thuê, làm sai logic khi kết thúc),
+                    // ta dựa vào tính đồng nhất của các phòng đã chọn để suy ra nhóm.
+                    let isAllRooms = false;
+                    let matchedDistrict = '';
+                    let matchedType = '';
+                    let matchedRentalMode = '';
 
-                    // Kiểm tra xem có phải tất cả phòng của 1 quận
-                    let matchedDistrict = ''
-                    if (!isAllRooms && appliedRoomIds.length > 0) {
-                      for (const district of [...new Set(availableRooms.filter(r => r.district).map(r => r.district!))]) {
-                        const districtRooms = availableRooms.filter(r => r.district === district)
-                        if (districtRooms.length > 0 && districtRooms.every(r => appliedRoomIds.includes(r._id)) && districtRooms.length === appliedRoomIds.length) {
-                          matchedDistrict = district
-                          break
+                    if (appliedRoomIds.length > 0) {
+                      const districts = Array.from(new Set(appliedRoomNames.map(r => r.district).filter(Boolean))) as string[];
+                      const types = Array.from(new Set(appliedRoomNames.map(r => r.type).filter(Boolean))) as string[];
+                      const modes = Array.from(new Set(appliedRoomNames.map(r => r.rentalMode).filter(Boolean))) as string[];
+
+                      const totalRooms = allRooms.length;
+                      const appliedCount = appliedRoomIds.length;
+
+                      // Chỉ gom nhóm thành "Tất cả phòng" nếu số lượng áp dụng chiếm >= 80% hệ thống
+                      if (appliedCount >= totalRooms * 0.8) {
+                        isAllRooms = true;
+                      }
+                      // Chỉ gom nhóm theo Quận nếu tất cả phòng chọn thuộc 1 quận VÀ chiếm >= 80% phòng của quận đó
+                      else if (districts.length === 1) {
+                        const districtTotal = allRooms.filter(r => r.district === districts[0]).length;
+                        if (appliedCount >= districtTotal * 0.8 && appliedCount > 1) {
+                          matchedDistrict = districts[0];
                         }
                       }
-                    }
-
-                    // Kiểm tra xem có phải tất cả phòng của 1 loại
-                    let matchedType = ''
-                    if (!isAllRooms && !matchedDistrict && appliedRoomIds.length > 0) {
-                      for (const type of [...new Set(availableRooms.filter(r => r.type).map(r => r.type!))]) {
-                        const typeRooms = availableRooms.filter(r => r.type === type)
-                        if (typeRooms.length > 0 && typeRooms.every(r => appliedRoomIds.includes(r._id)) && typeRooms.length === appliedRoomIds.length) {
-                          matchedType = type
-                          break
+                      // Tương tự cho Loại phòng
+                      else if (types.length === 1) {
+                        const typeTotal = allRooms.filter(r => r.type === types[0]).length;
+                        if (appliedCount >= typeTotal * 0.8 && appliedCount > 1) {
+                          matchedType = types[0];
                         }
                       }
-                    }
-
-                    // Kiểm tra xem có phải tất cả phòng của 1 hình thức thuê
-                    let matchedRentalMode = ''
-                    if (!isAllRooms && !matchedDistrict && !matchedType && appliedRoomIds.length > 0) {
-                      for (const mode of ['short_term', 'long_term']) {
-                        const modeRooms = availableRooms.filter(r => r.rentalMode === mode)
-                        if (modeRooms.length > 0 && modeRooms.every(r => appliedRoomIds.includes(r._id)) && modeRooms.length === appliedRoomIds.length) {
-                          matchedRentalMode = mode
-                          break
+                      // Tương tự cho Hình thức thuê
+                      else if (modes.length === 1) {
+                        const modeTotal = allRooms.filter(r => r.rentalMode === modes[0]).length;
+                        if (appliedCount >= modeTotal * 0.8 && appliedCount > 1) {
+                          matchedRentalMode = modes[0];
                         }
                       }
                     }
@@ -583,8 +588,10 @@ export default function PromotionManagement() {
                               Tất cả phòng {matchedRentalMode === 'short_term' ? 'thuê ngắn hạn' : 'thuê dài hạn'}
                             </span>
                           ) : (
-                            <span style={{ fontSize: '0.85rem', color: '#475467' }}>
-                              {appliedRoomNames.map(r => r.name).join(', ')}
+                            <span style={{ fontSize: '0.85rem', color: '#475467' }} title={appliedRoomNames.map(r => r.name).join(', ')}>
+                              {appliedRoomNames.length > 5
+                                ? `${appliedRoomNames.slice(0, 5).map(r => r.name).join(', ')} và ${appliedRoomNames.length - 5} phòng khác`
+                                : appliedRoomNames.map(r => r.name).join(', ')}
                             </span>
                           )}
                         </td>
@@ -609,22 +616,31 @@ export default function PromotionManagement() {
                           <div style={{ display: 'flex', gap: '10px' }}>
                             <button
                               onClick={() => openEdit(p)}
-                              title="Sửa"
+                              title={p.status === 'expired' || p.status === 'active' ? "Xem chi tiết" : "Sửa"}
                               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
                             >
-                              <Pencil size={16} color="#475467" />
-                            </button>
-                            <button
-                              onClick={() => handleToggleStatus(p)}
-                              title={p.status === 'disabled' ? 'Bật lại' : 'Tắt'}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
-                            >
-                              {p.status === 'disabled' ? (
-                                <ToggleLeft size={16} color="#667085" />
+                              {p.status === 'expired' || p.status === 'active' ? (
+                                <Eye size={16} color="#475467" />
                               ) : (
-                                <ToggleRight size={16} color="#088373" />
+                                <Pencil size={16} color="#475467" />
                               )}
                             </button>
+
+                            {/* Chỉ hiển thị nút Bật/Tắt nếu KHÔNG PHẢI đang chạy và KHÔNG PHẢI đã kết thúc */}
+                            {p.status !== 'expired' && p.status !== 'active' && (
+                              <button
+                                onClick={() => handleToggleStatus(p)}
+                                title={p.status === 'disabled' ? 'Bật lại' : 'Tắt'}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}
+                              >
+                                {p.status === 'disabled' ? (
+                                  <ToggleLeft size={16} color="#667085" />
+                                ) : (
+                                  <ToggleRight size={16} color="#088373" />
+                                )}
+                              </button>
+                            )}
+
                             <button
                               onClick={() => setDeleteTarget(p)}
                               title="Xóa"
@@ -680,7 +696,7 @@ export default function PromotionManagement() {
           <div className="modal-overlay" onClick={() => setShowModal(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px' }}>
               <div className="modal-header">
-                <h2>{editing ? 'Chỉnh sửa khuyến mãi' : 'Thêm khuyến mãi mới'}</h2>
+                <h2>{editing ? (editing.status === 'expired' || editing.status === 'active' ? 'Chi tiết khuyến mãi' : 'Chỉnh sửa khuyến mãi') : 'Thêm khuyến mãi mới'}</h2>
                 <button className="modal-close" onClick={() => setShowModal(false)}>
                   ✕
                 </button>
@@ -692,375 +708,379 @@ export default function PromotionManagement() {
                   </div>
                 )}
 
-                <div className="form-group">
-                  <label htmlFor="promo-name">Tên chương trình *</label>
-                  <input
-                    id="promo-name"
-                    className="form-input"
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    required
-                    placeholder="VD: Summer Sale 2026"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="promo-desc">Mô tả</label>
-                  <textarea
-                    id="promo-desc"
-                    className="form-input"
-                    value={form.description}
-                    onChange={(e) => setForm({ ...form, description: e.target.value })}
-                    rows={2}
-                    placeholder="Mô tả ngắn về chương trình..."
-                  />
-                </div>
-
-                <div className="form-row">
+                <fieldset disabled={editing ? (editing.status === 'expired' || editing.status === 'active') : false} style={{ border: 'none', padding: 0, margin: 0 }}>
                   <div className="form-group">
-                    <label htmlFor="promo-discount-type">Loại giảm giá *</label>
-                    <select
-                      id="promo-discount-type"
+                    <label htmlFor="promo-name">Tên chương trình *</label>
+                    <input
+                      id="promo-name"
                       className="form-input"
-                      value={form.discountType}
-                      onChange={(e) =>
-                        setForm({ ...form, discountType: e.target.value as 'percent' | 'fixed', maxDiscount: null })
-                      }
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      required
+                      placeholder="VD: Summer Sale 2026"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="promo-desc">Mô tả</label>
+                    <textarea
+                      id="promo-desc"
+                      className="form-input"
+                      value={form.description}
+                      onChange={(e) => setForm({ ...form, description: e.target.value })}
+                      rows={2}
+                      placeholder="Mô tả ngắn về chương trình..."
+                    />
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="promo-discount-type">Loại giảm giá *</label>
+                      <select
+                        id="promo-discount-type"
+                        className="form-input"
+                        value={form.discountType}
+                        onChange={(e) =>
+                          setForm({ ...form, discountType: e.target.value as 'percent' | 'fixed', maxDiscount: null })
+                        }
+                      >
+                        <option value="percent">Phần trăm (%)</option>
+                        <option value="fixed">Số tiền cố định (VNĐ)</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="promo-discount-value">
+                        Giá trị giảm * {form.discountType === 'percent' ? '(%)' : '(VNĐ)'}
+                      </label>
+                      <input
+                        id="promo-discount-value"
+                        type="number"
+                        className="form-input"
+                        value={form.discountValue || ''}
+                        onChange={(e) => setForm({ ...form, discountValue: Number(e.target.value) })}
+                        required
+                        min={0}
+                        max={form.discountType === 'percent' ? 100 : undefined}
+                        placeholder={form.discountType === 'percent' ? '20' : '300000'}
+                      />
+                    </div>
+                  </div>
+
+                  {form.discountType === 'percent' && (
+                    <div className="form-group">
+                      <label htmlFor="promo-max-discount">Giảm tối đa (VNĐ) — Tùy chọn</label>
+                      <input
+                        id="promo-max-discount"
+                        type="number"
+                        className="form-input"
+                        value={form.maxDiscount || ''}
+                        onChange={(e) =>
+                          setForm({ ...form, maxDiscount: e.target.value ? Number(e.target.value) : null })
+                        }
+                        min={0}
+                        placeholder="VD: 500000 (bỏ trống = không giới hạn)"
+                      />
+                    </div>
+                  )}
+
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label htmlFor="promo-start">Ngày bắt đầu *</label>
+                      <CustomDateInput
+                        id="promo-start"
+                        className="form-input"
+                        value={form.startDate}
+                        onChange={(e: any) => setForm({ ...form, startDate: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="promo-end">Ngày kết thúc *</label>
+                      <CustomDateInput
+                        id="promo-end"
+                        className="form-input"
+                        value={form.endDate}
+                        onChange={(e: any) => setForm({ ...form, endDate: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Room multi-select */}
+                  <div className="form-group">
+                    <label>Phòng áp dụng * ({form.roomIds.length} đã chọn)</label>
+                    <div
+                      style={{
+                        border: '1px solid #eaecf0',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                      }}
                     >
-                      <option value="percent">Phần trăm (%)</option>
-                      <option value="fixed">Số tiền cố định (VNĐ)</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="promo-discount-value">
-                      Giá trị giảm * {form.discountType === 'percent' ? '(%)' : '(VNĐ)'}
-                    </label>
-                    <input
-                      id="promo-discount-value"
-                      type="number"
-                      className="form-input"
-                      value={form.discountValue || ''}
-                      onChange={(e) => setForm({ ...form, discountValue: Number(e.target.value) })}
-                      required
-                      min={0}
-                      max={form.discountType === 'percent' ? 100 : undefined}
-                      placeholder={form.discountType === 'percent' ? '20' : '300000'}
-                    />
-                  </div>
-                </div>
-
-                {form.discountType === 'percent' && (
-                  <div className="form-group">
-                    <label htmlFor="promo-max-discount">Giảm tối đa (VNĐ) — Tùy chọn</label>
-                    <input
-                      id="promo-max-discount"
-                      type="number"
-                      className="form-input"
-                      value={form.maxDiscount || ''}
-                      onChange={(e) =>
-                        setForm({ ...form, maxDiscount: e.target.value ? Number(e.target.value) : null })
-                      }
-                      min={0}
-                      placeholder="VD: 500000 (bỏ trống = không giới hạn)"
-                    />
-                  </div>
-                )}
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label htmlFor="promo-start">Ngày bắt đầu *</label>
-                    <CustomDateInput
-                      id="promo-start"
-                      className="form-input"
-                      value={form.startDate}
-                      onChange={(e: any) => setForm({ ...form, startDate: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="promo-end">Ngày kết thúc *</label>
-                    <CustomDateInput
-                      id="promo-end"
-                      className="form-input"
-                      value={form.endDate}
-                      onChange={(e: any) => setForm({ ...form, endDate: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Room multi-select */}
-                <div className="form-group">
-                  <label>Phòng áp dụng * ({form.roomIds.length} đã chọn)</label>
-                  <div
-                    style={{
-                      border: '1px solid #eaecf0',
-                      borderRadius: '8px',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    {/* Filters bar */}
-                    <div style={{ padding: '10px 12px', borderBottom: '1px solid #eaecf0', background: '#f9fafb', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {/* Search */}
-                      <div style={{ position: 'relative' }}>
-                        <Search
-                          size={14}
-                          style={{
-                            position: 'absolute',
-                            left: '8px',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            color: '#667085',
-                          }}
-                        />
-                        <input
-                          type="text"
-                          placeholder="Tìm phòng theo tên hoặc địa chỉ..."
-                          value={roomSearch}
-                          onChange={(e) => setRoomSearch(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: '6px 8px 6px 28px',
-                            border: '1px solid #d0d5dd',
-                            borderRadius: '6px',
-                            fontSize: '0.85rem',
-                            outline: 'none',
-                          }}
-                        />
-                      </div>
-
-                      {/* District + Type filters */}
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        <select
-                          value={filterDistrict}
-                          onChange={(e) => setFilterDistrict2(e.target.value)}
-                          style={{
-                            padding: '5px 8px',
-                            border: '1px solid #d0d5dd',
-                            borderRadius: '6px',
-                            fontSize: '0.82rem',
-                            outline: 'none',
-                            background: filterDistrict ? '#eef4ff' : 'white',
-                            color: filterDistrict ? '#3538cd' : '#475467',
-                            fontWeight: filterDistrict ? 600 : 400,
-                            flex: '1 1 0',
-                            minWidth: '120px',
-                          }}
-                        >
-                          <option value="">Tất cả quận</option>
-                          {uniqueDistricts.map(d => (
-                            <option key={d} value={d}>{d}</option>
-                          ))}
-                        </select>
-
-                        <select
-                          value={filterType}
-                          onChange={(e) => setFilterType(e.target.value)}
-                          style={{
-                            padding: '5px 8px',
-                            border: '1px solid #d0d5dd',
-                            borderRadius: '6px',
-                            fontSize: '0.82rem',
-                            outline: 'none',
-                            background: filterType ? '#eef4ff' : 'white',
-                            color: filterType ? '#3538cd' : '#475467',
-                            fontWeight: filterType ? 600 : 400,
-                            flex: '1 1 0',
-                            minWidth: '120px',
-                          }}
-                        >
-                          <option value="">Tất cả loại phòng</option>
-                          {uniqueTypes.map(t => (
-                            <option key={t} value={t}>{t}</option>
-                          ))}
-                        </select>
-
-                        <select
-                          value={filterRentalMode}
-                          onChange={(e) => setFilterRentalMode(e.target.value)}
-                          style={{
-                            padding: '5px 8px',
-                            border: '1px solid #d0d5dd',
-                            borderRadius: '6px',
-                            fontSize: '0.82rem',
-                            outline: 'none',
-                            background: filterRentalMode ? '#eef4ff' : 'white',
-                            color: filterRentalMode ? '#3538cd' : '#475467',
-                            fontWeight: filterRentalMode ? 600 : 400,
-                            flex: '1 1 0',
-                            minWidth: '120px',
-                          }}
-                        >
-                          <option value="">Tất cả hình thức thuê</option>
-                          <option value="short_term">Thuê ngắn hạn</option>
-                          <option value="long_term">Thuê dài hạn</option>
-                        </select>
-                      </div>
-
-                      {/* Select all / Deselect all bar */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.8rem', color: '#667085' }}>
-                          {filteredRooms.length} phòng phù hợp
-                        </span>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
-                            type="button"
-                            onClick={selectAllFiltered}
+                      {/* Filters bar */}
+                      <div style={{ padding: '10px 12px', borderBottom: '1px solid #eaecf0', background: '#f9fafb', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {/* Search */}
+                        <div style={{ position: 'relative' }}>
+                          <Search
+                            size={14}
                             style={{
-                              padding: '3px 10px',
+                              position: 'absolute',
+                              left: '8px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              color: '#667085',
+                            }}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Tìm phòng theo tên hoặc địa chỉ..."
+                            value={roomSearch}
+                            onChange={(e) => setRoomSearch(e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '6px 8px 6px 28px',
                               border: '1px solid #d0d5dd',
                               borderRadius: '6px',
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              background: isAllFilteredSelected ? '#eef4ff' : 'white',
-                              color: '#3538cd',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s',
+                              fontSize: '0.85rem',
+                              outline: 'none',
+                            }}
+                          />
+                        </div>
+
+                        {/* District + Type filters */}
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                          <select
+                            value={filterDistrict}
+                            onChange={(e) => setFilterDistrict2(e.target.value)}
+                            style={{
+                              padding: '5px 8px',
+                              border: '1px solid #d0d5dd',
+                              borderRadius: '6px',
+                              fontSize: '0.82rem',
+                              outline: 'none',
+                              background: filterDistrict ? '#eef4ff' : 'white',
+                              color: filterDistrict ? '#3538cd' : '#475467',
+                              fontWeight: filterDistrict ? 600 : 400,
+                              flex: '1 1 0',
+                              minWidth: '120px',
                             }}
                           >
-                            ✓ Chọn tất cả
-                          </button>
-                          <button
-                            type="button"
-                            onClick={deselectAllFiltered}
+                            <option value="">Tất cả quận</option>
+                            {uniqueDistricts.map(d => (
+                              <option key={d} value={d}>{d}</option>
+                            ))}
+                          </select>
+
+                          <select
+                            value={filterType}
+                            onChange={(e) => setFilterType(e.target.value)}
                             style={{
-                              padding: '3px 10px',
+                              padding: '5px 8px',
                               border: '1px solid #d0d5dd',
                               borderRadius: '6px',
-                              fontSize: '0.78rem',
-                              fontWeight: 600,
-                              background: 'white',
+                              fontSize: '0.82rem',
+                              outline: 'none',
+                              background: filterType ? '#eef4ff' : 'white',
+                              color: filterType ? '#3538cd' : '#475467',
+                              fontWeight: filterType ? 600 : 400,
+                              flex: '1 1 0',
+                              minWidth: '120px',
+                            }}
+                          >
+                            <option value="">Tất cả loại phòng</option>
+                            {uniqueTypes.map(t => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                          </select>
+
+                          <select
+                            value={filterRentalMode}
+                            onChange={(e) => setFilterRentalMode(e.target.value)}
+                            style={{
+                              padding: '5px 8px',
+                              border: '1px solid #d0d5dd',
+                              borderRadius: '6px',
+                              fontSize: '0.82rem',
+                              outline: 'none',
+                              background: filterRentalMode ? '#eef4ff' : 'white',
+                              color: filterRentalMode ? '#3538cd' : '#475467',
+                              fontWeight: filterRentalMode ? 600 : 400,
+                              flex: '1 1 0',
+                              minWidth: '120px',
+                            }}
+                          >
+                            <option value="">Tất cả hình thức thuê</option>
+                            <option value="short_term">Thuê ngắn hạn</option>
+                            <option value="long_term">Thuê dài hạn</option>
+                          </select>
+                        </div>
+
+                        {/* Select all / Deselect all bar */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.8rem', color: '#667085' }}>
+                            {filteredRooms.length} phòng phù hợp
+                          </span>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              type="button"
+                              onClick={selectAllFiltered}
+                              style={{
+                                padding: '3px 10px',
+                                border: '1px solid #d0d5dd',
+                                borderRadius: '6px',
+                                fontSize: '0.78rem',
+                                fontWeight: 600,
+                                background: isAllFilteredSelected ? '#eef4ff' : 'white',
+                                color: '#3538cd',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s',
+                              }}
+                            >
+                              ✓ Chọn tất cả
+                            </button>
+                            <button
+                              type="button"
+                              onClick={deselectAllFiltered}
+                              style={{
+                                padding: '3px 10px',
+                                border: '1px solid #d0d5dd',
+                                borderRadius: '6px',
+                                fontSize: '0.78rem',
+                                fontWeight: 600,
+                                background: 'white',
+                                color: '#b42318',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s',
+                              }}
+                            >
+                              ✕ Bỏ chọn tất cả
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Room list */}
+                      <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
+                        {loadingRooms ? (
+                          <div style={{ padding: '16px', textAlign: 'center', color: '#667085' }}>
+                            Đang tải...
+                          </div>
+                        ) : filteredRooms.length === 0 ? (
+                          <div style={{ padding: '16px', textAlign: 'center', color: '#667085' }}>
+                            Không tìm thấy phòng nào phù hợp
+                          </div>
+                        ) : (
+                          filteredRooms.map((r) => (
+                            <label
+                              key={r._id}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                padding: '8px 12px',
+                                cursor: 'pointer',
+                                borderBottom: '1px solid #f2f4f7',
+                                background: form.roomIds.includes(r._id) ? '#eef4ff' : 'transparent',
+                                transition: 'background 0.15s',
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={form.roomIds.includes(r._id)}
+                                onChange={() => toggleRoom(r._id)}
+                                style={{ accentColor: '#003e68' }}
+                              />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#101828' }}>
+                                  {r.name}
+                                  {r.type && (
+                                    <span style={{
+                                      marginLeft: '6px',
+                                      fontSize: '0.7rem',
+                                      fontWeight: 500,
+                                      background: '#f1f5f9',
+                                      color: '#64748b',
+                                      padding: '1px 5px',
+                                      borderRadius: '4px',
+                                    }}>
+                                      {r.type}
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: '0.75rem', color: '#667085' }}>
+                                  {r.address}{r.district ? ` • ${r.district}` : ''} • {formatPrice(r.price)}/tháng
+                                </div>
+                              </div>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Selected rooms chips */}
+                    {form.roomIds.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
+                        {form.roomIds.map((rid) => {
+                          const room = allRooms.find((r) => r._id === rid)
+                          return (
+                            <span
+                              key={rid}
+                              style={{
+                                background: '#eef4ff',
+                                color: '#3538cd',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                fontSize: '0.8rem',
+                                fontWeight: 600,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              {room?.name || rid}
+                              <X
+                                size={12}
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => toggleRoom(rid)}
+                              />
+                            </span>
+                          )
+                        })}
+                        {form.roomIds.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setForm(prev => ({ ...prev, roomIds: [] }))}
+                            style={{
+                              background: '#fee2e2',
                               color: '#b42318',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s',
-                            }}
-                          >
-                            ✕ Bỏ chọn tất cả
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Room list */}
-                    <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
-                      {loadingRooms ? (
-                        <div style={{ padding: '16px', textAlign: 'center', color: '#667085' }}>
-                          Đang tải...
-                        </div>
-                      ) : filteredRooms.length === 0 ? (
-                        <div style={{ padding: '16px', textAlign: 'center', color: '#667085' }}>
-                          Không tìm thấy phòng nào phù hợp
-                        </div>
-                      ) : (
-                        filteredRooms.map((r) => (
-                          <label
-                            key={r._id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '10px',
-                              padding: '8px 12px',
-                              cursor: 'pointer',
-                              borderBottom: '1px solid #f2f4f7',
-                              background: form.roomIds.includes(r._id) ? '#eef4ff' : 'transparent',
-                              transition: 'background 0.15s',
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={form.roomIds.includes(r._id)}
-                              onChange={() => toggleRoom(r._id)}
-                              style={{ accentColor: '#003e68' }}
-                            />
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: '#101828' }}>
-                                {r.name}
-                                {r.type && (
-                                  <span style={{
-                                    marginLeft: '6px',
-                                    fontSize: '0.7rem',
-                                    fontWeight: 500,
-                                    background: '#f1f5f9',
-                                    color: '#64748b',
-                                    padding: '1px 5px',
-                                    borderRadius: '4px',
-                                  }}>
-                                    {r.type}
-                                  </span>
-                                )}
-                              </div>
-                              <div style={{ fontSize: '0.75rem', color: '#667085' }}>
-                                {r.address}{r.district ? ` • ${r.district}` : ''} • {formatPrice(r.price)}/tháng
-                              </div>
-                            </div>
-                          </label>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Selected rooms chips */}
-                  {form.roomIds.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '8px' }}>
-                      {form.roomIds.map((rid) => {
-                        const room = allRooms.find((r) => r._id === rid)
-                        return (
-                          <span
-                            key={rid}
-                            style={{
-                              background: '#eef4ff',
-                              color: '#3538cd',
                               padding: '4px 8px',
                               borderRadius: '6px',
                               fontSize: '0.8rem',
                               fontWeight: 600,
+                              border: 'none',
+                              cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
                               gap: '4px',
                             }}
                           >
-                            {room?.name || rid}
-                            <X
-                              size={12}
-                              style={{ cursor: 'pointer' }}
-                              onClick={() => toggleRoom(rid)}
-                            />
-                          </span>
-                        )
-                      })}
-                      {form.roomIds.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => setForm(prev => ({ ...prev, roomIds: [] }))}
-                          style={{
-                            background: '#fee2e2',
-                            color: '#b42318',
-                            padding: '4px 8px',
-                            borderRadius: '6px',
-                            fontSize: '0.8rem',
-                            fontWeight: 600,
-                            border: 'none',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                          }}
-                        >
-                          Xóa hết
-                          <X size={12} />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
+                            Xóa hết
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </fieldset>
 
                 <div className="modal-actions">
                   <button type="button" className="button button-secondary" onClick={() => setShowModal(false)}>
-                    Hủy
+                    {editing && (editing.status === 'expired' || editing.status === 'active') ? 'Đóng' : 'Hủy'}
                   </button>
-                  <button type="submit" className="button button-primary" disabled={saving}>
-                    {saving ? 'Đang lưu...' : editing ? 'Cập nhật' : 'Tạo mới'}
-                  </button>
+                  {!(editing && (editing.status === 'expired' || editing.status === 'active')) && (
+                    <button type="submit" className="button button-primary" disabled={saving}>
+                      {saving ? 'Đang lưu...' : editing ? 'Cập nhật' : 'Tạo mới'}
+                    </button>
+                  )}
                 </div>
               </form>
             </div>

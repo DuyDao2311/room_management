@@ -16,7 +16,7 @@ import SignaturePad from '../../components/ui/SignaturePad.tsx'
 import FeedbackList from '../../components/ui/FeedbackList.tsx'
 import FeedbackForm from '../../components/ui/FeedbackForm.tsx'
 import { checkEligibility, getMyFeedback, type Feedback } from '../../api/feedback.ts'
-// import { bookingService } from '../../api/booking.service.ts'
+import AddonServicesStep from './AddonServicesStep.tsx'
 import DatePicker, { registerLocale } from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { vi } from 'date-fns/locale'
@@ -101,19 +101,44 @@ interface CoResident {
 
 const MAX_CO_RESIDENTS = 3
 
+
 // Component custom để hiển thị date dạng dd/mm/yyyy
 const CustomDateInput = ({ value, onChange, readOnly = false, required = false, className = "", style = {}, placeholder = "dd/mm/yyyy" }: any) => {
   const displayValue = value ? value.split('-').reverse().join('/') : placeholder;
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
+      <style>{`
+        .hide-native-date::-webkit-datetime-edit,
+        .hide-native-date::-webkit-datetime-edit-fields-wrapper,
+        .hide-native-date::-webkit-datetime-edit-text,
+        .hide-native-date::-webkit-datetime-edit-month-field,
+        .hide-native-date::-webkit-datetime-edit-day-field,
+        .hide-native-date::-webkit-datetime-edit-year-field {
+          color: transparent !important;
+          background: transparent !important;
+        }
+        .hide-native-date:focus::-webkit-datetime-edit,
+        .hide-native-date:focus::-webkit-datetime-edit-fields-wrapper,
+        .hide-native-date:focus::-webkit-datetime-edit-text,
+        .hide-native-date:focus::-webkit-datetime-edit-month-field,
+        .hide-native-date:focus::-webkit-datetime-edit-day-field,
+        .hide-native-date:focus::-webkit-datetime-edit-year-field {
+          color: transparent !important;
+          background: transparent !important;
+        }
+        .hide-native-date::selection {
+          background: transparent !important;
+          color: transparent !important;
+        }
+      `}</style>
       <input
         type="date"
         value={value}
         onChange={onChange}
         readOnly={readOnly}
         required={required}
-        className={className}
-        style={{ ...style, color: 'transparent', width: '100%' }}
+        className={`${className} hide-native-date`}
+        style={{ ...style, color: 'transparent', width: '100%', caretColor: 'transparent', cursor: 'pointer' }}
       />
       <span style={{
         position: 'absolute',
@@ -173,6 +198,9 @@ export default function RoomDetail() {
   const [shortSuccess, setShortSuccess] = useState(false)
   const [guests, setGuests] = useState(1)
   const [shortBookingType, setShortBookingType] = useState('hour')
+
+  // Addon services step state
+  const [showServiceStep, setShowServiceStep] = useState(false)
 
   // ── Auto-determine bookingType from duration ──────────────────────────────
   const getAutoBookingType = () => {
@@ -323,6 +351,16 @@ export default function RoomDetail() {
     } finally {
       setRentLoading(false)
     }
+  }
+
+  // Open service step
+  const handleOpenServiceStep = () => {
+    setShortError('')
+    if (!shortCheckIn || !shortCheckOut) {
+      setShortError('Vui lòng chọn ngày nhận/trả phòng')
+      return
+    }
+    setShowServiceStep(true)
   }
 
   const handleShortTermSubmit = async (e: React.FormEvent) => {
@@ -854,8 +892,8 @@ export default function RoomDetail() {
                   })()}
 
                   {user ? (
-                    <button type="submit" disabled={shortLoading} style={{ width: '100%', background: '#1c4c6b', color: '#fff', border: 'none', padding: '14px', borderRadius: '8px', fontSize: '1.05rem', fontWeight: 700, cursor: 'pointer', opacity: shortLoading ? 0.7 : 1, marginTop: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-                      {shortLoading ? 'ĐANG XỬ LÝ...' : 'Đặt phòng'}
+                    <button type="button" onClick={handleOpenServiceStep} disabled={shortLoading} style={{ width: '100%', background: '#1c4c6b', color: '#fff', border: 'none', padding: '14px', borderRadius: '8px', fontSize: '1.05rem', fontWeight: 700, cursor: 'pointer', opacity: shortLoading ? 0.7 : 1, marginTop: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                      Đặt phòng
                     </button>
                   ) : (
                     <Link to="/login" className="button button-primary" style={{ width: '100%', background: '#e11d48', color: '#fff', display: 'block', textAlign: 'center', padding: '14px', borderRadius: '8px', fontSize: '1.05rem', fontWeight: 700, marginTop: '8px' }}>
@@ -1275,6 +1313,36 @@ export default function RoomDetail() {
           </div>
         </div>
       )}
+
+      {/* ── Additional Services Step Overlay ── */}
+      {showServiceStep && room && (() => {
+        const est = calcEstimatedPrice()
+        const roomTotal = (est && !('error' in est)) ? est.total : 0
+        const qty = (est && !('error' in est)) ? est.quantity : 0
+        const uLabel = (est && !('error' in est)) ? est.unitLabel : ''
+
+        return (
+          <AddonServicesStep
+            room={{ _id: room._id, name: room.name, type: room.type }}
+            checkIn={shortCheckIn}
+            checkOut={shortCheckOut}
+            guests={guests}
+            bookingType={shortBookingType}
+            roomTotal={roomTotal}
+            quantity={qty}
+            unitLabel={uLabel}
+            onSuccess={() => {
+              setShowServiceStep(false)
+              setShortSuccess(true)
+            }}
+            onError={(msg) => {
+              setShortError(msg)
+              setShowServiceStep(false)
+            }}
+            onBack={() => setShowServiceStep(false)}
+          />
+        )
+      })()}
 
       {/* ── Feedback & Đánh giá ── */}
       {room && (

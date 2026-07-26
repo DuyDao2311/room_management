@@ -12,6 +12,7 @@ import {
   CheckCheck,
   Trash2,
   Wrench,
+  Home,
 } from 'lucide-react'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -64,6 +65,11 @@ const notifConfig: Record<string, { icon: React.ReactNode; color: string; bg: st
     color: '#ef4444',
     bg: 'rgba(239, 68, 68, 0.1)',
   },
+  BOOKING: {
+    icon: <Home size={18} />,
+    color: '#0ea5e9',
+    bg: 'rgba(14, 165, 233, 0.1)',
+  },
 }
 
 interface Props {
@@ -83,6 +89,7 @@ export default function AdminNotificationDropdown({ onClose }: Props) {
     unreadFeedbackCount,
     unreadInvoiceCount,
     unreadIncidentCount,
+    unreadBookingCount,
     markAsRead,
     markAllAsRead,
     deleteNotification,
@@ -97,6 +104,7 @@ export default function AdminNotificationDropdown({ onClose }: Props) {
     { key: 'APPOINTMENT', label: 'Lịch hẹn', count: unreadAppointmentCount },
     { key: 'CONTRACT', label: 'Hợp đồng', count: unreadContractCount },
     { key: 'INVOICE', label: 'Hóa đơn', count: unreadInvoiceCount },
+    { key: 'BOOKING', label: 'Đặt phòng', count: unreadBookingCount },
     { key: 'FEEDBACK', label: 'Đánh giá', count: unreadFeedbackCount },
     { key: 'INCIDENT', label: 'Sự cố', count: unreadIncidentCount || 0 },
   ]
@@ -146,6 +154,9 @@ export default function AdminNotificationDropdown({ onClose }: Props) {
         break
       case 'SERVICE':
         navigate(n.serviceBookingId ? `/admin/service-bookings?highlight=${n.serviceBookingId}` : '/admin/service-bookings')
+        break
+      case 'BOOKING':
+        navigate('/admin/bookings')
         break
       default:
         navigate('/admin')

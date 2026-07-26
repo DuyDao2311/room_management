@@ -15,6 +15,7 @@ import VerifyEmail from './pages/auth/VerifyEmail'
 import Dashboard from './pages/admin/Dashboard'
 import AdminRoomMapPage from './pages/admin/AdminRoomMapPage'
 import RoomManagement from './pages/admin/RoomManagement'
+import AdminBookingDetail from './pages/admin/AdminBookingDetail'
 import ContractManagement from './pages/admin/ContractManagement'
 import InvoiceManagement from './pages/admin/InvoiceManagement'
 import AppointmentManagement from './pages/admin/AppointmentManagement'
@@ -25,6 +26,7 @@ import BookingManagement from './pages/admin/BookingManagement'
 import MyInvoices from './pages/tenant/MyInvoices'
 import MyRoom from './pages/tenant/MyRoom'
 import MyBookings from './pages/tenant/MyBookings'
+import BookingDetail from './pages/tenant/BookingDetail'
 import MyIncidents from './pages/tenant/MyIncidents'
 import IncidentManagement from './pages/admin/IncidentManagement'
 import AdminLayout from './components/layout/AdminLayout'
@@ -113,6 +115,7 @@ function AppLayout() {
           <Route path="appointments/:id" element={<AppointmentDetail />} />
           <Route path="incidents" element={<IncidentManagement />} />
           <Route path="bookings" element={<BookingManagement />} />
+          <Route path="bookings/:id" element={<AdminBookingDetail />} />
           <Route path="services" element={<ServiceManagement />} />
           <Route path="service-bookings" element={<ServiceBookingManagement />} />
           <Route path="users" element={<RequireAuth role="admin"><UserManagement /></RequireAuth>} />
@@ -130,11 +133,12 @@ function AppLayout() {
         </Route>
 
         {/* Tenant only */}
-          <Route path="/my-invoices" element={<RequireAuth role="tenant"><MyInvoices /></RequireAuth>} />
-          <Route path="/my-room" element={<RequireAuth role="tenant"><MyRoom /></RequireAuth>} />
-          <Route path="/my-bookings" element={<RequireAuth role="tenant"><MyBookings /></RequireAuth>} />
-          <Route path="/my-service-bookings" element={<RequireAuth role="tenant"><MyServiceBookings /></RequireAuth>} />
-          <Route path="/my-incidents" element={<RequireAuth role="tenant"><MyIncidents /></RequireAuth>} />
+        <Route path="/my-invoices" element={<RequireAuth role="tenant"><MyInvoices /></RequireAuth>} />
+        <Route path="/my-room" element={<RequireAuth role="tenant"><MyRoom /></RequireAuth>} />
+        <Route path="/my-bookings" element={<RequireAuth role="tenant"><MyBookings /></RequireAuth>} />
+        <Route path="/my-bookings/:id" element={<RequireAuth role="tenant"><BookingDetail /></RequireAuth>} />
+        <Route path="/my-service-bookings" element={<RequireAuth role="tenant"><MyServiceBookings /></RequireAuth>} />
+        <Route path="/my-incidents" element={<RequireAuth role="tenant"><MyIncidents /></RequireAuth>} />
 
         {/* 404 fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

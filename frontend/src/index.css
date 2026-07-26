@@ -4435,6 +4435,487 @@ body:has(.admin-main-content--no-padding) {
 }
 
 /* =========================================
+   Additional Services Step — RoomDetail
+   ========================================= */
+.addon-services-overlay {
+  position: fixed;
+  inset: 0;
+  background: #f5f7fa;
+  z-index: 900;
+  overflow-y: auto;
+  animation: addon-slide-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes addon-slide-in {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.addon-services-container {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 48px 32px 80px;
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  gap: 40px;
+  align-items: start;
+}
+
+/* ── Left column ── */
+.addon-left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.addon-header {
+  margin-bottom: 8px;
+}
+
+.addon-header h2 {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #101828;
+  margin: 0 0 6px;
+}
+
+.addon-header-subtitle {
+  font-size: 0.92rem;
+  color: #667085;
+  margin: 0;
+}
+
+.addon-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.addon-price-link {
+  font-size: 0.85rem;
+  color: #475467;
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.addon-price-link:hover {
+  color: #101828;
+}
+
+/* ── Service card ── */
+.addon-service-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 22px;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 14px;
+  transition: all 0.25s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.addon-service-card:hover {
+  border-color: #d0d5dd;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.addon-service-card.active {
+  border-color: #0f5cc7;
+  background: #f0f6ff;
+  box-shadow: 0 0 0 3px rgba(15, 92, 199, 0.08);
+}
+
+.addon-service-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.5rem;
+}
+
+.addon-service-icon.cleaning {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.addon-service-icon.laundry {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.addon-service-icon.transport {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.addon-service-icon.food {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.addon-service-icon.spa {
+  background: #f3e8ff;
+  color: #9333ea;
+}
+
+.addon-service-icon.maintenance {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+
+.addon-service-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.addon-service-name {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #101828;
+  margin: 0 0 3px;
+}
+
+.addon-service-desc {
+  font-size: 0.82rem;
+  color: #667085;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.addon-service-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.addon-service-price {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.addon-service-price-num {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #088373;
+}
+
+.addon-service-price-unit {
+  font-size: 0.78rem;
+  color: #667085;
+  font-weight: 500;
+}
+
+/* ── Custom toggle switch ── */
+.addon-toggle {
+  position: relative;
+  width: 48px;
+  height: 26px;
+  flex-shrink: 0;
+}
+
+.addon-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  position: absolute;
+}
+
+.addon-toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: #d0d5dd;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.addon-toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  left: 3px;
+  top: 3px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.addon-toggle input:checked + .addon-toggle-slider {
+  background: #0f5cc7;
+}
+
+.addon-toggle input:checked + .addon-toggle-slider::before {
+  transform: translateX(22px);
+}
+
+/* ── Quantity row inside card ── */
+.addon-quantity-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #e5e7eb;
+}
+
+.addon-quantity-row label {
+  font-size: 0.82rem;
+  color: #475467;
+  font-weight: 600;
+}
+
+.addon-qty-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.addon-qty-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.addon-qty-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.addon-qty-val {
+  min-width: 24px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #101828;
+}
+
+/* ── Right column: Booking summary ── */
+.addon-summary-card {
+  position: sticky;
+  top: 32px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.07);
+  border: 1px solid #e5e7eb;
+}
+
+.addon-summary-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #101828;
+  margin: 0 0 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f2f4f7;
+}
+
+.addon-summary-room-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 4px;
+}
+
+.addon-summary-room-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #101828;
+  margin: 0;
+}
+
+.addon-summary-room-dates {
+  font-size: 0.82rem;
+  color: #667085;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.addon-summary-guests {
+  font-size: 0.82rem;
+  color: #667085;
+  margin: 2px 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Price rows */
+.addon-summary-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.88rem;
+  color: #475467;
+  padding: 6px 0;
+}
+
+.addon-summary-line-val {
+  font-weight: 600;
+  color: #101828;
+  white-space: nowrap;
+}
+
+/* Selected services section */
+.addon-summary-services-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #475467;
+  margin: 16px 0 8px;
+}
+
+.addon-summary-service-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #475467;
+  padding: 5px 0;
+  padding-left: 12px;
+  border-left: 3px solid #0f5cc7;
+}
+
+.addon-summary-service-item span:last-child {
+  font-weight: 600;
+  color: #101828;
+  white-space: nowrap;
+}
+
+/* Divider */
+.addon-summary-divider {
+  height: 1px;
+  background: #e5e7eb;
+  margin: 16px 0;
+}
+
+/* Total */
+.addon-summary-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 4px;
+}
+
+.addon-summary-total-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #475467;
+}
+
+.addon-summary-total-val {
+  font-size: 1.7rem;
+  font-weight: 800;
+  color: #088373;
+}
+
+.addon-summary-total-currency {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #088373;
+}
+
+/* CTA button */
+.addon-cta-btn {
+  width: 100%;
+  margin-top: 20px;
+  padding: 15px 24px;
+  background: #1c4c6b;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 12px rgba(28, 76, 107, 0.25);
+}
+
+.addon-cta-btn:hover:not(:disabled) {
+  background: #153d57;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(28, 76, 107, 0.35);
+}
+
+.addon-cta-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.addon-back-btn {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px;
+  background: transparent;
+  border: none;
+  color: #475467;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.2s;
+}
+
+.addon-back-btn:hover {
+  color: #101828;
+}
+
+/* ── No services fallback ── */
+.addon-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #667085;
+}
+
+.addon-empty-icon {
+  font-size: 2.5rem;
+  margin-bottom: 12px;
+}
+
+.addon-empty p {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .addon-services-container {
+    grid-template-columns: 1fr;
+    padding: 24px 16px 60px;
+    gap: 24px;
+  }
+
+  .addon-summary-card {
+    position: relative;
+    top: 0;
+  }
+}
+
+/* =========================================
    Feedback Section — RoomDetail
    ========================================= */
 .rd-feedback-section {

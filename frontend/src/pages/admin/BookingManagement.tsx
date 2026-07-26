@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { bookingService, type Booking } from '../../api/booking.service'
 import Spinner from '../../components/ui/Spinner'
 import { FiCheck, FiX, FiCheckCircle, FiLogOut } from 'react-icons/fi'
@@ -11,6 +12,7 @@ export default function BookingManagement() {
   const [error, setError] = useState('')
   const [processing, setProcessing] = useState<string | null>(null)
   const [stats, setStats] = useState<any>(null)
+  const navigate = useNavigate()
 
   const [filters, setFilters] = useState({
     search: '',
@@ -173,9 +175,16 @@ export default function BookingManagement() {
                 </thead>
                 <tbody>
                   {filteredBookings.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE).map(b => (
-                    <tr key={b._id} style={{ borderBottom: '1px solid #eaecf0' }}>
+                    <tr key={b._id} style={{ borderBottom: '1px solid #eaecf0', cursor: 'pointer' }} onClick={() => navigate(`/admin/bookings/${b._id}`)}>
                       <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
-                        <div style={{ fontWeight: 700, color: '#101828' }}>{b.room?.name || 'Phòng đã xóa'}</div>
+                        <div style={{ fontWeight: 700, color: '#101828', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {b.room?.name || 'Phòng đã xóa'}
+                          {b.serviceBookings && b.serviceBookings.length > 0 && (
+                            <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 600 }} title="Gồm các dịch vụ kèm theo">
+                              +{b.serviceBookings.length} DV
+                            </span>
+                          )}
+                        </div>
                         <div style={{ fontSize: '0.8rem', color: '#667085' }}>{b.room?.district || ''}</div>
                       </td>
                       <td style={{ padding: '12px', whiteSpace: 'nowrap' }}>
@@ -212,22 +221,22 @@ export default function BookingManagement() {
                           ) : (
                             <>
                               {b.status === 'pending' && (
-                                <button onClick={() => handleAction(b._id, 'confirm')} style={{ background: '#deebff', color: '#0052cc', border: 'none', padding: '4px 8px', borderRadius: '4px', fontWeight: 500, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} title="Xác nhận">
+                                <button onClick={(e) => { e.stopPropagation(); handleAction(b._id, 'confirm') }} style={{ background: '#deebff', color: '#0052cc', border: 'none', padding: '4px 8px', borderRadius: '4px', fontWeight: 500, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} title="Xác nhận">
                                   <FiCheck /> Xác nhận
                                 </button>
                               )}
                               {b.status === 'confirmed' && (
-                                <button onClick={() => handleAction(b._id, 'checkin')} style={{ background: '#bef2e8', color: '#088373', border: 'none', padding: '4px 8px', borderRadius: '4px', fontWeight: 500, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} title="Check-in">
+                                <button onClick={(e) => { e.stopPropagation(); handleAction(b._id, 'checkin') }} style={{ background: '#bef2e8', color: '#088373', border: 'none', padding: '4px 8px', borderRadius: '4px', fontWeight: 500, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} title="Check-in">
                                   <FiCheckCircle /> Check-in
                                 </button>
                               )}
                               {b.status === 'checked_in' && (
-                                <button onClick={() => handleAction(b._id, 'checkout')} style={{ background: '#f0f2f5', color: '#667085', border: 'none', padding: '4px 8px', borderRadius: '4px', fontWeight: 500, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} title="Check-out">
+                                <button onClick={(e) => { e.stopPropagation(); handleAction(b._id, 'checkout') }} style={{ background: '#f0f2f5', color: '#667085', border: 'none', padding: '4px 8px', borderRadius: '4px', fontWeight: 500, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} title="Check-out">
                                   <FiLogOut /> Check-out
                                 </button>
                               )}
                               {['pending', 'confirmed'].includes(b.status) && (
-                                <button onClick={() => handleAction(b._id, 'cancel')} style={{ background: 'transparent', color: '#d92d20', border: '1px solid #d92d20', padding: '3px 7px', borderRadius: '4px', fontWeight: 500, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} title="Hủy">
+                                <button onClick={(e) => { e.stopPropagation(); handleAction(b._id, 'cancel') }} style={{ background: 'transparent', color: '#d92d20', border: '1px solid #d92d20', padding: '3px 7px', borderRadius: '4px', fontWeight: 500, fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} title="Hủy">
                                   <FiX /> Hủy
                                 </button>
                               )}
