@@ -6,6 +6,28 @@ import { serviceBookingService } from '../api/serviceBooking.service'
 
 const NO_ROOM_MESSAGE = 'Bạn cần đang thuê phòng để đặt dịch vụ này.'
 const ONE_HOUR_MS = 60 * 60 * 1000
+const SLOT_MS = 30 * 60 * 1000
+
+function roundUpToSlot(date: Date): Date {
+  return new Date(Math.ceil(date.getTime() / SLOT_MS) * SLOT_MS)
+}
+
+/** Giờ hẹn hợp lệ sớm nhất — đủ trước 1 tiếng, nằm trong khung giờ nhận đặt của dịch vụ (nếu có). */
+function computeEarliestBookableTime(service: Service | null): Date {
+  const earliest = roundUpToSlot(new Date(Date.now() + ONE_HOUR_MS))
+  if (!service?.bookingWindowStart || !service?.bookingWindowEnd) return earliest
+
+  const hhmm = `${String(earliest.getHours()).padStart(2, '0')}:${String(earliest.getMinutes()).padStart(2, '0')}`
+  const [startHour, startMinute] = service.bookingWindowStart.split(':').map(Number)
+
+  if (hhmm > service.bookingWindowEnd) {
+    earliest.setDate(earliest.getDate() + 1)
+    earliest.setHours(startHour, startMinute, 0, 0)
+  } else if (hhmm < service.bookingWindowStart) {
+    earliest.setHours(startHour, startMinute, 0, 0)
+  }
+  return earliest
+}
 
 export interface UseServiceDetailResult {
   service: Service | null
@@ -86,7 +108,7 @@ export function useServiceDetail(id: string | undefined): UseServiceDetailResult
 
   const openBookModal = useCallback(() => {
     if (!user) { navigate(`/login?redirect=${location.pathname}`); return }
-    setScheduledAt('')
+    setScheduledAt(computeEarliestBookableTime(service).toISOString())
     setQuantity(1)
     setMatchQuantity(1)
     setNote('')

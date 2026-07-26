@@ -129,6 +129,48 @@ describe('useServiceDetail', () => {
 
     vi.useRealTimers()
   })
+
+  test('openBookModal: đang trong khung giờ → tự điền giờ hẹn = hiện tại + 1 tiếng (làm tròn 30 phút)', async () => {
+    vi.setSystemTime(new Date('2026-07-09T10:00:00'))
+    const SERVICE_WITH_WINDOW = { ...SERVICE_A, bookingWindowStart: '08:00', bookingWindowEnd: '22:00' }
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: SERVICE_WITH_WINDOW } as any)
+
+    const { result } = renderHook(() => useServiceDetail('1'), { wrapper })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => { result.current.openBookModal() })
+
+    expect(result.current.scheduledAt).toBe(new Date('2026-07-09T11:00:00').toISOString())
+    vi.useRealTimers()
+  })
+
+  test('openBookModal: hiện tại còn trước giờ mở nhận đặt → tự điền đúng giờ mở hôm nay', async () => {
+    vi.setSystemTime(new Date('2026-07-09T06:00:00'))
+    const SERVICE_WITH_WINDOW = { ...SERVICE_A, bookingWindowStart: '08:00', bookingWindowEnd: '22:00' }
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: SERVICE_WITH_WINDOW } as any)
+
+    const { result } = renderHook(() => useServiceDetail('1'), { wrapper })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => { result.current.openBookModal() })
+
+    expect(result.current.scheduledAt).toBe(new Date('2026-07-09T08:00:00').toISOString())
+    vi.useRealTimers()
+  })
+
+  test('openBookModal: hiện tại đã qua giờ đóng nhận đặt → tự điền giờ mở của ngày mai', async () => {
+    vi.setSystemTime(new Date('2026-07-09T21:30:00'))
+    const SERVICE_WITH_WINDOW = { ...SERVICE_A, bookingWindowStart: '08:00', bookingWindowEnd: '22:00' }
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: SERVICE_WITH_WINDOW } as any)
+
+    const { result } = renderHook(() => useServiceDetail('1'), { wrapper })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    act(() => { result.current.openBookModal() })
+
+    expect(result.current.scheduledAt).toBe(new Date('2026-07-10T08:00:00').toISOString())
+    vi.useRealTimers()
+  })
 })
 
 const CAPACITY_MATCH_SERVICE = {
