@@ -28,6 +28,8 @@ export interface Service {
   ratingCount: number
   isActive: boolean
   bookingCount?: number
+  bookingWindowStart?: string
+  bookingWindowEnd?: string
   createdAt: string
   updatedAt: string
 }
@@ -88,6 +90,8 @@ export const serviceService = {
     variants?: ServiceVariant[]
     requiresCapacityMatch?: boolean
     capacityFieldLabel?: string
+    bookingWindowStart?: string
+    bookingWindowEnd?: string
   }) => api.post<Service>('/services', data),
 
   updateService: (
@@ -104,6 +108,8 @@ export const serviceService = {
       variants: ServiceVariant[]
       requiresCapacityMatch: boolean
       capacityFieldLabel: string
+      bookingWindowStart: string
+      bookingWindowEnd: string
     }>
   ) => api.put<Service>(`/services/${id}`, data),
 

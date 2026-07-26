@@ -12,9 +12,21 @@ const isValidVariants = (variants, requiresCapacityMatch) =>
     (!requiresCapacityMatch || Number(v.capacity) >= 1)
   );
 
+const validateBookingWindow = (start, end) => {
+  const hasStart = !!start;
+  const hasEnd = !!end;
+  if (hasStart !== hasEnd) {
+    return "Phải nhập đủ cả giờ bắt đầu và giờ kết thúc nhận đặt, hoặc để trống cả hai.";
+  }
+  if (hasStart && hasEnd && start >= end) {
+    return "Giờ bắt đầu nhận đặt phải trước giờ kết thúc.";
+  }
+  return null;
+};
+
 const createService = async (req, res) => {
   try {
-    const { name, category, description, price, unit, images, usesVariants, variants, requiresCapacityMatch, capacityFieldLabel } = req.body;
+    const { name, category, description, price, unit, images, usesVariants, variants, requiresCapacityMatch, capacityFieldLabel, bookingWindowStart, bookingWindowEnd } = req.body;
 
     if (!name || !category) {
       return res.status(400).json({
@@ -39,6 +51,11 @@ const createService = async (req, res) => {
       });
     }
 
+    const windowError = validateBookingWindow(bookingWindowStart, bookingWindowEnd);
+    if (windowError) {
+      return res.status(400).json({ message: windowError });
+    }
+
     const service = await Service.create({
       name,
       category,
@@ -50,6 +67,8 @@ const createService = async (req, res) => {
       requiresCapacityMatch: usesVariants ? !!requiresCapacityMatch : false,
       capacityFieldLabel: usesVariants && requiresCapacityMatch ? capacityFieldLabel : "",
       images: images || [],
+      bookingWindowStart: bookingWindowStart || "",
+      bookingWindowEnd: bookingWindowEnd || "",
       createdBy: req.user._id,
       isActive: false,
     });
@@ -126,12 +145,19 @@ const getServiceReviews = async (req, res) => {
 
 const updateService = async (req, res) => {
   try {
-    const { name, category, description, price, unit, images, isActive, usesVariants, variants, requiresCapacityMatch, capacityFieldLabel } = req.body;
+    const { name, category, description, price, unit, images, isActive, usesVariants, variants, requiresCapacityMatch, capacityFieldLabel, bookingWindowStart, bookingWindowEnd } = req.body;
 
     const service = await Service.findById(req.params.id);
     if (!service) return res.status(404).json({ message: "Không tìm thấy dịch vụ." });
 
     const wasActive = service.isActive;
+
+    const nextBookingWindowStart = bookingWindowStart !== undefined ? bookingWindowStart : service.bookingWindowStart;
+    const nextBookingWindowEnd = bookingWindowEnd !== undefined ? bookingWindowEnd : service.bookingWindowEnd;
+    const windowError = validateBookingWindow(nextBookingWindowStart, nextBookingWindowEnd);
+    if (windowError) {
+      return res.status(400).json({ message: windowError });
+    }
 
     if (name !== undefined) service.name = name;
     if (category !== undefined) service.category = category;
@@ -166,6 +192,8 @@ const updateService = async (req, res) => {
         message: "Vui lòng đặt tên nhãn cho trường số lượng (vd: Số hành khách).",
       });
     }
+    if (bookingWindowStart !== undefined) service.bookingWindowStart = bookingWindowStart;
+    if (bookingWindowEnd !== undefined) service.bookingWindowEnd = bookingWindowEnd;
 
     await service.save();
 

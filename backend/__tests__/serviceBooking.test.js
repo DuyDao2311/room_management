@@ -199,6 +199,46 @@ describe("POST /api/service-bookings", () => {
 
     expect(res.status).toBe(201);
   });
+
+  test("đặt trong khung giờ nhận đặt của dịch vụ → 201", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createActiveService({ bookingWindowStart: "08:00", bookingWindowEnd: "22:00" });
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: "2030-01-01T10:00:00+07:00", quantity: 1 });
+
+    expect(res.status).toBe(201);
+  });
+
+  test("đặt ngoài khung giờ nhận đặt của dịch vụ → 400 đúng message", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createActiveService({ bookingWindowStart: "08:00", bookingWindowEnd: "22:00" });
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: "2030-01-01T23:00:00+07:00", quantity: 1 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Dịch vụ này chỉ nhận đặt từ 08:00 đến 22:00.");
+  });
+
+  test("dịch vụ không set khung giờ → đặt giờ nào cũng được", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createActiveService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: "2030-01-01T23:00:00+07:00", quantity: 1 });
+
+    expect(res.status).toBe(201);
+  });
 });
 
 describe("GET /api/service-bookings", () => {

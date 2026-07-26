@@ -102,8 +102,11 @@ export function useServiceDetail(id: string | undefined): UseServiceDetailResult
   const closeNoRoomModal = useCallback(() => setNoRoomModal(false), [])
 
   const filterBookingTime = useCallback((time: Date) => {
-    return time.getTime() - Date.now() >= ONE_HOUR_MS
-  }, [])
+    if (time.getTime() - Date.now() < ONE_HOUR_MS) return false
+    if (!service?.bookingWindowStart || !service?.bookingWindowEnd) return true
+    const hhmm = `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
+    return hhmm >= service.bookingWindowStart && hhmm <= service.bookingWindowEnd
+  }, [service])
 
   const handleBook = useCallback(async (e: FormEvent) => {
     e.preventDefault()

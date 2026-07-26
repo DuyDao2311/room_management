@@ -101,6 +101,34 @@ describe('useServiceDetail', () => {
     expect(result.current.reviews).toHaveLength(1)
     expect(result.current.reviews[0].tenant.name).toBe('Khách A')
   })
+
+  test('filterBookingTime chặn giờ ngoài khung giờ nhận đặt khi dịch vụ có set khung giờ', async () => {
+    vi.setSystemTime(new Date('2026-07-09T06:00:00'))
+    const SERVICE_WITH_WINDOW = { ...SERVICE_A, bookingWindowStart: '08:00', bookingWindowEnd: '22:00' }
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: SERVICE_WITH_WINDOW } as any)
+
+    const { result } = renderHook(() => useServiceDetail('1'), { wrapper })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.filterBookingTime(new Date('2026-07-09T10:00:00'))).toBe(true)  // trong khung
+    expect(result.current.filterBookingTime(new Date('2026-07-09T23:00:00'))).toBe(false) // sau giờ đóng
+    expect(result.current.filterBookingTime(new Date('2026-07-10T07:00:00'))).toBe(false) // trước giờ mở
+
+    vi.useRealTimers()
+  })
+
+  test('filterBookingTime không giới hạn gì khi dịch vụ không set khung giờ', async () => {
+    vi.setSystemTime(new Date('2026-07-09T06:00:00'))
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: SERVICE_A } as any)
+
+    const { result } = renderHook(() => useServiceDetail('1'), { wrapper })
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.filterBookingTime(new Date('2026-07-09T23:00:00'))).toBe(true)
+    expect(result.current.filterBookingTime(new Date('2026-07-10T02:00:00'))).toBe(true)
+
+    vi.useRealTimers()
+  })
 })
 
 const CAPACITY_MATCH_SERVICE = {

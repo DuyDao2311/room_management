@@ -49,6 +49,16 @@ const serviceSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    bookingWindowStart: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    bookingWindowEnd: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     images: {
       type: [String],
       default: [],

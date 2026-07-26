@@ -20,6 +20,20 @@ const CATEGORY_TAGS = {
   maintenance: ["Xử lý nhanh", "Chuyên nghiệp", "Đúng giờ", "Giải quyết triệt để"],
 };
 
+const getVnHHMM = (date) =>
+  new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+
+const isWithinBookingWindow = (scheduledAt, service) => {
+  if (!service.bookingWindowStart || !service.bookingWindowEnd) return true;
+  const hhmm = getVnHHMM(scheduledAt);
+  return hhmm >= service.bookingWindowStart && hhmm <= service.bookingWindowEnd;
+};
+
 /** Gửi notification cho tenant khi trạng thái booking đổi, rồi emit qua socket. Lỗi bị nuốt (không chặn response). */
 const notifyAndEmitStatusChange = async (req, booking, status) => {
   try {
@@ -71,6 +85,12 @@ const createServiceBooking = async (req, res) => {
     const service = await Service.findById(serviceId);
     if (!service || !service.isActive) {
       return res.status(404).json({ message: "Không tìm thấy dịch vụ." });
+    }
+
+    if (!isWithinBookingWindow(new Date(scheduledAt), service)) {
+      return res.status(400).json({
+        message: `Dịch vụ này chỉ nhận đặt từ ${service.bookingWindowStart} đến ${service.bookingWindowEnd}.`,
+      });
     }
 
     const [activeContract, activeBooking] = await Promise.all([

@@ -11,6 +11,7 @@ const EMPTY_FORM = {
   price: '', unit: 'lần' as ServiceUnit, images: '', isActive: false,
   usesVariants: false, requiresCapacityMatch: false, capacityFieldLabel: '',
   variants: [] as ServiceVariantForm[],
+  bookingWindowStart: '', bookingWindowEnd: '',
 }
 
 const ICON_BUTTON_STYLE = {
@@ -55,6 +56,7 @@ export default function ServiceManagement() {
       price: String(s.price), unit: s.unit, images: s.images.join(', '), isActive: s.isActive,
       usesVariants: s.usesVariants, requiresCapacityMatch: s.requiresCapacityMatch, capacityFieldLabel: s.capacityFieldLabel,
       variants: s.variants.map(v => ({ label: v.label, capacity: v.capacity != null ? String(v.capacity) : '', price: String(v.price), description: v.description ?? '' })),
+      bookingWindowStart: s.bookingWindowStart || '', bookingWindowEnd: s.bookingWindowEnd || '',
     })
     setShowModal(true)
   }
@@ -96,6 +98,8 @@ export default function ServiceManagement() {
             ...(form.requiresCapacityMatch ? { capacity: Number(v.capacity) } : {}),
             ...(v.description.trim() ? { description: v.description.trim() } : {}),
           })),
+          bookingWindowStart: form.bookingWindowStart,
+          bookingWindowEnd: form.bookingWindowEnd,
         }
       : {
           name: form.name,
@@ -106,6 +110,8 @@ export default function ServiceManagement() {
           images: form.images.split(',').map(s => s.trim()).filter(Boolean),
           isActive: form.isActive,
           usesVariants: false,
+          bookingWindowStart: form.bookingWindowStart,
+          bookingWindowEnd: form.bookingWindowEnd,
         }
     try {
       if (editing) {
@@ -369,6 +375,16 @@ export default function ServiceManagement() {
                     <input id="s-price" type="number" className="form-input" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required min={0} placeholder="100000" />
                   </div>
                 )}
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="s-window-start">Giờ nhận đặt từ</label>
+                    <input id="s-window-start" type="time" className="form-input" value={form.bookingWindowStart} onChange={e => setForm({ ...form, bookingWindowStart: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="s-window-end">Đến</label>
+                    <input id="s-window-end" type="time" className="form-input" value={form.bookingWindowEnd} onChange={e => setForm({ ...form, bookingWindowEnd: e.target.value })} />
+                  </div>
+                </div>
                 <div className="form-group">
                   <label htmlFor="s-images">Ảnh (URL, phân cách bằng dấu phẩy)</label>
                   <div style={{ display: 'flex', gap: 8 }}>
