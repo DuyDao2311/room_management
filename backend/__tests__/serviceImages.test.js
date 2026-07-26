@@ -6,13 +6,21 @@ const mongoose = require("mongoose");
 const { MongoMemoryServer } = require("mongodb-memory-server");
 
 const User = require("../models/User");
-const serviceRoutes = require("../routes/services");
-const { createUser, tokenFor } = require("./testHelpers");
 
 jest.mock("../middleware/upload", () => ({
   cloudinary: { uploader: { upload: jest.fn() } },
   uploadServiceImages: (req, res, next) => next(),
 }));
+
+const mockGenerateContent = jest.fn();
+jest.mock("@google/genai", () => ({
+  GoogleGenAI: jest.fn().mockImplementation(() => ({
+    models: { generateContent: mockGenerateContent },
+  })),
+}));
+
+const serviceRoutes = require("../routes/services");
+const { createUser, tokenFor } = require("./testHelpers");
 const { cloudinary } = require("../middleware/upload");
 
 let mongoServer;
@@ -202,5 +210,91 @@ describe("POST /api/services/images/upload", () => {
       .set("Authorization", `Bearer ${tokenFor(admin)}`);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ urls: [] });
+  });
+});
+
+describe("POST /api/services/images/generate", () => {
+  const originalKey = process.env.GEMINI_API_KEY;
+
+  afterEach(() => {
+    jest.clearAllMocks();
+    if (originalKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = originalKey;
+  });
+
+  test("tenant không được tạo ảnh AI → 403", async () => {
+    process.env.GEMINI_API_KEY = "fake-key";
+    const tenant = await createUser("tenant");
+    const res = await request(app)
+      .post("/api/services/images/generate")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ prompt: "ảnh giường ngủ" });
+    expect(res.status).toBe(403);
+  });
+
+  test("thiếu GEMINI_API_KEY → 503", async () => {
+    delete process.env.GEMINI_API_KEY;
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services/images/generate")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ prompt: "ảnh giường ngủ" });
+    expect(res.status).toBe(503);
+  });
+
+  test("thiếu prompt → 400", async () => {
+    process.env.GEMINI_API_KEY = "fake-key";
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services/images/generate")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  test("Gemini không trả ảnh (bị chặn/an toàn) → 502", async () => {
+    process.env.GEMINI_API_KEY = "fake-key";
+    mockGenerateContent.mockResolvedValue({
+      candidates: [{ content: { parts: [{ text: "Xin lỗi, tôi không thể tạo ảnh này." }] } }],
+    });
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services/images/generate")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ prompt: "ảnh giường ngủ" });
+    expect(res.status).toBe(502);
+  });
+
+  test("tạo ảnh thành công → upload Cloudinary, trả url", async () => {
+    process.env.GEMINI_API_KEY = "fake-key";
+    mockGenerateContent.mockResolvedValue({
+      candidates: [
+        { content: { parts: [{ inlineData: { mimeType: "image/png", data: "ZmFrZWJhc2U2NA==" } }] } },
+      ],
+    });
+    cloudinary.uploader.upload.mockResolvedValue({ secure_url: "https://res.cloudinary.com/demo/services/ai1.jpg" });
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services/images/generate")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ prompt: "ảnh giường ngủ khách sạn" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ url: "https://res.cloudinary.com/demo/services/ai1.jpg" });
+    expect(cloudinary.uploader.upload).toHaveBeenCalledWith(
+      "data:image/png;base64,ZmFrZWJhc2U2NA==",
+      { folder: "room_management/services" }
+    );
+  });
+
+  test("Gemini lỗi → 502", async () => {
+    process.env.GEMINI_API_KEY = "fake-key";
+    mockGenerateContent.mockRejectedValue(new Error("gemini down"));
+    const admin = await createUser("admin");
+    const res = await request(app)
+      .post("/api/services/images/generate")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`)
+      .send({ prompt: "ảnh giường ngủ" });
+    expect(res.status).toBe(502);
   });
 });

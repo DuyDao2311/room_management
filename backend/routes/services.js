@@ -9,12 +9,13 @@ const {
   updateService,
   deleteService,
 } = require("../controllers/serviceController");
-const { searchServiceImages, importServiceImage, uploadServiceImagesHandler } = require("../controllers/serviceImageController");
+const { searchServiceImages, importServiceImage, uploadServiceImagesHandler, generateServiceImage } = require("../controllers/serviceImageController");
 const { uploadServiceImages } = require("../middleware/upload");
 
 router.get("/images/search", protect, verifyRole("admin", "staff"), searchServiceImages);
 router.post("/images/import", protect, verifyRole("admin", "staff"), importServiceImage);
 router.post("/images/upload", protect, verifyRole("admin", "staff"), uploadServiceImages, uploadServiceImagesHandler);
+router.post("/images/generate", protect, verifyRole("admin", "staff"), generateServiceImage);
 
 // GET — public, optionalAuth để biết role (ẩn/hiện inactive)
 router.get("/", optionalAuth, getServices);
