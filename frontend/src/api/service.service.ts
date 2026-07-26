@@ -122,4 +122,7 @@ export const serviceService = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+
+  generateServiceImage: (prompt: string) =>
+    api.post<{ url: string }>('/services/images/generate', { prompt }),
 }

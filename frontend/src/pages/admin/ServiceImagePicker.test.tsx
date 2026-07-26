@@ -12,6 +12,7 @@ vi.mock('../../api/service.service', async () => {
       searchServiceImages: vi.fn(),
       importServiceImage: vi.fn(),
       uploadServiceImages: vi.fn(),
+      generateServiceImage: vi.fn(),
     },
   }
 })
@@ -90,5 +91,31 @@ describe('ServiceImagePicker', () => {
     render(<ServiceImagePicker onDone={onDone} onClose={onClose} />)
     await new Promise(r => setTimeout(r, 0))
     expect(serviceService.searchServiceImages).not.toHaveBeenCalled()
+  })
+
+  test('AI tạo ảnh: tạo xong bấm "Dùng ảnh này" thì thêm vào danh sách đã chọn', async () => {
+    vi.mocked(serviceService.generateServiceImage).mockResolvedValue({
+      data: { url: 'https://res.cloudinary.com/demo/services/ai1.jpg' },
+    } as any)
+
+    render(<ServiceImagePicker onDone={onDone} onClose={onClose} serviceName="Dọn giường & thay ga gối" />)
+    await userEvent.click(screen.getByRole('button', { name: 'AI tạo ảnh' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Tạo ảnh' }))
+
+    await waitFor(() => expect(serviceService.generateServiceImage).toHaveBeenCalled())
+    await userEvent.click(await screen.findByRole('button', { name: 'Dùng ảnh này' }))
+    expect(await screen.findByText('Ảnh đã chọn (1)')).toBeInTheDocument()
+  })
+
+  test('AI tạo ảnh lỗi hiện thông báo', async () => {
+    vi.mocked(serviceService.generateServiceImage).mockRejectedValue({
+      response: { data: { message: 'Tính năng AI tạo ảnh chưa được cấu hình.' } },
+    })
+
+    render(<ServiceImagePicker onDone={onDone} onClose={onClose} serviceName="Dọn giường & thay ga gối" />)
+    await userEvent.click(screen.getByRole('button', { name: 'AI tạo ảnh' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Tạo ảnh' }))
+
+    expect(await screen.findByText('Tính năng AI tạo ảnh chưa được cấu hình.')).toBeInTheDocument()
   })
 })

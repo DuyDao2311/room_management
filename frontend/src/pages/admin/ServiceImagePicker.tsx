@@ -8,8 +8,13 @@ interface Props {
   serviceDescription?: string
 }
 
+function buildDefaultPrompt(serviceName?: string, serviceDescription?: string): string {
+  if (!serviceName) return ''
+  return `Ảnh minh họa dịch vụ "${serviceName}" tại khách sạn/phòng cho thuê${serviceDescription ? `, mô tả: ${serviceDescription}` : ''}. Phong cách: ảnh chụp thực tế, chuyên nghiệp, ánh sáng tự nhiên.`
+}
+
 export default function ServiceImagePicker({ onDone, onClose, serviceName, serviceDescription }: Props) {
-  const [tab, setTab] = useState<'search' | 'upload'>('search')
+  const [tab, setTab] = useState<'search' | 'upload' | 'ai'>('search')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<PixabayImageResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -19,6 +24,10 @@ export default function ServiceImagePicker({ onDone, onClose, serviceName, servi
   const [uploadFiles, setUploadFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const [aiPrompt, setAiPrompt] = useState(() => buildDefaultPrompt(serviceName, serviceDescription))
+  const [generating, setGenerating] = useState(false)
+  const [generateError, setGenerateError] = useState('')
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null)
 
   const runSearch = async (q: string) => {
     setSearching(true)
@@ -78,6 +87,26 @@ export default function ServiceImagePicker({ onDone, onClose, serviceName, servi
     setSelected(prev => prev.filter(u => u !== url))
   }
 
+  const handleGenerate = async () => {
+    if (!aiPrompt.trim()) return
+    setGenerating(true)
+    setGenerateError('')
+    try {
+      const res = await serviceService.generateServiceImage(aiPrompt)
+      setGeneratedImage(res.data.url)
+    } catch (err: any) {
+      setGenerateError(err.response?.data?.message || 'Không tạo được ảnh, thử lại sau.')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleUseGeneratedImage = () => {
+    if (!generatedImage) return
+    setSelected(prev => [...prev, generatedImage])
+    setGeneratedImage(null)
+  }
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
@@ -89,6 +118,7 @@ export default function ServiceImagePicker({ onDone, onClose, serviceName, servi
         <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
           <button type="button" className={tab === 'search' ? 'button button-primary' : 'button button-secondary'} onClick={() => setTab('search')}>Tìm ảnh mẫu</button>
           <button type="button" className={tab === 'upload' ? 'button button-primary' : 'button button-secondary'} onClick={() => setTab('upload')}>Tải ảnh lên</button>
+          <button type="button" className={tab === 'ai' ? 'button button-primary' : 'button button-secondary'} onClick={() => setTab('ai')}>AI tạo ảnh</button>
         </div>
 
         {tab === 'search' && (
@@ -130,6 +160,31 @@ export default function ServiceImagePicker({ onDone, onClose, serviceName, servi
               Tải lên
             </button>
             {uploadError && <div className="alert alert-error">{uploadError}</div>}
+          </div>
+        )}
+
+        {tab === 'ai' && (
+          <div>
+            <textarea
+              className="form-input"
+              value={aiPrompt}
+              onChange={e => setAiPrompt(e.target.value)}
+              rows={3}
+              placeholder="Mô tả ảnh muốn AI vẽ..."
+            />
+            <button type="button" className="button button-primary" onClick={handleGenerate} disabled={generating || !aiPrompt.trim()} style={{ marginTop: 8 }}>
+              {generating ? 'Đang tạo...' : 'Tạo ảnh'}
+            </button>
+            {generateError && <div className="alert alert-error">{generateError}</div>}
+            {generatedImage && (
+              <div style={{ marginTop: 12 }}>
+                <img src={generatedImage} alt="" style={{ width: 200, display: 'block' }} />
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <button type="button" className="button button-primary" onClick={handleUseGeneratedImage}>Dùng ảnh này</button>
+                  <button type="button" className="button button-secondary" onClick={handleGenerate} disabled={generating}>Tạo lại</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
