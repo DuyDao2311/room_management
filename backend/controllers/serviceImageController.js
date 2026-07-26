@@ -58,4 +58,9 @@ const importServiceImage = async (req, res) => {
   }
 };
 
-module.exports = { searchServiceImages, importServiceImage };
+const uploadServiceImagesHandler = async (req, res) => {
+  const urls = (req.files || []).map((file) => file.path);
+  res.json({ urls });
+};
+
+module.exports = { searchServiceImages, importServiceImage, uploadServiceImagesHandler };
