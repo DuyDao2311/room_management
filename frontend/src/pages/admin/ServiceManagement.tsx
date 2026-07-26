@@ -6,6 +6,7 @@ import { Pencil, EyeOff, Eye } from 'lucide-react'
 const EMPTY_FORM = {
   name: '', category: 'cleaning' as ServiceCategory, description: '',
   price: '', unit: 'lần' as ServiceUnit, images: '', isActive: true,
+  bookingWindowStart: '', bookingWindowEnd: '',
 }
 
 export default function ServiceManagement() {
@@ -42,6 +43,7 @@ export default function ServiceManagement() {
     setForm({
       name: s.name, category: s.category, description: s.description,
       price: String(s.price), unit: s.unit, images: s.images.join(', '), isActive: s.isActive,
+      bookingWindowStart: s.bookingWindowStart || '', bookingWindowEnd: s.bookingWindowEnd || '',
     })
     setShowModal(true)
   }
@@ -58,6 +60,8 @@ export default function ServiceManagement() {
       unit: form.unit,
       images: form.images.split(',').map(s => s.trim()).filter(Boolean),
       isActive: form.isActive,
+      bookingWindowStart: form.bookingWindowStart,
+      bookingWindowEnd: form.bookingWindowEnd,
     }
     try {
       if (editing) {
@@ -186,6 +190,16 @@ export default function ServiceManagement() {
                 <div className="form-group">
                   <label htmlFor="s-price">Giá (VNĐ)</label>
                   <input id="s-price" type="number" className="form-input" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} required min={0} placeholder="100000" />
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="s-window-start">Giờ nhận đặt từ</label>
+                    <input id="s-window-start" type="time" className="form-input" value={form.bookingWindowStart} onChange={e => setForm({ ...form, bookingWindowStart: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="s-window-end">Đến</label>
+                    <input id="s-window-end" type="time" className="form-input" value={form.bookingWindowEnd} onChange={e => setForm({ ...form, bookingWindowEnd: e.target.value })} />
+                  </div>
                 </div>
                 <div className="form-group">
                   <label htmlFor="s-images">Ảnh (URL, phân cách bằng dấu phẩy)</label>

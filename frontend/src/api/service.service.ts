@@ -14,6 +14,8 @@ export interface Service {
   avgRating: number
   ratingCount: number
   isActive: boolean
+  bookingWindowStart?: string
+  bookingWindowEnd?: string
   createdAt: string
   updatedAt: string
 }
@@ -60,6 +62,8 @@ export const serviceService = {
     price: number
     unit: ServiceUnit
     images?: string[]
+    bookingWindowStart?: string
+    bookingWindowEnd?: string
   }) => api.post<Service>('/services', data),
 
   updateService: (
@@ -72,6 +76,8 @@ export const serviceService = {
       unit: ServiceUnit
       images: string[]
       isActive: boolean
+      bookingWindowStart: string
+      bookingWindowEnd: string
     }>
   ) => api.put<Service>(`/services/${id}`, data),
 }
