@@ -73,4 +73,22 @@ describe('ServiceImagePicker', () => {
 
     expect(await screen.findByText('Tính năng tìm ảnh mẫu chưa được cấu hình.')).toBeInTheDocument()
   })
+
+  test('tự động search ngay khi mở picker nếu có sẵn serviceName', async () => {
+    vi.mocked(serviceService.searchServiceImages).mockResolvedValue({
+      data: [{ id: 1, thumbnailUrl: 'https://pixabay.com/thumb1.jpg', imageUrl: 'https://pixabay.com/full1.jpg' }],
+    } as any)
+
+    render(<ServiceImagePicker onDone={onDone} onClose={onClose} serviceName="Dọn giường & thay ga gối" />)
+
+    await waitFor(() => expect(serviceService.searchServiceImages).toHaveBeenCalledWith('Dọn giường & thay ga gối'))
+    expect(await screen.findByRole('button', { name: 'Chọn ảnh 1' })).toBeInTheDocument()
+  })
+
+  test('không tự search nếu không có serviceName', async () => {
+    vi.mocked(serviceService.searchServiceImages).mockClear()
+    render(<ServiceImagePicker onDone={onDone} onClose={onClose} />)
+    await new Promise(r => setTimeout(r, 0))
+    expect(serviceService.searchServiceImages).not.toHaveBeenCalled()
+  })
 })

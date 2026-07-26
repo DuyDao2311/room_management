@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { serviceService, type PixabayImageResult } from '../../api/service.service'
 
 interface Props {
   onDone: (urls: string[]) => void
   onClose: () => void
+  serviceName?: string
+  serviceDescription?: string
 }
 
-export default function ServiceImagePicker({ onDone, onClose }: Props) {
+export default function ServiceImagePicker({ onDone, onClose, serviceName, serviceDescription }: Props) {
   const [tab, setTab] = useState<'search' | 'upload'>('search')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<PixabayImageResult[]>([])
@@ -18,12 +20,11 @@ export default function ServiceImagePicker({ onDone, onClose }: Props) {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const runSearch = async (q: string) => {
     setSearching(true)
     setSearchError('')
     try {
-      const res = await serviceService.searchServiceImages(query)
+      const res = await serviceService.searchServiceImages(q)
       setResults(res.data)
     } catch (err: any) {
       setSearchError(err.response?.data?.message || 'Không tìm được ảnh, thử lại sau.')
@@ -31,6 +32,19 @@ export default function ServiceImagePicker({ onDone, onClose }: Props) {
       setSearching(false)
     }
   }
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    runSearch(query)
+  }
+
+  useEffect(() => {
+    if (serviceName) {
+      setQuery(serviceName)
+      runSearch(serviceName)
+    }
+    // eslint-disable-next-line
+  }, [])
 
   const handlePick = async (result: PixabayImageResult) => {
     setImportingId(result.id)
