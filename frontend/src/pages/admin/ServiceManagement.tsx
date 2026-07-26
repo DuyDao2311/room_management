@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { serviceService, CATEGORY_LABELS, getMinVariantPrice, UNIT_PRESETS, type Service, type ServiceCategory, type ServiceUnit } from '../../api/service.service'
 import Spinner from '../../components/ui/Spinner'
 import { Pencil, EyeOff, Eye, Trash2 } from 'lucide-react'
+import ServiceImagePicker from './ServiceImagePicker'
 
 type ServiceVariantForm = { label: string; capacity: string; price: string; description: string }
 
@@ -27,6 +28,7 @@ export default function ServiceManagement() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
+  const [showImagePicker, setShowImagePicker] = useState(false)
 
   const fetchServices = () => {
     setLoading(true)
@@ -369,7 +371,10 @@ export default function ServiceManagement() {
                 )}
                 <div className="form-group">
                   <label htmlFor="s-images">Ảnh (URL, phân cách bằng dấu phẩy)</label>
-                  <input id="s-images" className="form-input" value={form.images} onChange={e => setForm({ ...form, images: e.target.value })} placeholder="https://..., https://..." />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input id="s-images" className="form-input" value={form.images} onChange={e => setForm({ ...form, images: e.target.value })} placeholder="https://..., https://..." />
+                    <button type="button" className="button button-secondary" onClick={() => setShowImagePicker(true)}>Chọn ảnh</button>
+                  </div>
                 </div>
                 <div className="form-group">
                   <label htmlFor="s-desc">Mô tả</label>
@@ -392,6 +397,16 @@ export default function ServiceManagement() {
               </form>
             </div>
           </div>
+        )}
+
+        {showImagePicker && (
+          <ServiceImagePicker
+            onDone={urls => {
+              setForm(f => ({ ...f, images: [f.images, ...urls].filter(Boolean).join(', ') }))
+              setShowImagePicker(false)
+            }}
+            onClose={() => setShowImagePicker(false)}
+          />
         )}
       </div>
     </div>

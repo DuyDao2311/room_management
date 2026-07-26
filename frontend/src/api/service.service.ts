@@ -63,6 +63,12 @@ export interface ServiceReview {
   tenant: { name: string }
 }
 
+export interface PixabayImageResult {
+  id: number
+  thumbnailUrl: string
+  imageUrl: string
+}
+
 export const serviceService = {
   getServices: (params?: { category?: string }) =>
     api.get<Service[]>('/services', { params }),
@@ -102,4 +108,18 @@ export const serviceService = {
   ) => api.put<Service>(`/services/${id}`, data),
 
   deleteService: (id: string) => api.delete<{ message: string }>(`/services/${id}`),
+
+  searchServiceImages: (q: string) =>
+    api.get<PixabayImageResult[]>('/services/images/search', { params: { q } }),
+
+  importServiceImage: (imageUrl: string) =>
+    api.post<{ url: string }>('/services/images/import', { imageUrl }),
+
+  uploadServiceImages: (files: File[]) => {
+    const formData = new FormData()
+    files.forEach(f => formData.append('images', f))
+    return api.post<{ urls: string[] }>('/services/images/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }

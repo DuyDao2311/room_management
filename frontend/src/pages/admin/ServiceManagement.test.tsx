@@ -233,4 +233,12 @@ describe('ServiceManagement', () => {
     await userEvent.click(screen.getByTitle('Sửa'))
     expect(screen.getByPlaceholderText('VD: kg, phần, công')).toHaveValue('kg')
   })
+
+  test('bấm "Chọn ảnh" mở picker, chọn xong thì nối vào ô images', async () => {
+    render(<ServiceManagement />)
+    await screen.findByText('Dọn phòng')
+    await userEvent.click(screen.getByText(/THÊM DỊCH VỤ/i))
+    await userEvent.click(screen.getByRole('button', { name: 'Chọn ảnh' }))
+    expect(screen.getByText('Chọn ảnh dịch vụ')).toBeInTheDocument()
+  })
 })
