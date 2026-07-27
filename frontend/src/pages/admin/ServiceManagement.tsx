@@ -417,7 +417,6 @@ export default function ServiceManagement() {
 
         {showImagePicker && (
           <ServiceImagePicker
-            serviceName={form.name}
             onDone={urls => {
               setForm(f => ({ ...f, images: [f.images, ...urls].filter(Boolean).join(', ') }))
               setShowImagePicker(false)

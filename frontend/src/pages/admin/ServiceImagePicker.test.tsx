@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, describe, test, expect, beforeEach } from 'vitest'
 import ServiceImagePicker from './ServiceImagePicker'
@@ -9,8 +9,6 @@ vi.mock('../../api/service.service', async () => {
   return {
     ...actual,
     serviceService: {
-      searchServiceImages: vi.fn(),
-      importServiceImage: vi.fn(),
       uploadServiceImages: vi.fn(),
     },
   }
@@ -25,70 +23,52 @@ describe('ServiceImagePicker', () => {
     onClose.mockClear()
   })
 
-  test('tìm ảnh rồi chọn 1 ảnh thì thêm vào danh sách đã chọn', async () => {
-    vi.mocked(serviceService.searchServiceImages).mockResolvedValue({
-      data: [{ id: 1, thumbnailUrl: 'https://pixabay.com/thumb1.jpg', imageUrl: 'https://pixabay.com/full1.jpg' }],
-    } as any)
-    vi.mocked(serviceService.importServiceImage).mockResolvedValue({
-      data: { url: 'https://res.cloudinary.com/demo/services/a.jpg' },
+  test('tải ảnh lên thành công thì thêm vào danh sách đã chọn', async () => {
+    vi.mocked(serviceService.uploadServiceImages).mockResolvedValue({
+      data: { urls: ['https://res.cloudinary.com/demo/services/a.jpg'] },
     } as any)
 
     render(<ServiceImagePicker onDone={onDone} onClose={onClose} />)
-    await userEvent.type(screen.getByPlaceholderText(/giường ngủ khách sạn/i), 'giường')
-    await userEvent.click(screen.getByRole('button', { name: 'Tìm' }))
+    const file = new File(['fake'], 'anh.jpg', { type: 'image/jpeg' })
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    await userEvent.upload(fileInput, file)
+    await userEvent.click(screen.getByRole('button', { name: 'Tải lên' }))
 
-    const thumbnail = await screen.findByRole('button', { name: 'Chọn ảnh 1' })
-    await userEvent.click(thumbnail)
-
-    await waitFor(() => expect(serviceService.importServiceImage).toHaveBeenCalledWith('https://pixabay.com/full1.jpg'))
     expect(await screen.findByText('Ảnh đã chọn (1)')).toBeInTheDocument()
   })
 
   test('bấm Xong gọi onDone với danh sách URL đã chọn', async () => {
-    vi.mocked(serviceService.searchServiceImages).mockResolvedValue({
-      data: [{ id: 1, thumbnailUrl: 'https://pixabay.com/thumb1.jpg', imageUrl: 'https://pixabay.com/full1.jpg' }],
-    } as any)
-    vi.mocked(serviceService.importServiceImage).mockResolvedValue({
-      data: { url: 'https://res.cloudinary.com/demo/services/a.jpg' },
+    vi.mocked(serviceService.uploadServiceImages).mockResolvedValue({
+      data: { urls: ['https://res.cloudinary.com/demo/services/a.jpg'] },
     } as any)
 
     render(<ServiceImagePicker onDone={onDone} onClose={onClose} />)
-    await userEvent.type(screen.getByPlaceholderText(/giường ngủ khách sạn/i), 'giường')
-    await userEvent.click(screen.getByRole('button', { name: 'Tìm' }))
-    await userEvent.click(await screen.findByRole('button', { name: 'Chọn ảnh 1' }))
+    const file = new File(['fake'], 'anh.jpg', { type: 'image/jpeg' })
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    await userEvent.upload(fileInput, file)
+    await userEvent.click(screen.getByRole('button', { name: 'Tải lên' }))
     await screen.findByText('Ảnh đã chọn (1)')
 
     await userEvent.click(screen.getByRole('button', { name: 'Xong' }))
     expect(onDone).toHaveBeenCalledWith(['https://res.cloudinary.com/demo/services/a.jpg'])
   })
 
-  test('lỗi tìm ảnh hiện thông báo lỗi', async () => {
-    vi.mocked(serviceService.searchServiceImages).mockRejectedValue({
-      response: { data: { message: 'Tính năng tìm ảnh mẫu chưa được cấu hình.' } },
+  test('lỗi tải ảnh hiện thông báo lỗi', async () => {
+    vi.mocked(serviceService.uploadServiceImages).mockRejectedValue({
+      response: { data: { message: 'Tải ảnh lên thất bại.' } },
     })
 
     render(<ServiceImagePicker onDone={onDone} onClose={onClose} />)
-    await userEvent.type(screen.getByPlaceholderText(/giường ngủ khách sạn/i), 'giường')
-    await userEvent.click(screen.getByRole('button', { name: 'Tìm' }))
+    const file = new File(['fake'], 'anh.jpg', { type: 'image/jpeg' })
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+    await userEvent.upload(fileInput, file)
+    await userEvent.click(screen.getByRole('button', { name: 'Tải lên' }))
 
-    expect(await screen.findByText('Tính năng tìm ảnh mẫu chưa được cấu hình.')).toBeInTheDocument()
+    expect(await screen.findByText('Tải ảnh lên thất bại.')).toBeInTheDocument()
   })
 
-  test('tự động search ngay khi mở picker nếu có sẵn serviceName', async () => {
-    vi.mocked(serviceService.searchServiceImages).mockResolvedValue({
-      data: [{ id: 1, thumbnailUrl: 'https://pixabay.com/thumb1.jpg', imageUrl: 'https://pixabay.com/full1.jpg' }],
-    } as any)
-
-    render(<ServiceImagePicker onDone={onDone} onClose={onClose} serviceName="Dọn giường & thay ga gối" />)
-
-    await waitFor(() => expect(serviceService.searchServiceImages).toHaveBeenCalledWith('Dọn giường & thay ga gối'))
-    expect(await screen.findByRole('button', { name: 'Chọn ảnh 1' })).toBeInTheDocument()
-  })
-
-  test('không tự search nếu không có serviceName', async () => {
-    vi.mocked(serviceService.searchServiceImages).mockClear()
+  test('nút Xong bị khóa khi chưa chọn ảnh nào', () => {
     render(<ServiceImagePicker onDone={onDone} onClose={onClose} />)
-    await new Promise(r => setTimeout(r, 0))
-    expect(serviceService.searchServiceImages).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Xong' })).toBeDisabled()
   })
 })

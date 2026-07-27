@@ -10,6 +10,7 @@ const NEW_SERVICES = [
   {
     name: "Dọn giường & thay ga gối",
     description: "Dọn dẹp giường ngủ theo 3 mức độ, từ chỉnh trang gọn gàng đến thay ga/vỏ gối và khử mùi nệm.",
+    image: "https://images.unsplash.com/photo-1600908389678-64b54d9cf054?w=800&q=80&auto=format&fit=crop",
     variants: [
       { label: "Nhẹ", price: 15000, description: "Chỉnh lại ga giường, gấp gối gọn gàng (không thay ga mới)" },
       { label: "Tiêu chuẩn", price: 25000, description: "Thay ga trải giường + vỏ gối mới" },
@@ -19,6 +20,7 @@ const NEW_SERVICES = [
   {
     name: "Lau dọn sàn nhà",
     description: "Quét và lau sàn phòng theo 3 mức độ.",
+    image: "https://images.unsplash.com/photo-1664008760004-182420e58e7c?w=800&q=80&auto=format&fit=crop",
     variants: [
       { label: "Nhẹ", price: 20000, description: "Quét sàn khô" },
       { label: "Tiêu chuẩn", price: 35000, description: "Quét + lau ướt toàn bộ sàn" },
@@ -28,6 +30,7 @@ const NEW_SERVICES = [
   {
     name: "Dọn phòng tắm/toilet",
     description: "Vệ sinh phòng tắm và toilet theo 3 mức độ.",
+    image: "https://images.unsplash.com/photo-1589824783837-6169889fa20f?w=800&q=80&auto=format&fit=crop",
     variants: [
       { label: "Nhẹ", price: 25000, description: "Xả nước, lau sơ bồn cầu + bồn rửa" },
       { label: "Tiêu chuẩn", price: 40000, description: "Cọ rửa toàn bộ bồn cầu, bồn rửa, sàn nhà tắm" },
@@ -37,6 +40,7 @@ const NEW_SERVICES = [
   {
     name: "Dọn bếp/tủ lạnh",
     description: "Dọn dẹp khu bếp theo 3 mức độ.",
+    image: "https://images.unsplash.com/photo-1556911220-bff31c812dba?w=800&q=80&auto=format&fit=crop",
     variants: [
       { label: "Nhẹ", price: 20000, description: "Rửa bát đĩa đang có sẵn (nước rửa chén thường), lau qua mặt bếp" },
       { label: "Tiêu chuẩn", price: 35000, description: "Rửa bát đĩa + lau sạch bếp gas/hồng ngoại, bồn rửa" },
@@ -46,6 +50,7 @@ const NEW_SERVICES = [
   {
     name: "Đổ rác & thay túi rác",
     description: "Xử lý rác thải trong phòng theo 3 mức độ.",
+    image: "https://images.unsplash.com/photo-1611830696076-462acd8aa9e9?w=800&q=80&auto=format&fit=crop",
     variants: [
       { label: "Nhẹ", price: 10000, description: "Gom rác, buộc túi lại" },
       { label: "Tiêu chuẩn", price: 15000, description: "Gom rác, buộc túi lại + thay túi rác mới" },
@@ -55,6 +60,7 @@ const NEW_SERVICES = [
   {
     name: "Lau kính/cửa sổ/gương",
     description: "Lau chùi bề mặt kính trong phòng theo 3 mức độ.",
+    image: "https://images.unsplash.com/photo-1482449609509-eae2a7ea42b7?w=800&q=80&auto=format&fit=crop",
     variants: [
       { label: "Nhẹ", price: 15000, description: "Lau gương phòng" },
       { label: "Tiêu chuẩn", price: 25000, description: "Lau gương + lau cửa sổ, cửa kính ra vào" },
@@ -64,6 +70,7 @@ const NEW_SERVICES = [
   {
     name: "Hút bụi & lau nội thất",
     description: "Vệ sinh bụi bẩn trên nội thất theo 3 mức độ.",
+    image: "https://images.unsplash.com/photo-1686178827149-6d55c72d81df?w=800&q=80&auto=format&fit=crop",
     variants: [
       { label: "Nhẹ", price: 20000, description: "Hút bụi sàn/thảm" },
       { label: "Tiêu chuẩn", price: 35000, description: "Hút bụi sàn/thảm + lau bàn ghế, tủ, kệ" },
@@ -73,6 +80,7 @@ const NEW_SERVICES = [
   {
     name: "Sắp xếp đồ đạc & gấp quần áo",
     description: "Sắp xếp không gian và quần áo theo 3 mức độ.",
+    image: "https://images.unsplash.com/photo-1562157873-818bc0726f68?w=800&q=80&auto=format&fit=crop",
     variants: [
       { label: "Nhẹ", price: 15000, description: "Gấp quần áo đang để sẵn trên giường/ghế" },
       { label: "Tiêu chuẩn", price: 25000, description: "Gấp quần áo + sắp xếp đồ đạc gọn vào tủ/kệ" },
@@ -120,6 +128,7 @@ async function seedNewServices() {
       name: svc.name,
       category: "cleaning",
       description: svc.description,
+      images: [svc.image],
       usesVariants: true,
       variants: svc.variants,
       requiresCapacityMatch: false,

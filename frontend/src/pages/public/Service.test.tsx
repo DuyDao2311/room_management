@@ -249,6 +249,26 @@ describe('ServiceDetail — dịch vụ usesVariants + requiresCapacityMatch=tru
     ))
     expect(await screen.findByText('Đặt dịch vụ thành công!')).toBeInTheDocument()
   })
+
+  test('hiện description dưới mỗi lựa chọn khi variant có description', async () => {
+    const SERVICE_WITH_DESC = {
+      ...CAPACITY_MATCH_SERVICE, _id: '5',
+      variants: [
+        { label: '4 chỗ', capacity: 4, price: 200000, description: 'Xe 4 chỗ, tối đa 4 hành khách' },
+        { label: '7 chỗ', capacity: 7, price: 300000, description: 'Xe 7 chỗ, tối đa 7 hành khách' },
+      ],
+    }
+    vi.mocked(serviceService.getServiceById).mockResolvedValue({ data: SERVICE_WITH_DESC } as any)
+    render(
+      <MemoryRouter initialEntries={['/services/5']}>
+        <Routes><Route path="/services/:id" element={<ServiceDetail />} /></Routes>
+      </MemoryRouter>
+    )
+    await userEvent.click(await screen.findByText('Đặt dịch vụ'))
+
+    expect(screen.getByText('Xe 4 chỗ, tối đa 4 hành khách')).toBeInTheDocument()
+    expect(screen.getByText('Xe 7 chỗ, tối đa 7 hành khách')).toBeInTheDocument()
+  })
 })
 
 describe('ServiceDetail — dịch vụ usesVariants + requiresCapacityMatch=false (vd spa gói giờ)', () => {

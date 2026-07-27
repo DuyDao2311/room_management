@@ -8,12 +8,11 @@ const { MongoMemoryServer } = require("mongodb-memory-server");
 const User = require("../models/User");
 const serviceRoutes = require("../routes/services");
 const { createUser, tokenFor } = require("./testHelpers");
+const { uploadServiceImagesHandler } = require("../controllers/serviceImageController");
 
 jest.mock("../middleware/upload", () => ({
-  cloudinary: { uploader: { upload: jest.fn() } },
   uploadServiceImages: (req, res, next) => next(),
 }));
-const { cloudinary } = require("../middleware/upload");
 
 let mongoServer;
 let app;
@@ -35,133 +34,6 @@ afterAll(async () => {
 beforeEach(async () => {
   await User.deleteMany({});
 });
-
-describe("GET /api/services/images/search", () => {
-  const originalFetch = global.fetch;
-  const originalKey = process.env.PIXABAY_API_KEY;
-
-  afterEach(() => {
-    global.fetch = originalFetch;
-    if (originalKey === undefined) delete process.env.PIXABAY_API_KEY;
-    else process.env.PIXABAY_API_KEY = originalKey;
-  });
-
-  test("tenant không được tìm ảnh → 403", async () => {
-    process.env.PIXABAY_API_KEY = "fake-key";
-    const tenant = await createUser("tenant");
-    const res = await request(app)
-      .get("/api/services/images/search?q=giuong")
-      .set("Authorization", `Bearer ${tokenFor(tenant)}`);
-    expect(res.status).toBe(403);
-  });
-
-  test("thiếu PIXABAY_API_KEY → 503", async () => {
-    delete process.env.PIXABAY_API_KEY;
-    const admin = await createUser("admin");
-    const res = await request(app)
-      .get("/api/services/images/search?q=giuong")
-      .set("Authorization", `Bearer ${tokenFor(admin)}`);
-    expect(res.status).toBe(503);
-  });
-
-  test("thiếu q → 400", async () => {
-    process.env.PIXABAY_API_KEY = "fake-key";
-    const admin = await createUser("admin");
-    const res = await request(app)
-      .get("/api/services/images/search")
-      .set("Authorization", `Bearer ${tokenFor(admin)}`);
-    expect(res.status).toBe(400);
-  });
-
-  test("tìm ảnh thành công trả về danh sách rút gọn", async () => {
-    process.env.PIXABAY_API_KEY = "fake-key";
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        hits: [
-          { id: 1, previewURL: "https://pixabay.com/thumb1.jpg", webformatURL: "https://pixabay.com/full1.jpg" },
-        ],
-      }),
-    });
-    const admin = await createUser("admin");
-    const res = await request(app)
-      .get("/api/services/images/search?q=giuong")
-      .set("Authorization", `Bearer ${tokenFor(admin)}`);
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual([{ id: 1, thumbnailUrl: "https://pixabay.com/thumb1.jpg", imageUrl: "https://pixabay.com/full1.jpg" }]);
-    expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining("q=giuong"));
-  });
-
-  test("Pixabay lỗi → 502", async () => {
-    process.env.PIXABAY_API_KEY = "fake-key";
-    global.fetch = jest.fn().mockResolvedValue({ ok: false });
-    const admin = await createUser("admin");
-    const res = await request(app)
-      .get("/api/services/images/search?q=giuong")
-      .set("Authorization", `Bearer ${tokenFor(admin)}`);
-    expect(res.status).toBe(502);
-  });
-});
-
-describe("POST /api/services/images/import", () => {
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
-
-  test("tenant không được import ảnh → 403", async () => {
-    const tenant = await createUser("tenant");
-    const res = await request(app)
-      .post("/api/services/images/import")
-      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
-      .send({ imageUrl: "https://pixabay.com/full1.jpg" });
-    expect(res.status).toBe(403);
-  });
-
-  test("thiếu imageUrl → 400", async () => {
-    const admin = await createUser("admin");
-    const res = await request(app)
-      .post("/api/services/images/import")
-      .set("Authorization", `Bearer ${tokenFor(admin)}`)
-      .send({});
-    expect(res.status).toBe(400);
-  });
-
-  test("imageUrl không phải domain pixabay.com → 400", async () => {
-    const admin = await createUser("admin");
-    const res = await request(app)
-      .post("/api/services/images/import")
-      .set("Authorization", `Bearer ${tokenFor(admin)}`)
-      .send({ imageUrl: "https://evil.example.com/a.jpg" });
-    expect(res.status).toBe(400);
-  });
-
-  test("import thành công trả về url Cloudinary", async () => {
-    cloudinary.uploader.upload.mockResolvedValue({ secure_url: "https://res.cloudinary.com/demo/services/a.jpg" });
-    const admin = await createUser("admin");
-    const res = await request(app)
-      .post("/api/services/images/import")
-      .set("Authorization", `Bearer ${tokenFor(admin)}`)
-      .send({ imageUrl: "https://pixabay.com/full1.jpg" });
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ url: "https://res.cloudinary.com/demo/services/a.jpg" });
-    expect(cloudinary.uploader.upload).toHaveBeenCalledWith(
-      "https://pixabay.com/full1.jpg",
-      { folder: "room_management/services" }
-    );
-  });
-
-  test("Cloudinary lỗi → 502", async () => {
-    cloudinary.uploader.upload.mockRejectedValue(new Error("cloudinary down"));
-    const admin = await createUser("admin");
-    const res = await request(app)
-      .post("/api/services/images/import")
-      .set("Authorization", `Bearer ${tokenFor(admin)}`)
-      .send({ imageUrl: "https://pixabay.com/full1.jpg" });
-    expect(res.status).toBe(502);
-  });
-});
-
-const { uploadServiceImagesHandler } = require("../controllers/serviceImageController");
 
 describe("uploadServiceImagesHandler", () => {
   test("map req.files sang mảng URL", async () => {

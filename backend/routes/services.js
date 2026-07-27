@@ -9,11 +9,9 @@ const {
   updateService,
   deleteService,
 } = require("../controllers/serviceController");
-const { searchServiceImages, importServiceImage, uploadServiceImagesHandler } = require("../controllers/serviceImageController");
+const { uploadServiceImagesHandler } = require("../controllers/serviceImageController");
 const { uploadServiceImages } = require("../middleware/upload");
 
-router.get("/images/search", protect, verifyRole("admin", "staff"), searchServiceImages);
-router.post("/images/import", protect, verifyRole("admin", "staff"), importServiceImage);
 router.post("/images/upload", protect, verifyRole("admin", "staff"), uploadServiceImages, uploadServiceImagesHandler);
 
 // GET — public, optionalAuth để biết role (ẩn/hiện inactive)
