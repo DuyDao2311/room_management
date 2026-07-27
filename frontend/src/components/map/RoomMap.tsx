@@ -41,6 +41,12 @@ function formatPriceFull(price: number): string {
   return price.toLocaleString("vi-VN") + " đ/tháng";
 }
 
+function getThumbnailUrl(room: any): string {
+  const img = room?.images?.[0];
+  if (!img) return "";
+  return typeof img === "string" ? img : img.url || "";
+}
+
 /**
  * Chuyển rooms thành GeoJSON FeatureCollection cho MapBox clustering
  */
@@ -72,8 +78,7 @@ function roomsToGeoJSON(rooms: RoomMapItem[]): GeoJSON.FeatureCollection {
           type: room.type,
           area: room.area,
           district: room.district,
-          thumbnail:
-            (room as RoomMapItem & { images?: string[] }).images?.[0] || "",
+          thumbnail: getThumbnailUrl(room),
         },
       })),
   };
@@ -406,7 +411,7 @@ export default function RoomMap({
       statusColor: STATUS_COLORS[selectedRoom.status] || "#667085",
       priceFull: formatPriceFull(selectedRoom.price),
     };
-    const thumbnail = (selectedRoom as RoomMapItem & { images?: string[] }).images?.[0] || "";
+    const thumbnail = getThumbnailUrl(selectedRoom);
     const thumbnailHtml = thumbnail
       ? `<img src="${thumbnail}" class="map-popup-thumb" alt="${props.name}" />`
       : `<div class="map-popup-thumb-placeholder">🏠</div>`;

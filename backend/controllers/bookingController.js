@@ -1,13 +1,59 @@
 const Booking = require("../models/Booking");
 const Room = require("../models/Room");
+const Service = require("../models/Service");
+const ServiceBooking = require("../models/ServiceBooking");
+const {
+  notifyNewBooking,
+  notifyStaffBookingPaid,
+  notifyTenantBookingPaid,
+  notifyTenantBookingConfirmed,
+  notifyTenantBookingCheckedIn,
+  notifyTenantBookingCheckedOut,
+  notifyTenantBookingCancelled,
+  sendSocketNotification
+} = require("../utils/notificationService");
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const emitNotifications = (req, notifs) => {
+  try {
+    const io = req.app.get("io");
+    if (io && notifs && notifs.length > 0) {
+      notifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
+    }
+  } catch (err) {
+    console.error("Emit socket notification error:", err);
+  }
+};
+
 /**
- * Calculate duration and price based on bookingType and room prices.
- * Frontend only sends: bookingType, checkInDateTime, checkOutDateTime
+ * Determine bookingType automatically from check-in/check-out duration.
+ * < 24h → hour | < 7 days → day | < 30 days → week | else → month (max 3 months)
+ */
+function determineBookingType(checkIn, checkOut) {
+  const msIn = new Date(checkIn).getTime();
+  const msOut = new Date(checkOut).getTime();
+  const diffMs = msOut - msIn;
+
+  const HOUR_24 = 1000 * 60 * 60 * 24;
+  const DAY_7 = HOUR_24 * 7;
+  const DAY_30 = HOUR_24 * 30;
+  const DAY_90 = HOUR_24 * 90; // ~3 tháng
+
+  if (diffMs > DAY_90) {
+    throw new Error("Thuê ngắn hạn tối đa 3 tháng. Vui lòng chọn khoảng thời gian ngắn hơn.");
+  }
+
+  if (diffMs < HOUR_24) return "hour";
+  if (diffMs < DAY_7) return "day";
+  if (diffMs < DAY_30) return "week";
+  return "month";
+}
+
+/**
+ * Calculate duration and price based on auto-determined bookingType and room prices.
  */
 function calculateBooking(bookingType, checkIn, checkOut, room) {
   const msIn = new Date(checkIn).getTime();
@@ -56,6 +102,7 @@ function calculateBooking(bookingType, checkIn, checkOut, room) {
         (checkOutDate.getMonth() - checkInDate.getMonth());
       if (checkOutDate.getDate() > checkInDate.getDate()) totalMonths++;
       if (totalMonths < 1) totalMonths = 1;
+      if (totalMonths > 3) throw new Error("Thuê ngắn hạn tối đa 3 tháng.");
       unitPrice = room.monthlyPrice;
       totalAmount = totalMonths * unitPrice;
       break;
@@ -70,7 +117,7 @@ function calculateBooking(bookingType, checkIn, checkOut, room) {
     );
   }
 
-  return { totalHours, totalDays, totalWeeks, totalMonths, unitPrice, totalAmount };
+  return { bookingType, totalHours, totalDays, totalWeeks, totalMonths, unitPrice, totalAmount };
 }
 
 /**
@@ -102,11 +149,11 @@ async function checkAvailability(roomId, checkIn, checkOut, excludeId = null) {
  */
 const createBooking = async (req, res) => {
   try {
-    const { roomId, bookingType, checkInDateTime, checkOutDateTime, note } = req.body;
+    const { roomId, bookingType, checkInDateTime, checkOutDateTime, note, guests, services } = req.body;
 
-    if (!roomId || !bookingType || !checkInDateTime || !checkOutDateTime) {
+    if (!roomId || !checkInDateTime || !checkOutDateTime) {
       return res.status(400).json({
-        message: "Vui lòng cung cấp đầy đủ: phòng, loại thuê, thời gian nhận/trả phòng.",
+        message: "Vui lòng cung cấp đầy đủ: phòng, thời gian nhận/trả phòng.",
       });
     }
 
@@ -121,6 +168,17 @@ const createBooking = async (req, res) => {
       });
     }
 
+    // Determine bookingType
+    const finalBookingType = bookingType || determineBookingType(checkInDateTime, checkOutDateTime);
+
+    // Validate guests
+    const guestCount = guests ? Math.max(1, Math.floor(Number(guests))) : 1;
+    if (guestCount > (room.maxGuests || 99)) {
+      return res.status(400).json({
+        message: `Phòng này tối đa ${room.maxGuests} khách. Bạn đã chọn ${guestCount} khách.`,
+      });
+    }
+
     // Check availability
     const available = await checkAvailability(roomId, checkInDateTime, checkOutDateTime);
     if (!available) {
@@ -130,26 +188,71 @@ const createBooking = async (req, res) => {
     }
 
     // Calculate pricing
-    const calc = calculateBooking(bookingType, checkInDateTime, checkOutDateTime, room);
+    const calc = calculateBooking(finalBookingType, checkInDateTime, checkOutDateTime, room);
+
+    // Calculate service pricing if services are provided
+    let serviceTotal = 0;
+    const serviceBookingsToCreate = [];
+    if (services && Array.isArray(services) && services.length > 0) {
+      for (const svc of services) {
+        const { serviceId, quantity, scheduledAt, note: svcNote } = svc;
+        if (!serviceId || !quantity || quantity < 1) continue;
+        
+        const serviceDoc = await Service.findById(serviceId);
+        if (!serviceDoc || !serviceDoc.isActive) continue;
+        
+        const unitPrice = serviceDoc.price;
+        const totalAmount = unitPrice * quantity;
+        serviceTotal += totalAmount;
+        
+        serviceBookingsToCreate.push({
+          service: serviceId,
+          tenant: req.user._id,
+          scheduledAt: new Date(scheduledAt || checkInDateTime),
+          quantity,
+          unitPrice,
+          totalAmount,
+          note: svcNote || `Đặt kèm phòng ${room.name}`,
+          status: "pending",
+          paymentStatus: "unpaid"
+        });
+      }
+    }
 
     const booking = await Booking.create({
       room: roomId,
       tenant: req.user._id,
-      bookingType,
+      bookingType: calc.bookingType,
       checkInDateTime: new Date(checkInDateTime),
       checkOutDateTime: new Date(checkOutDateTime),
       ...calc,
+      roomTotal: calc.totalAmount,
+      serviceTotal: serviceTotal,
+      totalAmount: calc.totalAmount + serviceTotal,
+      guests: guestCount,
       paymentStatus: "pending",
       status: "pending",
       note: note || "",
     });
 
+    if (serviceBookingsToCreate.length > 0) {
+      const serviceBookingsWithRoom = serviceBookingsToCreate.map(sb => ({
+        ...sb,
+        roomBooking: booking._id
+      }));
+      await ServiceBooking.insertMany(serviceBookingsWithRoom);
+    }
+
     // Cập nhật trạng thái phòng thành "occupied" ngay khi có người book
     await Room.findByIdAndUpdate(roomId, { status: "occupied" });
 
     const populated = await Booking.findById(booking._id)
-      .populate("room", "name address type images hourlyPrice dailyPrice weeklyPrice monthlyPrice")
-      .populate("tenant", "name email phone");
+      .populate("room", "name address type images hourlyPrice dailyPrice weeklyPrice monthlyPrice maxGuests")
+      .populate("tenant", "name email phone idCard")
+      .populate({ path: "serviceBookings", populate: { path: "service", select: "name price unit" } });
+
+    const notifs = await notifyNewBooking(populated);
+    emitNotifications(req, notifs);
 
     res.status(201).json(populated);
   } catch (err) {
@@ -188,7 +291,8 @@ const getBookings = async (req, res) => {
 
     const bookings = await Booking.find(filter)
       .populate("room", "name address type district images hourlyPrice dailyPrice weeklyPrice monthlyPrice")
-      .populate("tenant", "name email phone avatar")
+      .populate("tenant", "name email phone avatar idCard")
+      .populate({ path: "serviceBookings", populate: { path: "service", select: "name price unit category" } })
       .sort({ createdAt: -1 });
 
     res.json(bookings);
@@ -205,7 +309,8 @@ const getBookingById = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id)
       .populate("room", "name address type district images hourlyPrice dailyPrice weeklyPrice monthlyPrice")
-      .populate("tenant", "name email phone avatar");
+      .populate("tenant", "name email phone avatar idCard")
+      .populate({ path: "serviceBookings", populate: { path: "service", select: "name price unit category" } });
 
     if (!booking) {
       return res.status(404).json({ message: "Không tìm thấy booking." });
@@ -257,9 +362,19 @@ const confirmBooking = async (req, res) => {
     booking.status = "confirmed";
     await booking.save();
 
+    // Tự động xác nhận các ServiceBooking đi kèm
+    await ServiceBooking.updateMany(
+      { roomBooking: booking._id, status: "pending" },
+      { status: "confirmed" }
+    );
+
     const populated = await Booking.findById(booking._id)
       .populate("room", "name address type images")
-      .populate("tenant", "name email phone");
+      .populate("tenant", "name email phone idCard")
+      .populate({ path: "serviceBookings", populate: { path: "service", select: "name price unit category" } });
+
+    const notifs = await notifyTenantBookingConfirmed(populated);
+    emitNotifications(req, notifs);
 
     res.json(populated);
   } catch (err) {
@@ -287,7 +402,10 @@ const checkInBooking = async (req, res) => {
 
     const populated = await Booking.findById(booking._id)
       .populate("room", "name address type images")
-      .populate("tenant", "name email phone");
+      .populate("tenant", "name email phone idCard");
+
+    const notifs = await notifyTenantBookingCheckedIn(populated);
+    emitNotifications(req, notifs);
 
     res.json(populated);
   } catch (err) {
@@ -318,7 +436,10 @@ const checkOutBooking = async (req, res) => {
 
     const populated = await Booking.findById(booking._id)
       .populate("room", "name address type images")
-      .populate("tenant", "name email phone");
+      .populate("tenant", "name email phone idCard");
+
+    const notifs = await notifyTenantBookingCheckedOut(populated);
+    emitNotifications(req, notifs);
 
     res.json(populated);
   } catch (err) {
@@ -345,15 +466,25 @@ const cancelBooking = async (req, res) => {
     // If paid, mark as refunded
     if (booking.paymentStatus === "paid") {
       booking.paymentStatus = "refunded";
+      await ServiceBooking.updateMany({ roomBooking: booking._id, paymentStatus: "paid" }, { paymentStatus: "refunded" });
     }
     await booking.save();
+
+    // Hủy các ServiceBooking đi kèm
+    await ServiceBooking.updateMany(
+      { roomBooking: booking._id, status: { $in: ["pending", "confirmed"] } },
+      { status: "cancelled" }
+    );
 
     // Trả lại phòng thành available khi hủy
     await Room.findByIdAndUpdate(booking.room, { status: "available" });
 
     const populated = await Booking.findById(booking._id)
       .populate("room", "name address type images")
-      .populate("tenant", "name email phone");
+      .populate("tenant", "name email phone idCard");
+
+    const notifs = await notifyTenantBookingCancelled(populated);
+    emitNotifications(req, notifs);
 
     res.json(populated);
   } catch (err) {
@@ -379,15 +510,42 @@ const payBooking = async (req, res) => {
     }
 
     booking.paymentStatus = "paid";
+    booking.paymentMethod = "Cash";
     // Auto-confirm when paid
     if (booking.status === "pending") {
       booking.status = "confirmed";
     }
     await booking.save();
 
+    // Tự động xác nhận và thanh toán các ServiceBooking đi kèm
+    await ServiceBooking.updateMany(
+      { roomBooking: booking._id, paymentStatus: "unpaid" },
+      { paymentStatus: "paid", status: "confirmed" }
+    );
+
+    // Create a Payment record to track this cash payment
+    const Payment = require("../models/Payment");
+    await Payment.create({
+      booking: booking._id,
+      tenant: booking.tenant,
+      paymentMethod: "cash",
+      amount: booking.totalAmount,
+      status: "success",
+      paidAt: new Date(),
+      cash: {
+        receivedBy: req.user ? req.user._id : undefined,
+        note: "Xác nhận thanh toán Booking bằng tiền mặt",
+      },
+    });
+
     const populated = await Booking.findById(booking._id)
       .populate("room", "name address type images")
-      .populate("tenant", "name email phone");
+      .populate("tenant", "name email phone idCard")
+      .populate({ path: "serviceBookings", populate: { path: "service", select: "name price unit category" } });
+
+    const tNotifs = await notifyTenantBookingPaid(populated);
+    const sNotifs = await notifyStaffBookingPaid(populated);
+    emitNotifications(req, [...(tNotifs||[]), ...(sNotifs||[])]);
 
     res.json(populated);
   } catch (err) {

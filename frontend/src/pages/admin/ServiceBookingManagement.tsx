@@ -102,9 +102,9 @@ export default function ServiceBookingManagement() {
                     <th style={{ padding: '16px 24px', color: '#667085', fontSize: '0.85rem', fontWeight: 600 }}>Dịch vụ</th>
                     <th style={{ padding: '16px 24px', color: '#667085', fontSize: '0.85rem', fontWeight: 600 }}>Khách hàng</th>
                     <th style={{ padding: '16px 24px', color: '#667085', fontSize: '0.85rem', fontWeight: 600 }}>Hẹn lúc</th>
-                    <th style={{ padding: '16px 24px', color: '#667085', fontSize: '0.85rem', fontWeight: 600 }}>Tổng tiền</th>
-                    <th style={{ padding: '16px 24px', color: '#667085', fontSize: '0.85rem', fontWeight: 600 }}>Trạng thái</th>
-                    <th style={{ padding: '16px 24px', color: '#667085', fontSize: '0.85rem', fontWeight: 600 }}>Hành động</th>
+                    <th style={{ padding: '16px 24px', color: '#667085', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}>Tổng tiền</th>
+                    <th style={{ padding: '16px 24px', color: '#667085', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}>Trạng thái</th>
+                    <th style={{ padding: '16px 24px', color: '#667085', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}>Hành động</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -129,34 +129,36 @@ export default function ServiceBookingManagement() {
                       <td style={{ padding: '16px 24px', fontSize: '0.9rem', color: '#101828' }}>
                         {new Date(b.scheduledAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}
                       </td>
-                      <td style={{ padding: '16px 24px' }}>
+                      <td style={{ padding: '16px 24px', whiteSpace: 'nowrap' }}>
                         <div style={{ fontWeight: 700, color: '#101828' }}>{b.totalAmount.toLocaleString('vi-VN')} đ</div>
                         <div style={{ fontSize: '0.8rem', fontWeight: 600, color: PAYMENT_MAP[b.paymentStatus]?.color }}>
                           {PAYMENT_MAP[b.paymentStatus]?.label}
                         </div>
                       </td>
-                      <td style={{ padding: '16px 24px' }}>
-                        <span style={{ background: STATUS_MAP[b.status]?.bg, color: STATUS_MAP[b.status]?.color, padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>
+                      <td style={{ padding: '16px 24px', whiteSpace: 'nowrap' }}>
+                        <span style={{ background: STATUS_MAP[b.status]?.bg, color: STATUS_MAP[b.status]?.color, padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-block' }}>
                           {STATUS_MAP[b.status]?.label}
                         </span>
                       </td>
-                      <td style={{ padding: '16px 24px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                        {processing === b._id ? <Spinner /> : (
-                          <>
-                            {b.status === 'pending' && (
-                              <button className="button button-primary" onClick={() => handleAction(b._id, 'confirm')} style={{ fontSize: '0.8rem', padding: '6px 12px' }}>Xác nhận</button>
-                            )}
-                            {b.status === 'confirmed' && (
-                              <button className="button button-primary" onClick={() => handleAction(b._id, 'complete')} style={{ fontSize: '0.8rem', padding: '6px 12px' }}>Hoàn thành</button>
-                            )}
-                            {(b.status === 'pending' || b.status === 'confirmed') && (
-                              <button className="button button-secondary" onClick={() => handleAction(b._id, 'cancel')} style={{ fontSize: '0.8rem', padding: '6px 12px' }}>Hủy</button>
-                            )}
-                            {b.paymentStatus === 'unpaid' && b.status !== 'cancelled' && (
-                              <button className="button button-secondary" onClick={() => handleAction(b._id, 'pay')} style={{ fontSize: '0.8rem', padding: '6px 12px' }}>Đánh dấu đã trả</button>
-                            )}
-                          </>
-                        )}
+                      <td style={{ padding: '16px 24px', verticalAlign: 'middle' }}>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                          {processing === b._id ? <Spinner /> : (
+                            <>
+                              {b.status === 'pending' && (
+                                <button className="button button-primary" onClick={() => handleAction(b._id, 'confirm')} style={{ fontSize: '0.8rem', padding: '6px 12px' }}>Xác nhận</button>
+                              )}
+                              {b.status === 'confirmed' && (
+                                <button className="button button-primary" onClick={() => handleAction(b._id, 'complete')} style={{ fontSize: '0.8rem', padding: '6px 12px' }}>Hoàn thành</button>
+                              )}
+                              {(b.status === 'pending' || b.status === 'confirmed') && (
+                                <button className="button button-secondary" onClick={() => handleAction(b._id, 'cancel')} style={{ fontSize: '0.8rem', padding: '6px 12px' }}>Hủy</button>
+                              )}
+                              {b.paymentStatus === 'unpaid' && b.status === 'confirmed' && (
+                                <button className="button button-secondary" onClick={() => handleAction(b._id, 'pay')} style={{ fontSize: '0.8rem', padding: '6px 12px' }}>Đánh dấu đã trả</button>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

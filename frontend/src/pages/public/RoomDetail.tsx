@@ -16,7 +16,7 @@ import SignaturePad from '../../components/ui/SignaturePad.tsx'
 import FeedbackList from '../../components/ui/FeedbackList.tsx'
 import FeedbackForm from '../../components/ui/FeedbackForm.tsx'
 import { checkEligibility, getMyFeedback, type Feedback } from '../../api/feedback.ts'
-// import { bookingService } from '../../api/booking.service.ts'
+import AddonServicesStep from './AddonServicesStep.tsx'
 import DatePicker, { registerLocale } from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import { vi } from 'date-fns/locale'
@@ -47,10 +47,29 @@ interface Room {
   dailyPrice?: number
   weeklyPrice?: number
   monthlyPrice?: number
+  maxGuests?: number
   location?: {
     type: string
     coordinates: [number, number]
   }
+  // Promotion pricing fields (gắn bởi backend)
+  isPromotion?: boolean
+  originalPrice?: number
+  discountedPrice?: number
+  discountAmount?: number
+  discountPercent?: number
+  promotionName?: string
+  promotionEndDate?: string
+  remainingPromotionDays?: number
+  // Short-term promotion pricing
+  originalHourlyPrice?: number
+  discountedHourlyPrice?: number
+  originalDailyPrice?: number
+  discountedDailyPrice?: number
+  originalWeeklyPrice?: number
+  discountedWeeklyPrice?: number
+  originalMonthlyPrice?: number
+  discountedMonthlyPrice?: number
 }
 
 const STATUS_MAP = {
@@ -82,19 +101,44 @@ interface CoResident {
 
 const MAX_CO_RESIDENTS = 3
 
+
 // Component custom để hiển thị date dạng dd/mm/yyyy
 const CustomDateInput = ({ value, onChange, readOnly = false, required = false, className = "", style = {}, placeholder = "dd/mm/yyyy" }: any) => {
   const displayValue = value ? value.split('-').reverse().join('/') : placeholder;
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
+      <style>{`
+        .hide-native-date::-webkit-datetime-edit,
+        .hide-native-date::-webkit-datetime-edit-fields-wrapper,
+        .hide-native-date::-webkit-datetime-edit-text,
+        .hide-native-date::-webkit-datetime-edit-month-field,
+        .hide-native-date::-webkit-datetime-edit-day-field,
+        .hide-native-date::-webkit-datetime-edit-year-field {
+          color: transparent !important;
+          background: transparent !important;
+        }
+        .hide-native-date:focus::-webkit-datetime-edit,
+        .hide-native-date:focus::-webkit-datetime-edit-fields-wrapper,
+        .hide-native-date:focus::-webkit-datetime-edit-text,
+        .hide-native-date:focus::-webkit-datetime-edit-month-field,
+        .hide-native-date:focus::-webkit-datetime-edit-day-field,
+        .hide-native-date:focus::-webkit-datetime-edit-year-field {
+          color: transparent !important;
+          background: transparent !important;
+        }
+        .hide-native-date::selection {
+          background: transparent !important;
+          color: transparent !important;
+        }
+      `}</style>
       <input
         type="date"
         value={value}
         onChange={onChange}
         readOnly={readOnly}
         required={required}
-        className={className}
-        style={{ ...style, color: 'transparent', width: '100%' }}
+        className={`${className} hide-native-date`}
+        style={{ ...style, color: 'transparent', width: '100%', caretColor: 'transparent', cursor: 'pointer' }}
       />
       <span style={{
         position: 'absolute',
@@ -147,12 +191,85 @@ export default function RoomDetail() {
   const [rentError, setRentError] = useState('')
 
   // Short-term booking modal state
-  const [bookingType, setBookingType] = useState('hour')
   const [shortCheckIn, setShortCheckIn] = useState('')
   const [shortCheckOut, setShortCheckOut] = useState('')
   const [shortLoading, setShortLoading] = useState(false)
   const [shortError, setShortError] = useState('')
   const [shortSuccess, setShortSuccess] = useState(false)
+  const [guests, setGuests] = useState(1)
+  const [shortBookingType, setShortBookingType] = useState('hour')
+
+  // Addon services step state
+  const [showServiceStep, setShowServiceStep] = useState(false)
+
+  // ── Auto-determine bookingType from duration ──────────────────────────────
+  const getAutoBookingType = () => {
+    if (!shortCheckIn || !shortCheckOut) return null
+    const msIn = new Date(shortCheckIn).getTime()
+    const msOut = new Date(shortCheckOut).getTime()
+    const diffMs = msOut - msIn
+    if (diffMs <= 0) return null
+
+    const HOUR_24 = 1000 * 60 * 60 * 24
+    const DAY_7 = HOUR_24 * 7
+    const DAY_30 = HOUR_24 * 30
+
+    if (diffMs < HOUR_24) return 'hour'
+    if (diffMs < DAY_7) return 'day'
+    if (diffMs < DAY_30) return 'week'
+    return 'month'
+  }
+
+  // ── Auto-calculate estimated price ────────────────────────────────────────
+  const calcEstimatedPrice = () => {
+    if (!shortCheckIn || !shortCheckOut || !room) return null
+    const msIn = new Date(shortCheckIn).getTime()
+    const msOut = new Date(shortCheckOut).getTime()
+    if (msOut <= msIn) return null
+
+    const diffMs = msOut - msIn
+    const HOUR_24 = 1000 * 60 * 60 * 24
+    const DAY_90 = HOUR_24 * 90
+
+    // Validate max 3 months
+    if (diffMs > DAY_90) return { error: 'Thuê ngắn hạn tối đa 3 tháng.' }
+
+    const autoType = shortBookingType || getAutoBookingType()
+    if (!autoType) return null
+
+    let quantity = 0
+    let unitPrice = 0
+    let unitLabel = ''
+
+    switch (autoType) {
+      case 'hour':
+        quantity = Math.ceil(diffMs / (1000 * 60 * 60))
+        unitPrice = room.isPromotion ? (room.discountedHourlyPrice || room.hourlyPrice || 0) : (room.hourlyPrice || 0)
+        unitLabel = 'giờ'
+        break
+      case 'day':
+        quantity = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+        unitPrice = room.isPromotion ? (room.discountedDailyPrice || room.dailyPrice || 0) : (room.dailyPrice || 0)
+        unitLabel = 'ngày'
+        break
+      case 'week':
+        quantity = Math.ceil(diffMs / (1000 * 60 * 60 * 24 * 7))
+        unitPrice = room.isPromotion ? (room.discountedWeeklyPrice || room.weeklyPrice || 0) : (room.weeklyPrice || 0)
+        unitLabel = 'tuần'
+        break
+      case 'month': {
+        const dIn = new Date(shortCheckIn)
+        const dOut = new Date(shortCheckOut)
+        quantity = (dOut.getFullYear() - dIn.getFullYear()) * 12 + (dOut.getMonth() - dIn.getMonth())
+        if (dOut.getDate() > dIn.getDate()) quantity++
+        if (quantity < 1) quantity = 1
+        unitPrice = room.isPromotion ? (room.discountedMonthlyPrice || room.monthlyPrice || 0) : (room.monthlyPrice || 0)
+        unitLabel = 'tháng'
+        break
+      }
+    }
+    return { quantity, unitPrice, unitLabel, total: quantity * unitPrice, autoType }
+  }
 
   // Main tenant (người đứng tên hợp đồng)
   const [mainName, setMainName] = useState(user?.name || '')
@@ -236,6 +353,16 @@ export default function RoomDetail() {
     }
   }
 
+  // Open service step
+  const handleOpenServiceStep = () => {
+    setShortError('')
+    if (!shortCheckIn || !shortCheckOut) {
+      setShortError('Vui lòng chọn ngày nhận/trả phòng')
+      return
+    }
+    setShowServiceStep(true)
+  }
+
   const handleShortTermSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setShortLoading(true)
@@ -243,9 +370,10 @@ export default function RoomDetail() {
     try {
       await api.post('/bookings', {
         roomId: room!._id,
-        bookingType,
         checkInDateTime: shortCheckIn,
-        checkOutDateTime: shortCheckOut
+        checkOutDateTime: shortCheckOut,
+        guests,
+        ...(shortBookingType && { bookingType: shortBookingType })
       })
       setShortSuccess(true)
     } catch (err: any) {
@@ -377,15 +505,36 @@ export default function RoomDetail() {
                 {s.label}
               </span>
               <span className="rd-views">👁 {room.viewCount ?? 0} lượt xem</span>
-              {room.rentalMode === 'short_term' && (
-                <span style={{ marginLeft: '12px', background: '#e0e7ff', color: '#3730a3', padding: '4px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 600 }}>Cho thuê ngắn hạn</span>
-              )}
             </div>
             <div className="rd-price">
               {room.rentalMode === 'short_term' ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                  {/* <span className="rd-price-num" style={{ fontSize: '1.4rem' }}>Từ {(room.hourlyPrice! / 1000).toLocaleString('vi-VN')}k</span>
-                  <span className="rd-price-unit" style={{ fontSize: '0.8rem' }}>/giờ</span> */}
+                room.isPromotion ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                    {/* <span style={{ textDecoration: 'line-through', color: '#9ca3af', fontSize: '0.85rem', fontWeight: 400 }}>
+                      {((room.originalHourlyPrice || room.hourlyPrice || 0) / 1000).toLocaleString('vi-VN')}k
+                    </span> */}
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                      {/* <span className="rd-price-num" style={{ color: '#dc2626' }}>
+                        {((room.discountedHourlyPrice || 0) / 1000).toLocaleString('vi-VN')}k
+                      </span>
+                      <span className="rd-price-unit">/giờ</span> */}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                  </div>
+                )
+              ) : room.isPromotion ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                  <span style={{ textDecoration: 'line-through', color: '#9ca3af', fontSize: '0.9rem', fontWeight: 400 }}>
+                    {((room.originalPrice || room.price) / 1_000_000).toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}tr
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                    <span className="rd-price-num" style={{ color: '#dc2626' }}>
+                      {(room.discountedPrice! / 1_000_000).toLocaleString('vi-VN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}tr
+                    </span>
+                    <span className="rd-price-unit">/tháng</span>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -395,6 +544,8 @@ export default function RoomDetail() {
               )}
             </div>
           </div>
+
+
 
           {/* Name + address */}
           <h1 className="rd-name">{room.name}</h1>
@@ -424,6 +575,64 @@ export default function RoomDetail() {
               </div>
             </div> */}
           </div>
+
+          {/* Promotion Banner - Redesigned */}
+          {room.isPromotion && (
+            <div style={{
+              backgroundColor: '#ffffffff',
+              borderRadius: '12px',
+              padding: '15px 32px',
+              marginBottom: '24px',
+              marginTop: '16px',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              {/* Top-left star */}
+              <div style={{ position: 'absolute', top: '16px', left: '16px' }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="#987346">
+                  <path d="M12 0l1.5 10.5L24 12l-10.5 1.5L12 24l-1.5-10.5L0 12l10.5-1.5z" />
+                </svg>
+              </div>
+              {/* Bottom-right star */}
+              <div style={{ position: 'absolute', bottom: '16px', right: '16px' }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="#987346">
+                  <path d="M12 0l1.5 10.5L24 12l-10.5 1.5L12 24l-1.5-10.5L0 12l10.5-1.5z" />
+                </svg>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                <h3 style={{
+                  fontSize: '1.9rem',
+                  fontWeight: 600,
+                  margin: 0,
+                  color: '#987346',
+                  fontFamily: '"Playfair Display", "Times New Roman", serif',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px'
+                }}>
+                  {room.promotionName || 'SUMMER 2026'}
+                </h3>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#987346" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="M12 2 L13.5 10.5 L22 12 L13.5 13.5 L12 22 L10.5 13.5 L2 12 L10.5 10.5 Z" fill="#987346" stroke="none"></path>
+                  <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                  <line x1="4.93" y1="19.07" x2="19.07" y2="4.93"></line>
+                </svg>
+              </div>
+
+              <div style={{ width: '100%', height: '1px', backgroundColor: '#d5ccbe', marginBottom: '16px' }}></div>
+
+              <p style={{
+                fontSize: '0.95rem',
+                margin: 0,
+                color: '#222',
+                lineHeight: 1.5,
+                fontWeight: 400
+              }}>
+                Giảm ngay <strong style={{ fontWeight: 700 }}>{room.discountPercent}%</strong> khi đặt phòng. Cơ hội tuyệt vời để tiết kiệm chi phí thuê phòng của bạn.
+              </p>
+            </div>
+          )}
 
           {/* Amenities */}
           {room.amenities?.length > 0 && (
@@ -464,9 +673,59 @@ export default function RoomDetail() {
         <div className="rd-book-col">
           {room.rentalMode === 'short_term' ? (
             <div className="airbnb-book-card" style={{ background: '#fff', border: '1px solid #ddd', borderRadius: '12px', padding: '24px', boxShadow: '0 6px 16px rgba(0,0,0,0.12)', position: 'sticky', top: '100px' }}>
-              <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-                <span style={{ fontSize: '1.4rem', fontWeight: 700, color: '#101828' }}>{room.hourlyPrice?.toLocaleString('vi-VN')} đ</span>
-                <span style={{ fontSize: '1rem', color: '#667085' }}>/ giờ</span>
+              <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                {room.isPromotion ? (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                      <span style={{ textDecoration: 'line-through', color: '#9ca3af', fontSize: '0.85rem', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                        {shortBookingType === 'hour' ? (room.originalHourlyPrice || 0).toLocaleString('vi-VN') :
+                          shortBookingType === 'day' ? (room.originalDailyPrice || 0).toLocaleString('vi-VN') :
+                            shortBookingType === 'week' ? (room.originalWeeklyPrice || 0).toLocaleString('vi-VN') :
+                              shortBookingType === 'month' ? (room.originalMonthlyPrice || 0).toLocaleString('vi-VN') : 0}đ
+                      </span>
+                      <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#ef4444', whiteSpace: 'nowrap' }}>
+                        {shortBookingType === 'hour' ? (room.discountedHourlyPrice || 0).toLocaleString('vi-VN') :
+                          shortBookingType === 'day' ? (room.discountedDailyPrice || 0).toLocaleString('vi-VN') :
+                            shortBookingType === 'week' ? (room.discountedWeeklyPrice || 0).toLocaleString('vi-VN') :
+                              shortBookingType === 'month' ? (room.discountedMonthlyPrice || 0).toLocaleString('vi-VN') : 0}đ
+                      </span>
+                      <span style={{ fontSize: '0.9rem', color: '#6b7280', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                        /{shortBookingType === 'hour' ? 'giờ' :
+                          shortBookingType === 'day' ? 'ngày' :
+                            shortBookingType === 'week' ? 'tuần' :
+                              shortBookingType === 'month' ? 'tháng' : ''}
+                      </span>
+                    </div>
+                    <span style={{
+                      position: 'relative',
+                      top: '-10px',
+                      background: '#ef4444',
+                      color: 'white',
+                      padding: '0.5px 3px',
+                      borderRadius: '4px',
+                      fontSize: '0.75rem',
+                      fontWeight: 800,
+                      whiteSpace: 'nowrap'
+                    }}>
+                      -{room.discountPercent}%
+                    </span>
+                  </>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                    <span style={{ fontSize: '1.4rem', fontWeight: 800, color: '#111827', whiteSpace: 'nowrap' }}>
+                      {shortBookingType === 'hour' ? (room.hourlyPrice || 0).toLocaleString('vi-VN') :
+                        shortBookingType === 'day' ? (room.dailyPrice || 0).toLocaleString('vi-VN') :
+                          shortBookingType === 'week' ? (room.weeklyPrice || 0).toLocaleString('vi-VN') :
+                            shortBookingType === 'month' ? (room.monthlyPrice || 0).toLocaleString('vi-VN') : 0}đ
+                    </span>
+                    <span style={{ fontSize: '0.9rem', color: '#6b7280', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                      /{shortBookingType === 'hour' ? 'giờ' :
+                        shortBookingType === 'day' ? 'ngày' :
+                          shortBookingType === 'week' ? 'tuần' :
+                            shortBookingType === 'month' ? 'tháng' : ''}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {shortSuccess ? (
@@ -480,60 +739,164 @@ export default function RoomDetail() {
                 <form onSubmit={handleShortTermSubmit}>
                   {shortError && <div className="alert alert-error" style={{ marginBottom: '16px', fontSize: '0.85rem' }}>{shortError}</div>}
 
-                  <div style={{ border: '1px solid #b0b0b0', borderRadius: '8px', overflow: 'hidden', marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', borderBottom: '1px solid #b0b0b0' }}>
-                      <div style={{ flex: 1, padding: '10px 12px', borderRight: '1px solid #b0b0b0' }}>
-                        <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#222222', marginBottom: '2px', textTransform: 'uppercase' }}>Nhận phòng</label>
+                  <div style={{ display: 'flex', border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden', marginBottom: '12px' }}>
+                    <div style={{ flex: 1, padding: '10px 14px', borderRight: '1px solid #e5e7eb' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#374151', marginBottom: '4px', textTransform: 'uppercase' }}>Nhận phòng</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <LuCalendarDays size={14} color="#6b7280" />
                         <DatePicker
                           selected={shortCheckIn ? new Date(shortCheckIn) : null}
-                          onChange={(date: Date | null) => setShortCheckIn(date ? date.toISOString() : '')}
-                          showTimeSelect={bookingType === 'hour'}
+                          onChange={(date: Date | null) => {
+                            if (!date) {
+                              setShortCheckIn('')
+                              return
+                            }
+                            if (shortBookingType !== 'hour') {
+                              date.setHours(14, 0, 0, 0)
+                            }
+                            setShortCheckIn(date.toISOString())
+                          }}
+                          showTimeSelect={shortBookingType === 'hour'}
+                          minDate={new Date()}
+                          filterTime={(time: Date) => {
+                            const currentDate = new Date();
+                            const selectedDate = new Date(time);
+                            return currentDate.getTime() < selectedDate.getTime();
+                          }}
                           timeFormat="HH:mm"
                           timeIntervals={30}
                           timeCaption="Giờ"
-                          dateFormat={bookingType === 'hour' ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy"}
+                          dateFormat="dd/MM/yyyy HH:mm"
                           locale="vi"
-                          placeholderText="Thêm ngày"
-                          customInput={<input readOnly style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: '14px', color: shortCheckIn ? '#222222' : '#717171', fontWeight: 400, width: '100%', padding: 0, cursor: 'pointer' }} />}
+                          placeholderText={shortBookingType === 'hour' ? "Chọn ngày giờ" : "Chọn ngày"}
+                          customInput={<input readOnly style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: '14px', color: shortCheckIn ? '#111827' : '#6b7280', fontWeight: 500, width: '100%', padding: 0, cursor: 'pointer' }} />}
                         />
                       </div>
-                      <div style={{ flex: 1, padding: '10px 12px' }}>
-                        <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#222222', marginBottom: '2px', textTransform: 'uppercase' }}>Trả phòng</label>
+                    </div>
+                    <div style={{ flex: 1, padding: '10px 14px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#374151', marginBottom: '4px', textTransform: 'uppercase' }}>Trả phòng</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <LuCalendarDays size={14} color="#6b7280" />
                         <DatePicker
                           selected={shortCheckOut ? new Date(shortCheckOut) : null}
-                          onChange={(date: Date | null) => setShortCheckOut(date ? date.toISOString() : '')}
-                          showTimeSelect={bookingType === 'hour'}
+                          onChange={(date: Date | null) => {
+                            if (!date) {
+                              setShortCheckOut('')
+                              return
+                            }
+                            if (shortBookingType !== 'hour') {
+                              date.setHours(13, 0, 0, 0)
+                            }
+                            setShortCheckOut(date.toISOString())
+                          }}
+                          showTimeSelect={shortBookingType === 'hour'}
+                          minDate={shortCheckIn ? new Date(shortCheckIn) : new Date()}
+                          filterTime={(time: Date) => {
+                            if (shortCheckIn) {
+                              const checkInDate = new Date(shortCheckIn);
+                              return checkInDate.getTime() < time.getTime();
+                            }
+                            const currentDate = new Date();
+                            return currentDate.getTime() < time.getTime();
+                          }}
                           timeFormat="HH:mm"
                           timeIntervals={30}
                           timeCaption="Giờ"
-                          dateFormat={bookingType === 'hour' ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy"}
+                          dateFormat="dd/MM/yyyy HH:mm"
                           locale="vi"
-                          placeholderText="Thêm ngày"
-                          customInput={<input readOnly style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: '14px', color: shortCheckOut ? '#222222' : '#717171', fontWeight: 400, width: '100%', padding: 0, cursor: 'pointer' }} />}
+                          placeholderText={shortBookingType === 'hour' ? "Chọn ngày giờ" : "Chọn ngày"}
+                          customInput={<input readOnly style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: '14px', color: shortCheckOut ? '#111827' : '#6b7280', fontWeight: 500, width: '100%', padding: 0, cursor: 'pointer' }} />}
                         />
                       </div>
                     </div>
-                    <div style={{ padding: '10px 12px' }}>
-                      <label style={{ display: 'block', fontSize: '10px', fontWeight: 800, color: '#222222', marginBottom: '4px', textTransform: 'uppercase' }}>Hình thức thuê</label>
-                      <select value={bookingType} onChange={e => setBookingType(e.target.value)} required style={{ border: 'none', outline: 'none', width: '100%', fontSize: '0.9rem', padding: 0, backgroundColor: 'transparent', cursor: 'pointer' }}>
-                        <option value="hour">Theo giờ ({room.hourlyPrice?.toLocaleString('vi-VN')}đ)</option>
-                        <option value="day">Theo ngày ({room.dailyPrice?.toLocaleString('vi-VN')}đ)</option>
-                        <option value="week">Theo tuần ({room.weeklyPrice?.toLocaleString('vi-VN')}đ)</option>
-                        <option value="month">Theo tháng ({room.monthlyPrice?.toLocaleString('vi-VN')}đ)</option>
-                      </select>
+                  </div>
+
+                  <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden', padding: '10px 14px', marginBottom: '12px' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#374151', marginBottom: '8px', textTransform: 'uppercase' }}>Số người</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <button type="button" onClick={() => setGuests(g => Math.max(1, g - 1))} disabled={guests <= 1} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #d1d5db', background: guests <= 1 ? '#f9fafb' : '#fff', color: guests <= 1 ? '#d1d5db' : '#374151', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: guests <= 1 ? 'not-allowed' : 'pointer', lineHeight: 1, padding: 0 }}>−</button>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#111827', minWidth: '20px', textAlign: 'center' }}>{guests}</span>
+                      <button type="button" onClick={() => setGuests(g => Math.min(room.maxGuests || 10, g + 1))} disabled={guests >= (room.maxGuests || 10)} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #d1d5db', background: guests >= (room.maxGuests || 10) ? '#f9fafb' : '#fff', color: guests >= (room.maxGuests || 10) ? '#d1d5db' : '#374151', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: guests >= (room.maxGuests || 10) ? 'not-allowed' : 'pointer', lineHeight: 1, padding: 0 }}>+</button>
+                      <span style={{ fontSize: '0.75rem', color: '#9ca3af', marginLeft: 'auto' }}>(phòng cho phép tối đa {room.maxGuests || 10} người)</span>
                     </div>
                   </div>
 
-                  <div style={{ background: '#f3f4f6', borderRadius: '8px', padding: '12px', textAlign: 'center', fontSize: '0.85rem', color: '#374151', marginBottom: '16px' }}>
-                    Hủy miễn phí trước khi nhận phòng
+                  <div style={{ border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden', padding: '10px 14px', marginBottom: '16px', position: 'relative' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#374151', marginBottom: '8px', textTransform: 'uppercase' }}>Thuê theo</label>
+                    <select
+                      value={shortBookingType}
+                      onChange={(e) => {
+                        const newType = e.target.value
+                        setShortBookingType(newType)
+                        if (newType !== 'hour') {
+                          if (shortCheckIn) {
+                            const dIn = new Date(shortCheckIn)
+                            dIn.setHours(14, 0, 0, 0)
+                            setShortCheckIn(dIn.toISOString())
+                          }
+                          if (shortCheckOut) {
+                            const dOut = new Date(shortCheckOut)
+                            dOut.setHours(13, 0, 0, 0)
+                            setShortCheckOut(dOut.toISOString())
+                          }
+                        }
+                      }}
+                      style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: '14px', color: shortBookingType ? '#111827' : '#6b7280', fontWeight: 500, width: '100%', padding: 0, cursor: 'pointer', appearance: 'none' }}
+                    >
+                      <option value="hour">Theo giờ</option>
+                      <option value="day">Theo ngày</option>
+                      <option value="week">Theo tuần</option>
+                      <option value="month">Theo tháng</option>
+                    </select>
+                    <div style={{ position: 'absolute', right: '14px', bottom: '12px', pointerEvents: 'none' }}>
+                      <svg width="12" height="8" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M1 1.5L6 6.5L11 1.5" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
                   </div>
 
+                  {/* ── Price breakdown ── */}
+                  {(() => {
+                    const est = calcEstimatedPrice()
+                    if (!est) return (
+                      <div style={{ background: '#f3f4f6', borderRadius: '8px', padding: '12px', textAlign: 'center', fontSize: '0.85rem', color: '#374151', marginBottom: '16px' }}>
+                        Hủy miễn phí trước khi nhận phòng
+                      </div>
+                    )
+                    if ('error' in est) return (
+                      <div style={{ background: '#fef2f2', borderRadius: '8px', padding: '12px', textAlign: 'center', fontSize: '0.85rem', color: '#dc2626', marginBottom: '16px', border: '1px solid #fecaca' }}>
+                        {est.error}
+                      </div>
+                    )
+                    const typeLabels: Record<string, string> = { hour: 'Theo giờ', day: 'Theo ngày', week: 'Theo tuần', month: 'Theo tháng' }
+                    return (
+                      <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '16px', marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#667085', marginBottom: '10px' }}>
+                          <span>Hình thức</span>
+                          <span style={{ fontWeight: 600, color: '#003e68' }}>{typeLabels[est.autoType || ''] || ''}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#374151', marginBottom: '8px' }}>
+                          <span style={{ textDecoration: 'underline', cursor: 'help' }}>{est.unitPrice.toLocaleString('vi-VN')}đ × {est.quantity} {est.unitLabel}</span>
+                          <span>{est.total.toLocaleString('vi-VN')}đ</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#374151', marginBottom: '8px' }}>
+                          <span>Số khách</span>
+                          <span>{guests} người</span>
+                        </div>
+                        <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '1rem', color: '#101828' }}>
+                          <span>Tổng cộng</span>
+                          <span>{est.total.toLocaleString('vi-VN')}đ</span>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
                   {user ? (
-                    <button type="submit" disabled={shortLoading} style={{ width: '100%', background: '#003e68', color: '#fff', border: 'none', padding: '14px', borderRadius: '8px', fontSize: '1rem', fontWeight: 700, cursor: 'pointer', opacity: shortLoading ? 0.7 : 1 }}>
-                      {shortLoading ? 'ĐANG XỬ LÝ...' : 'Đặt phòng'}
+                    <button type="button" onClick={handleOpenServiceStep} disabled={shortLoading} style={{ width: '100%', background: '#1c4c6b', color: '#fff', border: 'none', padding: '14px', borderRadius: '8px', fontSize: '1.05rem', fontWeight: 700, cursor: 'pointer', opacity: shortLoading ? 0.7 : 1, marginTop: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                      Đặt phòng
                     </button>
                   ) : (
-                    <Link to="/login" className="button button-primary" style={{ width: '100%', background: '#e11d48', color: '#fff', display: 'block', textAlign: 'center', padding: '14px', borderRadius: '8px', fontSize: '1rem', fontWeight: 700 }}>
+                    <Link to="/login" className="button button-primary" style={{ width: '100%', background: '#e11d48', color: '#fff', display: 'block', textAlign: 'center', padding: '14px', borderRadius: '8px', fontSize: '1.05rem', fontWeight: 700, marginTop: '8px' }}>
                       Đăng nhập để Đặt phòng
                     </Link>
                   )}
@@ -950,6 +1313,36 @@ export default function RoomDetail() {
           </div>
         </div>
       )}
+
+      {/* ── Additional Services Step Overlay ── */}
+      {showServiceStep && room && (() => {
+        const est = calcEstimatedPrice()
+        const roomTotal = (est && !('error' in est)) ? est.total : 0
+        const qty = (est && !('error' in est)) ? est.quantity : 0
+        const uLabel = (est && !('error' in est)) ? est.unitLabel : ''
+
+        return (
+          <AddonServicesStep
+            room={{ _id: room._id, name: room.name, type: room.type }}
+            checkIn={shortCheckIn}
+            checkOut={shortCheckOut}
+            guests={guests}
+            bookingType={shortBookingType}
+            roomTotal={roomTotal}
+            quantity={qty}
+            unitLabel={uLabel}
+            onSuccess={() => {
+              setShowServiceStep(false)
+              setShortSuccess(true)
+            }}
+            onError={(msg) => {
+              setShortError(msg)
+              setShowServiceStep(false)
+            }}
+            onBack={() => setShowServiceStep(false)}
+          />
+        )
+      })()}
 
       {/* ── Feedback & Đánh giá ── */}
       {room && (

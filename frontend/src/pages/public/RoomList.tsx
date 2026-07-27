@@ -3,6 +3,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import api from "../../api/axios.ts";
 import Spinner from "../../components/ui/Spinner.tsx";
 import FavoriteHeartButton from "../../components/ui/FavoriteHeartButton.tsx";
+// import { MdOutlineMeetingRoom, MdLocationOn, MdAttachMoney, MdOutlineGavel } from 'react-icons/md';
+import pageHeroImage from '../../image/Gemini_Generated_Image_1v3maq1v3maq1v3m.png';
 import { RiMapPin2Line } from "react-icons/ri";
 interface Room {
   _id: string;
@@ -14,6 +16,20 @@ interface Room {
   status: "available" | "occupied" | "maintenance";
   images: any[];
   amenities: string[];
+  rentalMode: string;
+  hourlyPrice: number;
+  // Promotion pricing fields (gắn bởi backend)
+  isPromotion?: boolean;
+  originalPrice?: number;
+  discountedPrice?: number;
+  discountAmount?: number;
+  discountPercent?: number;
+  promotionName?: string;
+  promotionEndDate?: string;
+  remainingPromotionDays?: number;
+  // Short-term promotion pricing
+  originalHourlyPrice?: number;
+  discountedHourlyPrice?: number;
 }
 
 const STATUS_MAP = {
@@ -55,7 +71,11 @@ export default function RoomList() {
     api
       .get("/rooms", { params })
       .then((res) => {
-        setRooms(res.data);
+        const sortedRooms = res.data.sort((a: Room, b: Room) => {
+          const statusOrder = { available: 1, maintenance: 2, occupied: 3 };
+          return (statusOrder[a.status] || 4) - (statusOrder[b.status] || 4);
+        });
+        setRooms(sortedRooms);
         setCurrentPage(1); // Reset về trang 1 khi lọc thay đổi
       })
       .catch(() => setError("Không thể tải danh sách phòng. Vui lòng thử lại."))
@@ -72,9 +92,12 @@ export default function RoomList() {
   return (
     <div className="page-shell">
       <div className="room-list-page">
-        <div className="page-hero-mini">
-          <h1>Tìm căn hộ</h1>
-          <p>Khám phá hàng trăm căn hộ chất lượng tại TP.Hà Nội</p>
+        <div style={{ marginBottom: '36px', borderRadius: '12px', overflow: 'hidden' }}>
+          <img
+            src={pageHeroImage}
+            alt="Tìm căn hộ"
+            style={{ width: '100%', display: 'block', maxHeight: '350px', objectFit: 'cover' }}
+          />
         </div>
 
         {/* Filters */}
@@ -174,6 +197,10 @@ export default function RoomList() {
                       : "https://vinhomeoceanpark.net/wp-content/uploads/khong-sang-song-hien-dai-tien-ich-tai-studio-vinhomes-ocean-park.jpg";
                   const bgStyle = { backgroundImage: `url("${imageUrl}")` };
 
+                  // Giá hiển thị: ưu tiên giá khuyến mãi nếu có
+                  const displayPrice = room.isPromotion ? room.discountedPrice! : room.price;
+                  const hasPromotion = room.isPromotion && room.discountPercent && room.discountPercent > 0;
+
                   return (
                     <Link
                       to={`/rooms/${room._id}`}
@@ -194,6 +221,27 @@ export default function RoomList() {
                             ? "CÒN PHÒNG"
                             : STATUS_MAP[room.status].label.toUpperCase()}
                         </div>
+                        {/* Badge khuyến mãi */}
+                        {hasPromotion && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: '12px',
+                              right: '23px',
+                              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                              color: 'white',
+                              padding: '4px 10px',
+                              borderRadius: '6px',
+                              fontSize: '0.75rem',
+                              fontWeight: 800,
+                              boxShadow: '0 2px 8px rgba(220,38,38,0.4)',
+                              zIndex: 2,
+                              letterSpacing: '0.02em',
+                            }}
+                          >
+                            GIẢM {room.discountPercent}%
+                          </div>
+                        )}
                         <FavoriteHeartButton room={room} />
                       </div>
                       <div className="design-room-body">
@@ -210,8 +258,55 @@ export default function RoomList() {
                         </div>
                         <div className="design-room-footer">
                           <div className="design-room-price">
-                            <strong>{formatPrice(room.price)}</strong>
-                            <span>/tháng</span>
+                            {room.rentalMode === "short_term" ? (
+                              hasPromotion ? (
+                                <>
+                                  <span
+                                    style={{
+                                      textDecoration: 'line-through',
+                                      color: '#9ca3af',
+                                      fontSize: '0.8rem',
+                                      fontWeight: 400,
+                                      marginRight: '6px',
+                                    }}
+                                  >
+                                    {formatPrice(room.originalHourlyPrice || room.hourlyPrice)}
+                                  </span>
+                                  <strong style={{ color: '#dc2626' }}>
+                                    {formatPrice(room.discountedHourlyPrice || room.hourlyPrice)}
+                                  </strong>
+                                  <span>/giờ</span>
+                                </>
+                              ) : (
+                                <>
+                                  <strong>{formatPrice(room.hourlyPrice)}</strong>
+                                  <span>/giờ</span>
+                                </>
+                              )
+                            ) : hasPromotion ? (
+                              <>
+                                <span
+                                  style={{
+                                    textDecoration: 'line-through',
+                                    color: '#9ca3af',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 400,
+                                    marginRight: '6px',
+                                  }}
+                                >
+                                  {formatPrice(room.originalPrice || room.price)}
+                                </span>
+                                <strong style={{ color: '#dc2626' }}>
+                                  {formatPrice(displayPrice)}
+                                </strong>
+                                <span>/tháng</span>
+                              </>
+                            ) : (
+                              <>
+                                <strong>{formatPrice(room.price)}</strong>
+                                <span>/tháng</span>
+                              </>
+                            )}
                           </div>
                           <span
                             className="design-room-link"

@@ -29,8 +29,12 @@ export default function PaymentCallback() {
         const vnp_ResponseCode = searchParams.get('vnp_ResponseCode') // VNPay
         const reason = searchParams.get('reason') // Custom fail reason
 
+        const routeBookingId = searchParams.get('bookingId')
+        const routeServiceBookingId = searchParams.get('serviceBookingId')
+        
         const invoiceId = localStorage.getItem('pendingPaymentInvoiceId')
         const bookingId = localStorage.getItem('pendingPaymentBookingId')
+        const serviceBookingId = localStorage.getItem('pendingPaymentServiceBookingId')
         const paymentMethod = localStorage.getItem('pendingPaymentMethod')
 
         // Xác định kết quả thanh toán
@@ -54,13 +58,12 @@ export default function PaymentCallback() {
           }
         }
 
-        const routeBookingId = searchParams.get('bookingId')
-
         const resolvedInvoiceId = routeInvoiceId || invoiceId
         const resolvedBookingId = routeBookingId || bookingId
-        const isSuccessRoute = location.pathname.includes('/payment/success') && (!!routeInvoiceId || !!routeBookingId)
+        const resolvedServiceBookingId = routeServiceBookingId || serviceBookingId
+        const isSuccessRoute = location.pathname.includes('/payment/success') && (!!routeInvoiceId || !!routeBookingId || !!routeServiceBookingId)
 
-        if ((isSuccess && (resolvedInvoiceId || resolvedBookingId)) || isSuccessRoute) {
+        if ((isSuccess && (resolvedInvoiceId || resolvedBookingId || resolvedServiceBookingId)) || isSuccessRoute) {
           setPaymentStatus({
             status: 'success',
             message: isSuccessRoute
@@ -68,16 +71,20 @@ export default function PaymentCallback() {
               : `Thanh toán thành công qua ${paymentMethod?.toUpperCase() || 'cổng thanh toán'}!`,
             invoiceId: resolvedInvoiceId || routeInvoiceId || undefined,
             bookingId: resolvedBookingId || routeBookingId || undefined,
+            orderInfo: resolvedServiceBookingId || routeServiceBookingId || undefined,
           })
 
           // Xóa localStorage
           localStorage.removeItem('pendingPaymentInvoiceId')
           localStorage.removeItem('pendingPaymentBookingId')
+          localStorage.removeItem('pendingPaymentServiceBookingId')
           localStorage.removeItem('pendingPaymentMethod')
 
           // Redirect sau 3 giây
           setTimeout(() => {
-            if (resolvedBookingId) {
+            if (resolvedServiceBookingId) {
+                navigate('/my-service-bookings') 
+            } else if (resolvedBookingId) {
                 navigate('/my-bookings')
             } else {
                 navigate('/my-invoices')
@@ -89,11 +96,13 @@ export default function PaymentCallback() {
             message: failReason || 'Thanh toán thất bại. Vui lòng thử lại.',
             invoiceId: resolvedInvoiceId || undefined,
             bookingId: resolvedBookingId || undefined,
+            orderInfo: resolvedServiceBookingId || undefined,
           })
 
           // Xóa localStorage
           localStorage.removeItem('pendingPaymentInvoiceId')
           localStorage.removeItem('pendingPaymentBookingId')
+          localStorage.removeItem('pendingPaymentServiceBookingId')
           localStorage.removeItem('pendingPaymentMethod')
         }
       } catch (error) {
@@ -176,17 +185,17 @@ export default function PaymentCallback() {
                 <MdOutlineReceipt size={24} color="#6b7280" />
                 <div style={{ textAlign: 'left' }}>
                   <p style={{ margin: 0, fontSize: '0.85rem', color: '#6b7280' }}>
-                    {paymentStatus.bookingId ? 'Mã Booking' : 'Mã hóa đơn'}
+                    {paymentStatus.orderInfo ? 'Mã dịch vụ' : paymentStatus.bookingId ? 'Mã Booking' : 'Mã hóa đơn'}
                   </p>
                   <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#111827' }}>
-                    {paymentStatus.bookingId || paymentStatus.invoiceId}
+                    {paymentStatus.orderInfo || paymentStatus.bookingId || paymentStatus.invoiceId}
                   </p>
                 </div>
               </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button
-                  onClick={() => navigate(paymentStatus.bookingId ? '/my-bookings' : '/my-invoices')}
+                  onClick={() => navigate(paymentStatus.orderInfo ? '/my-service-bookings' : paymentStatus.bookingId ? '/my-bookings' : '/my-invoices')}
                   style={{
                     flex: 1,
                     background: '#003e68',
@@ -202,7 +211,7 @@ export default function PaymentCallback() {
                   onMouseEnter={(e) => (e.currentTarget.style.background = '#002d4d')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = '#003e68')}
                 >
-                  {paymentStatus.bookingId ? 'Xem booking' : 'Xem hóa đơn'}
+                  {paymentStatus.orderInfo ? 'Xem dịch vụ' : paymentStatus.bookingId ? 'Xem booking' : 'Xem hóa đơn'}
                 </button>
                 <button
                   onClick={() => navigate('/')}
@@ -232,7 +241,7 @@ export default function PaymentCallback() {
                   color: '#9ca3af',
                 }}
               >
-                Bạn sẽ được chuyển hướng về trang {paymentStatus.bookingId ? 'booking' : 'hóa đơn'} của tôi trong 3 giây...
+                Bạn sẽ được chuyển hướng về trang {paymentStatus.orderInfo ? 'dịch vụ' : paymentStatus.bookingId ? 'booking' : 'hóa đơn'} của tôi trong 3 giây...
               </p>
             </>
           )}
@@ -262,7 +271,7 @@ export default function PaymentCallback() {
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button
-                  onClick={() => navigate(paymentStatus.bookingId ? '/my-bookings' : '/my-invoices')}
+                  onClick={() => navigate(paymentStatus.orderInfo ? '/my-service-bookings' : paymentStatus.bookingId ? '/my-bookings' : '/my-invoices')}
                   style={{
                     flex: 1,
                     background: '#003e68',

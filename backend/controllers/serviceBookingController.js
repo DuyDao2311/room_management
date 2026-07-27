@@ -261,6 +261,30 @@ const payServiceBooking = async (req, res) => {
       { path: "service", select: POPULATE_SERVICE },
       { path: "tenant", select: POPULATE_TENANT },
     ]);
+
+    // Tạo bản ghi lịch sử Payment (tiền mặt)
+    const Payment = require("../models/Payment");
+    await Payment.create({
+      serviceBooking: booking._id,
+      tenant: booking.tenant._id,
+      paymentMethod: "cash",
+      amount: booking.totalAmount,
+      status: "success",
+      paidAt: new Date(),
+      cash: {
+        receivedBy: req.user._id,
+        note: req.body?.note || "Admin/Staff thu tiền mặt",
+      },
+    });
+
+    // Thông báo cho Tenant
+    const { notifyTenantServiceBookingPaid, sendSocketNotification } = require("../utils/notificationService");
+    const tenantNotifs = await notifyTenantServiceBookingPaid(booking, "Tiền mặt");
+    const io = req.app ? req.app.get("io") : null;
+    if (io && tenantNotifs && tenantNotifs.length > 0) {
+      tenantNotifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
+    }
+
     res.json(booking);
   } catch (err) {
     console.error("Pay service booking error:", err);

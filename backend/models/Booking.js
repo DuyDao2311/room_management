@@ -45,6 +45,14 @@ const bookingSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    roomTotal: {
+      type: Number,
+      default: 0,
+    },
+    serviceTotal: {
+      type: Number,
+      default: 0,
+    },
     totalAmount: {
       type: Number,
       required: true,
@@ -53,6 +61,11 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       enum: ["pending", "paid", "refunded"],
       default: "pending",
+    },
+    paymentMethod: {
+      type: String,
+      enum: ["MoMo", "VNPay", "Cash"],
+      default: null,
     },
     status: {
       type: String,
@@ -64,6 +77,11 @@ const bookingSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    guests: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
   },
   { timestamps: true }
 );
@@ -73,5 +91,15 @@ bookingSchema.index({ room: 1, status: 1, checkInDateTime: 1, checkOutDateTime: 
 
 // Index for tenant's bookings list
 bookingSchema.index({ tenant: 1, createdAt: -1 });
+
+// Virtual for serviceBookings
+bookingSchema.virtual('serviceBookings', {
+  ref: 'ServiceBooking',
+  localField: '_id',
+  foreignField: 'roomBooking'
+});
+
+bookingSchema.set('toObject', { virtuals: true });
+bookingSchema.set('toJSON', { virtuals: true });
 
 module.exports = mongoose.model("Booking", bookingSchema);

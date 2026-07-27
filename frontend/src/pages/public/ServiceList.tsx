@@ -67,10 +67,10 @@ export default function ServiceList() {
                   </div>
                   <div className="design-room-body">
                     <h3 className="design-room-title">{s.name}</h3>
-                    <p className="design-room-address">★ {s.avgRating.toFixed(1)} ({s.ratingCount} đánh giá)</p>
+                    <p className="design-room-address">★ {(s.avgRating ?? 0).toFixed(1)} ({s.ratingCount ?? 0} đánh giá)</p>
                     <div className="design-room-footer">
                       <div className="design-room-price">
-                        <strong>Từ {s.price.toLocaleString('vi-VN')}đ</strong>
+                        <strong>Từ {(s.price ?? 0).toLocaleString('vi-VN')}đ</strong>
                         <span>/{s.unit}</span>
                       </div>
                       <span className="design-room-link">Chi tiết →</span>
