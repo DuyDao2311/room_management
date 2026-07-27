@@ -4,6 +4,9 @@ const Contract = require("../models/Contract");
 const Booking = require("../models/Booking");
 const {
   notifyTenantServiceBookingStatusChanged,
+  notifyTenantServiceBookingCreated,
+  notifyStaffNewServiceBooking,
+  notifyTenantServiceBookingPaid,
   sendSocketNotification,
 } = require("../utils/notificationService");
 
@@ -44,6 +47,35 @@ const notifyAndEmitStatusChange = async (req, booking, status) => {
     }
   } catch (notifErr) {
     console.error(`Notify service booking ${status} error:`, notifErr);
+  }
+};
+
+/** Gửi notification (tenant xác nhận đã đặt + staff có đơn mới) khi tạo booking, rồi emit qua socket. Lỗi bị nuốt (không chặn response). */
+const notifyAndEmitBookingCreated = async (req, booking) => {
+  try {
+    const [tenantNotifs, staffNotifs] = await Promise.all([
+      notifyTenantServiceBookingCreated(booking),
+      notifyStaffNewServiceBooking(booking),
+    ]);
+    const io = req.app.get("io");
+    if (io) {
+      [...tenantNotifs, ...staffNotifs].forEach((n) => sendSocketNotification(io, "new_notification", n));
+    }
+  } catch (notifErr) {
+    console.error("Notify service booking created error:", notifErr);
+  }
+};
+
+/** Gửi email biên lai cho tenant khi booking được đánh dấu đã thanh toán, rồi emit qua socket. Lỗi bị nuốt (không chặn response). */
+const notifyAndEmitBookingPaid = async (req, booking) => {
+  try {
+    const notifs = await notifyTenantServiceBookingPaid(booking);
+    const io = req.app.get("io");
+    if (io && notifs && notifs.length > 0) {
+      notifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
+    }
+  } catch (notifErr) {
+    console.error("Notify service booking paid error:", notifErr);
   }
 };
 
@@ -183,6 +215,9 @@ const createServiceBooking = async (req, res) => {
       { path: "service", select: POPULATE_SERVICE },
       { path: "tenant", select: POPULATE_TENANT },
     ]);
+
+    notifyAndEmitBookingCreated(req, booking);
+
     res.status(201).json(booking);
   } catch (err) {
     console.error("Create service booking error:", err);
@@ -343,6 +378,9 @@ const payServiceBooking = async (req, res) => {
       { path: "service", select: POPULATE_SERVICE },
       { path: "tenant", select: POPULATE_TENANT },
     ]);
+
+    notifyAndEmitBookingPaid(req, booking);
+
     res.json(booking);
   } catch (err) {
     console.error("Pay service booking error:", err);
