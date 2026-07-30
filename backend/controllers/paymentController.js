@@ -3,7 +3,7 @@ const contractModel = require('../models/Contract');
 const userModel = require('../models/User');
 const paymentModel = require('../models/Payment');
 const { checkUserDistrictPermission } = require('../middleware/auth');
-const { notifyInvoicePaid, notifyTenantInvoicePaid, sendSocketNotification } = require('../utils/notificationService');
+const { notifyInvoicePaid, notifyTenantInvoicePaid, sendSocketNotification, notifyStaffBookingPaid, notifyTenantBookingPaid } = require('../utils/notificationService');
 
 const { NotFoundError, BadRequestError, ForbiddenError } = require('../core/error.response');
 const { Created, OK } = require('../core/success.response');
@@ -36,11 +36,11 @@ class PaymentController {
      */
     async createPayment(req, res, next) {
         try {
-            const { invoiceId, bookingId, typePayment } = req.body;
+            const { invoiceId, bookingId, serviceBookingId, typePayment } = req.body;
             const userId = req.user; // Lấy từ JWT middleware
 
-            if (!invoiceId && !bookingId) {
-                return next(new BadRequestError('Vui lòng cung cấp invoiceId hoặc bookingId'));
+            if (!invoiceId && !bookingId && !serviceBookingId) {
+                return next(new BadRequestError('Vui lòng cung cấp invoiceId, bookingId hoặc serviceBookingId'));
             }
 
             // Validate phương thức thanh toán
@@ -72,6 +72,17 @@ class PaymentController {
                 amount = booking.totalAmount;
                 orderInfoStr = `Thanh toan booking phong tro: ${booking._id}`;
                 targetDoc = booking;
+            } else if (serviceBookingId) {
+                const ServiceBooking = require('../models/ServiceBooking');
+                const serviceBooking = await ServiceBooking.findById(serviceBookingId).populate('tenant');
+                if (!serviceBooking) return next(new NotFoundError('Dịch vụ không tồn tại'));
+                if (serviceBooking.status !== 'confirmed') return next(new BadRequestError('Dịch vụ chưa được xác nhận'));
+                if (serviceBooking.paymentStatus === 'paid') return next(new BadRequestError('Dịch vụ này đã được thanh toán'));
+                
+                tenant = serviceBooking.tenant;
+                amount = serviceBooking.totalAmount;
+                orderInfoStr = `Thanh toan dich vu: ${serviceBooking._id}`;
+                targetDoc = serviceBooking;
             }
 
             if (!tenant) return next(new NotFoundError('Người dùng không tồn tại'));
@@ -80,6 +91,7 @@ class PaymentController {
             const pendingPayment = await paymentModel.create({
                 invoice:       invoiceId ? targetDoc._id : undefined,
                 booking:       bookingId ? targetDoc._id : undefined,
+                serviceBooking: serviceBookingId ? targetDoc._id : undefined,
                 contract:      invoiceId ? (targetDoc.contract?._id || targetDoc.contract) : undefined,
                 tenant:        tenant._id,
                 paymentMethod: typePayment,
@@ -89,9 +101,9 @@ class PaymentController {
 
             // Xử lý theo phương thức thanh toán
             if (typePayment === 'momo') {
-                return this._handleMomo(targetDoc, tenant, amount, orderInfoStr, req, res, next, pendingPayment._id, invoiceId, bookingId);
+                return this._handleMomo(targetDoc, tenant, amount, orderInfoStr, req, res, next, pendingPayment._id, invoiceId, bookingId, serviceBookingId);
             } else if (typePayment === 'vnpay') {
-                return this._handleVNPay(targetDoc, tenant, amount, orderInfoStr, req, res, next, pendingPayment._id, invoiceId, bookingId);
+                return this._handleVNPay(targetDoc, tenant, amount, orderInfoStr, req, res, next, pendingPayment._id, invoiceId, bookingId, serviceBookingId);
             }
         } catch (error) {
             return next(error);
@@ -101,7 +113,7 @@ class PaymentController {
     /**
      * Xử lý thanh toán Momo
      */
-    async _handleMomo(targetDoc, tenant, amount, orderInfo, req, res, next, pendingPaymentId = null, invoiceId = null, bookingId = null) {
+    async _handleMomo(targetDoc, tenant, amount, orderInfo, req, res, next, pendingPaymentId = null, invoiceId = null, bookingId = null, serviceBookingId = null) {
         try {
             // Lấy credentials từ environment (hoặc .env)
             const accessKey = process.env.MOMO_ACCESS_KEY || 'F8BBA842ECF85';
@@ -293,8 +305,8 @@ class PaymentController {
 
             console.log('Momo Callback:', { resultCode, orderId, extraData, message });
 
-            // extraData = "invoiceId:pendingPaymentId:bookingId"
-            const [invoiceId, pendingPaymentId, bookingId] = (extraData || '').split(':');
+            // extraData = "invoiceId:pendingPaymentId:bookingId:serviceBookingId"
+            const [invoiceId, pendingPaymentId, bookingId, serviceBookingId] = (extraData || '').split(':');
 
             if (resultCode !== '0') {
                 console.warn('Thanh toán Momo thất bại:', resultCode);
@@ -315,9 +327,12 @@ class PaymentController {
 
             let targetId = null;
             let successRoute = '';
+            let invoice = null;
+            let booking = null;
+            let serviceBooking = null;
 
             if (invoiceId) {
-                const invoice = await invoiceModel.findById(invoiceId);
+                invoice = await invoiceModel.findById(invoiceId);
                 if (!invoice) {
                     return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=invoice-not-found`);
                 }
@@ -336,17 +351,54 @@ class PaymentController {
                 successRoute = `/payment/success/${targetId}`;
             } else if (bookingId) {
                 const Booking = require('../models/Booking');
-                const booking = await Booking.findById(bookingId);
+                booking = await Booking.findById(bookingId);
                 if (!booking) {
                     return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=booking-not-found`);
                 }
                 booking.paymentStatus = 'paid';
+                booking.paymentMethod = 'MoMo';
                 if (booking.status === 'pending') {
                     booking.status = 'confirmed';
                 }
                 await booking.save();
+
+                const ServiceBooking = require('../models/ServiceBooking');
+                await ServiceBooking.updateMany(
+                  { roomBooking: booking._id, paymentStatus: 'unpaid' },
+                  { paymentStatus: 'paid', status: 'confirmed' }
+                );
+
+                const populatedBooking = await Booking.findById(booking._id).populate('room', 'name district').populate('tenant', 'name email phone');
+                const staffNotifs = await notifyStaffBookingPaid(populatedBooking);
+                const tenantNotifs = await notifyTenantBookingPaid(populatedBooking);
+                const io = req.app ? req.app.get('io') : null;
+                if (io) {
+                    if (staffNotifs) staffNotifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));
+                    if (tenantNotifs) tenantNotifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));
+                }
+
                 targetId = booking._id;
                 successRoute = `/payment/success?bookingId=${targetId}`; // Will handle in frontend
+            } else if (serviceBookingId) {
+                const ServiceBooking = require('../models/ServiceBooking');
+                serviceBooking = await ServiceBooking.findById(serviceBookingId).populate('service tenant');
+                if (!serviceBooking) {
+                    return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=service-booking-not-found`);
+                }
+                serviceBooking.paymentStatus = 'paid';
+                await serviceBooking.save();
+
+                const { notifyStaffServiceBookingPaid, notifyTenantServiceBookingPaid, sendSocketNotification } = require('../utils/notificationService');
+                const staffNotifs = await notifyStaffServiceBookingPaid(serviceBooking, 'MoMo', req);
+                const tenantNotifs = await notifyTenantServiceBookingPaid(serviceBooking, 'MoMo');
+                const io = req.app ? req.app.get('io') : null;
+                if (io) {
+                    if (staffNotifs) staffNotifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));
+                    if (tenantNotifs) tenantNotifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));
+                }
+
+                targetId = serviceBooking._id;
+                successRoute = `/payment/success?serviceBookingId=${targetId}`;
             }
 
             // Cập nhật Payment record → success
@@ -363,10 +415,13 @@ class PaymentController {
             } else {
                 // fallback: tạo mới nếu không có pendingPaymentId
                 await paymentModel.create({
-                    invoice:       invoice._id,
-                    contract:      invoice.contract,
+                    invoice:       invoice ? invoice._id : undefined,
+                    booking:       booking ? booking._id : undefined,
+                    serviceBooking: serviceBooking ? serviceBooking._id : undefined,
+                    contract:      invoice ? invoice.contract : undefined,
+                    tenant:        invoice ? invoice.tenantId : (booking ? booking.tenant : (serviceBooking ? serviceBooking.tenant : undefined)),
                     paymentMethod: 'momo',
-                    amount:        invoice.totalAmount,
+                    amount:        invoice ? invoice.totalAmount : (booking ? booking.totalAmount : (serviceBooking ? serviceBooking.totalAmount : 0)),
                     status:        'success',
                     paidAt:        new Date(),
                     momo: { orderId, transId, resultCode: 0, message, payType },
@@ -423,21 +478,28 @@ class PaymentController {
 
             let invoiceId = null;
             let bookingId = null;
+            let serviceBookingId = null;
 
             if (vnp_OrderInfo?.includes('hoa don:')) {
                 invoiceId = vnp_OrderInfo.split(': ')[1] || (paymentRecord?.invoice?.toString());
             } else if (vnp_OrderInfo?.includes('booking phong tro:')) {
                 bookingId = vnp_OrderInfo.split(': ')[1] || (paymentRecord?.booking?.toString());
+            } else if (vnp_OrderInfo?.includes('dich vu:')) {
+                serviceBookingId = vnp_OrderInfo.split(': ')[1] || (paymentRecord?.serviceBooking?.toString());
             } else {
                 invoiceId = paymentRecord?.invoice?.toString();
                 bookingId = paymentRecord?.booking?.toString();
+                serviceBookingId = paymentRecord?.serviceBooking?.toString();
             }
 
             let targetId = null;
             let successRoute = '';
+            let invoice = null;
+            let booking = null;
+            let serviceBooking = null;
 
             if (invoiceId) {
-                const invoice = await invoiceModel.findById(invoiceId);
+                invoice = await invoiceModel.findById(invoiceId);
                 if (!invoice) return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=invoice-not-found`);
                 
                 invoice.status = 'paid';
@@ -451,16 +513,52 @@ class PaymentController {
                 successRoute = `/payment/success/${targetId}`;
             } else if (bookingId) {
                 const Booking = require('../models/Booking');
-                const booking = await Booking.findById(bookingId);
+                booking = await Booking.findById(bookingId);
                 if (!booking) return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=booking-not-found`);
                 
                 booking.paymentStatus = 'paid';
+                booking.paymentMethod = 'VNPay';
                 if (booking.status === 'pending') {
                     booking.status = 'confirmed';
                 }
                 await booking.save();
+
+                const ServiceBooking = require('../models/ServiceBooking');
+                await ServiceBooking.updateMany(
+                  { roomBooking: booking._id, paymentStatus: 'unpaid' },
+                  { paymentStatus: 'paid', status: 'confirmed' }
+                );
+
+                const populatedBooking = await Booking.findById(booking._id).populate('room', 'name district').populate('tenant', 'name email phone');
+                const staffNotifs = await notifyStaffBookingPaid(populatedBooking);
+                const tenantNotifs = await notifyTenantBookingPaid(populatedBooking);
+                const io = req.app ? req.app.get('io') : null;
+                if (io) {
+                    if (staffNotifs) staffNotifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));
+                    if (tenantNotifs) tenantNotifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));
+                }
+
                 targetId = booking._id;
                 successRoute = `/payment/success?bookingId=${targetId}`; // Will handle in frontend
+            } else if (serviceBookingId) {
+                const ServiceBooking = require('../models/ServiceBooking');
+                serviceBooking = await ServiceBooking.findById(serviceBookingId).populate('service tenant');
+                if (!serviceBooking) return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/payment/failed?reason=service-booking-not-found`);
+
+                serviceBooking.paymentStatus = 'paid';
+                await serviceBooking.save();
+
+                const { notifyStaffServiceBookingPaid, notifyTenantServiceBookingPaid, sendSocketNotification } = require('../utils/notificationService');
+                const staffNotifs = await notifyStaffServiceBookingPaid(serviceBooking, 'VNPay', req);
+                const tenantNotifs = await notifyTenantServiceBookingPaid(serviceBooking, 'VNPay');
+                const io = req.app ? req.app.get('io') : null;
+                if (io) {
+                    if (staffNotifs) staffNotifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));
+                    if (tenantNotifs) tenantNotifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));
+                }
+
+                targetId = serviceBooking._id;
+                successRoute = `/payment/success?serviceBookingId=${targetId}`;
             }
 
             // Cập nhật Payment record → success
@@ -477,10 +575,13 @@ class PaymentController {
             } else {
                 // fallback: tạo mới nếu không tìm thấy qua txnRef
                 await paymentModel.create({
-                    invoice:       invoice._id,
-                    contract:      invoice.contract,
+                    invoice:       invoice ? invoice._id : undefined,
+                    booking:       booking ? booking._id : undefined,
+                    serviceBooking: serviceBooking ? serviceBooking._id : undefined,
+                    contract:      invoice ? invoice.contract : undefined,
+                    tenant:        invoice ? invoice.tenantId : (booking ? booking.tenant : (serviceBooking ? serviceBooking.tenant : undefined)),
                     paymentMethod: 'vnpay',
-                    amount:        invoice.totalAmount,
+                    amount:        invoice ? invoice.totalAmount : (booking ? booking.totalAmount : (serviceBooking ? serviceBooking.totalAmount : 0)),
                     status:        'success',
                     paidAt:        new Date(),
                     vnpay: {

@@ -4,6 +4,7 @@ const Room = require("../models/Room");
 const { protect, optionalAuth, adminOnly, verifyRole, injectDistrictFilter, checkDistrictPermission } = require("../middleware/auth");
 const { validateLocationInput, isValidCoordinates } = require("../utils/geo.util");
 const { getRoomsForMap, getNearbyRooms, getRoomLocation } = require("../services/room.service");
+const { attachPromotionToRooms, attachPromotionToRoom } = require("../services/promotion.service");
 const { addImageUrl, addBulkImageUrls, removeImage, setPrimaryImage, reorderImages } = require("../controllers/roomImageController");
 const { getRoomAvailability, getRoomCalendar } = require("../controllers/bookingController");
 
@@ -41,8 +42,10 @@ router.get("/", async (req, res) => {
       filter.$text = { $search: search };
     }
 
-    const rooms = await Room.find(filter).sort({ createdAt: -1 });
-    res.json(rooms);
+    const rooms = await Room.find(filter).sort({ createdAt: -1 }).lean();
+    // Gắn thông tin promotion (giá khuyến mãi) vào từng room
+    const roomsWithPromotion = await attachPromotionToRooms(rooms);
+    res.json(roomsWithPromotion);
   } catch (err) {
     console.error("Get rooms error:", err);
     res.status(500).json({ message: "Lỗi server." });
@@ -172,7 +175,9 @@ router.get("/:id", async (req, res) => {
   try {
     const room = await Room.findById(req.params.id);
     if (!room) return res.status(404).json({ message: "Không tìm thấy phòng." });
-    res.json(room);
+    // Gắn thông tin promotion vào room object (gộp trực tiếp, không tách { room, pricing })
+    const roomWithPromotion = await attachPromotionToRoom(room);
+    res.json(roomWithPromotion);
   } catch (err) {
     res.status(500).json({ message: "Lỗi server." });
   }
@@ -284,7 +289,7 @@ router.put("/:id", protect, verifyRole("admin", "staff"), async (req, res) => {
     delete updateData.images;
 
     const updatedRoom = await Room.findByIdAndUpdate(req.params.id, updateData, {
-      new: true,
+      returnDocument: "after",
       runValidators: true,
     });
 

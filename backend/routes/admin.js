@@ -4,6 +4,9 @@ const Room = require("../models/Room");
 const Contract = require("../models/Contract");
 const Invoice = require("../models/Invoice");
 const User = require("../models/User");
+const Incident = require("../models/Incident");
+const Booking = require("../models/Booking");
+const ServiceBooking = require("../models/ServiceBooking");
 const { protect, adminOnly, verifyRole, injectDistrictFilter } = require("../middleware/auth");
 const {
   getStaffList,
@@ -25,7 +28,21 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
     sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // ── Cho phép chọn tháng/năm qua query params ────────────────────────
+    const qMonth = req.query.month ? parseInt(req.query.month) : null;
+    const qYear = req.query.year ? parseInt(req.query.year) : null;
+    const targetMonth = qMonth || (now.getMonth() + 1);  // 1-12
+    const targetYear = qYear || now.getFullYear();
+
+    const startOfMonth = new Date(targetYear, targetMonth - 1, 1);
+    const endOfMonth = new Date(targetYear, targetMonth, 0, 23, 59, 59, 999);
+
+    // Tháng trước (so với tháng được chọn)
+    const startOfPrevMonth = new Date(targetYear, targetMonth - 2, 1);
+    const endOfPrevMonth = new Date(targetYear, targetMonth - 1, 0, 23, 59, 59, 999);
+    const prevMonth = startOfPrevMonth.getMonth() + 1;
+    const prevYear = startOfPrevMonth.getFullYear();
 
     // ── Build district-aware filters ────────────────────────────────────────
     const roomFilter = { ...req.districtFilter };
@@ -40,6 +57,8 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
 
     // Contract filter: lọc theo rooms thuộc district
     const contractFilter = isStaff ? { room: { $in: roomIds } } : {};
+    // Booking filter: lọc theo rooms thuộc district
+    const bookingFilter = isStaff ? { room: { $in: roomIds } } : {};
 
     const [
       totalRooms,
@@ -47,7 +66,7 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
       occupiedRooms,
       maintenanceRooms,
       activeContracts,
-      totalTenants,
+      longTermTenants,
       expiringContracts,
       newTenants,
     ] = await Promise.all([
@@ -56,23 +75,30 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
       Room.countDocuments({ ...roomFilter, status: "occupied" }),
       Room.countDocuments({ ...roomFilter, status: "maintenance" }),
       Contract.countDocuments({ ...contractFilter, status: "active" }),
-      // Tenant count: admin thấy tất cả, staff thấy tenant có hợp đồng trong district
+      // Tenant dài hạn
       isStaff
         ? Contract.distinct("tenant", { ...contractFilter, status: "active" }).then((ids) => ids.length)
         : User.countDocuments({ role: "tenant" }),
       Contract.countDocuments({ ...contractFilter, status: "active", endDate: { $lte: sevenDaysFromNow } }),
       isStaff
-        ? 0 // Staff không cần xem thông tin khách mới toàn hệ thống
+        ? 0
         : User.countDocuments({ role: "tenant", createdAt: { $gte: startOfMonth } }),
     ]);
 
-    // Doanh thu tháng hiện tại (tổng hóa đơn đã thu)
+    // Tổng khách booking ngắn hạn (đang active: confirmed hoặc checked_in)
+    const bookingGuestsResult = await Booking.aggregate([
+      { $match: { ...bookingFilter, status: { $in: ["confirmed", "checked_in"] } } },
+      { $group: { _id: null, totalGuests: { $sum: "$guests" } } },
+    ]);
+    const bookingGuests = bookingGuestsResult[0]?.totalGuests ?? 0;
+    const totalTenants = longTermTenants + bookingGuests;
+
+    // ── Doanh thu tháng được chọn (Invoice đã thu) ───────────────────────────
     const revenueMatchFilter = {
-      month: now.getMonth() + 1,
-      year: now.getFullYear(),
+      month: targetMonth,
+      year: targetYear,
       status: "paid",
     };
-    // Staff: chỉ tính invoice thuộc contracts trong district
     if (isStaff) {
       revenueMatchFilter.contract = { $in: roomIds.length > 0 ? await Contract.find({ room: { $in: roomIds } }).distinct("_id") : [] };
     }
@@ -81,7 +107,7 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
       { $match: revenueMatchFilter },
       { $group: { _id: null, total: { $sum: "$totalAmount" } } },
     ]);
-    const monthlyRevenue = revenueResult[0]?.total ?? 0;
+    const invoiceRevenue = revenueResult[0]?.total ?? 0;
 
     // Doanh thu theo phương thức thanh toán (tháng hiện tại)
     const revenueByMethodResult = await Invoice.aggregate([
@@ -91,6 +117,127 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
     const cashRevenue = revenueByMethodResult.find(r => r._id === "Cash")?.total ?? 0;
     const momoRevenue = revenueByMethodResult.find(r => r._id === "MoMo")?.total ?? 0;
     const vnpayRevenue = revenueByMethodResult.find(r => r._id === "VNPay")?.total ?? 0;
+
+    // ── Chi phí tháng hiện tại (Incident costPayer=landlord, theo createdAt) ─
+    const incidentExpenseFilter = {
+      costPayer: "landlord",
+      createdAt: { $gte: startOfMonth, $lte: endOfMonth },
+    };
+    if (isStaff) {
+      incidentExpenseFilter.room = { $in: roomIds };
+    }
+    const expenseResult = await Incident.aggregate([
+      { $match: incidentExpenseFilter },
+      { $group: { _id: null, total: { $sum: "$repairCost" } } },
+    ]);
+    const monthlyExpenses = expenseResult[0]?.total ?? 0;
+
+    // ── Doanh thu & chi phí tháng trước (để tính % tăng/giảm) ───────────────
+    const prevRevenueFilter = {
+      month: prevMonth,
+      year: prevYear,
+      status: "paid",
+    };
+    if (isStaff) {
+      prevRevenueFilter.contract = revenueMatchFilter.contract;
+    }
+    const prevRevenueResult = await Invoice.aggregate([
+      { $match: prevRevenueFilter },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+    ]);
+    const prevInvoiceRev = prevRevenueResult[0]?.total ?? 0;
+    
+    const prevBookingRevResult = await Booking.aggregate([
+      { $match: { ...bookingFilter, paymentStatus: "paid", createdAt: { $gte: startOfPrevMonth, $lte: endOfPrevMonth } } },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+    ]);
+    const prevBookingRev = prevBookingRevResult[0]?.total ?? 0;
+    
+    const prevServiceRevResult = await ServiceBooking.aggregate([
+      { $match: { paymentStatus: "paid", createdAt: { $gte: startOfPrevMonth, $lte: endOfPrevMonth } } },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+    ]);
+    const prevServiceRev = prevServiceRevResult[0]?.total ?? 0;
+    
+    const previousMonthRevenue = prevInvoiceRev + prevBookingRev + prevServiceRev;
+
+    const prevExpenseFilter = {
+      costPayer: "landlord",
+      createdAt: { $gte: startOfPrevMonth, $lte: endOfPrevMonth },
+    };
+    if (isStaff) {
+      prevExpenseFilter.room = { $in: roomIds };
+    }
+    const prevExpenseResult = await Incident.aggregate([
+      { $match: prevExpenseFilter },
+      { $group: { _id: null, total: { $sum: "$repairCost" } } },
+    ]);
+    const previousMonthExpenses = prevExpenseResult[0]?.total ?? 0;
+
+    // ── Doanh thu theo nguồn (tháng được chọn) ───────────────────────────────
+    // 1. Tiền thuê phòng = toàn bộ Invoice.totalAmount (bao gồm tiền thuê + điện nước + phí phụ)
+    const rentRevenue = invoiceRevenue;
+
+    // 2. Tiền booking (Booking totalAmount, tháng hiện tại, đã thanh toán)
+    const bookingRevenueResult = await Booking.aggregate([
+      { $match: { ...bookingFilter, paymentStatus: "paid", createdAt: { $gte: startOfMonth, $lte: endOfMonth } } },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+    ]);
+    const bookingRevenue = bookingRevenueResult[0]?.total ?? 0;
+
+    // 3. Tiền dịch vụ (ServiceBooking totalAmount, tháng hiện tại, đã thanh toán)
+    const serviceRevenueResult = await ServiceBooking.aggregate([
+      { $match: { paymentStatus: "paid", createdAt: { $gte: startOfMonth, $lte: endOfMonth } } },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+    ]);
+    const serviceRevenue = serviceRevenueResult[0]?.total ?? 0;
+
+    // ── Tổng doanh thu = Invoice + Booking + ServiceBooking ─────────────────
+    const monthlyRevenue = invoiceRevenue + bookingRevenue + serviceRevenue;
+
+    // ── Dữ liệu biểu đồ 6 tháng kết thúc tại tháng được chọn ──────────────
+    const chartData = [];
+    for (let i = 5; i >= 0; i--) {
+      // Lùi i tháng từ tháng được chọn
+      const d = new Date(targetYear, targetMonth - 1 - i, 1);
+      const m = d.getMonth() + 1;
+      const y = d.getFullYear();
+
+      const mStart = new Date(y, m - 1, 1);
+      const mEnd = new Date(y, m, 0, 23, 59, 59, 999);
+
+      const chartRevFilter = { month: m, year: y, status: "paid" };
+      if (isStaff) chartRevFilter.contract = revenueMatchFilter.contract;
+
+      const chartExpFilter = {
+        costPayer: "landlord",
+        createdAt: { $gte: mStart, $lte: mEnd },
+      };
+      if (isStaff) chartExpFilter.room = { $in: roomIds };
+
+      const [rev, exp, bookingRevResult, serviceRevResult] = await Promise.all([
+        Invoice.aggregate([{ $match: chartRevFilter }, { $group: { _id: null, total: { $sum: "$totalAmount" } } }]),
+        Incident.aggregate([{ $match: chartExpFilter }, { $group: { _id: null, total: { $sum: "$repairCost" } } }]),
+        Booking.aggregate([
+          { $match: { ...bookingFilter, paymentStatus: "paid", createdAt: { $gte: mStart, $lte: mEnd } } },
+          { $group: { _id: null, total: { $sum: "$totalAmount" } } }
+        ]),
+        ServiceBooking.aggregate([
+          { $match: { paymentStatus: "paid", createdAt: { $gte: mStart, $lte: mEnd } } },
+          { $group: { _id: null, total: { $sum: "$totalAmount" } } }
+        ]),
+      ]);
+
+      const invoiceRev = rev[0]?.total ?? 0;
+      const bookingRev = bookingRevResult[0]?.total ?? 0;
+      const serviceRev = serviceRevResult[0]?.total ?? 0;
+
+      chartData.push({
+        month: `T${m}`,
+        revenue: invoiceRev + bookingRev + serviceRev,
+        expenses: exp[0]?.total ?? 0,
+      });
+    }
 
     // Hóa đơn chờ thu tiền mặt (pending)
     const pendingMatchFilter = { status: "pending" };
@@ -104,14 +251,18 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
     const pendingInvoicesCount = pendingResult[0]?.count ?? 0;
     const pendingInvoicesAmount = pendingResult[0]?.total ?? 0;
 
-    // Hóa đơn quá hạn
+    // Hóa đơn quá hạn (Không tính các hoá đơn của hợp đồng đã chấm dứt)
+    const validContractQuery = { status: { $ne: "terminated" } };
+    if (isStaff) {
+      validContractQuery.room = { $in: roomIds };
+    }
+    const validContractIds = await Contract.find(validContractQuery).distinct("_id");
+
     const overdueMatchFilter = {
       status: "unpaid",
       dueDate: { $lt: now },
+      contract: { $in: validContractIds },
     };
-    if (isStaff) {
-      overdueMatchFilter.contract = revenueMatchFilter.contract;
-    }
 
     const overdueInvoicesResult = await Invoice.aggregate([
       { $match: overdueMatchFilter },
@@ -128,6 +279,8 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
       activeContracts,
       totalTenants,
       monthlyRevenue,
+      selectedMonth: targetMonth,
+      selectedYear: targetYear,
       cashRevenue,
       momoRevenue,
       vnpayRevenue,
@@ -137,6 +290,16 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
       overdueInvoicesCount,
       overdueInvoicesAmount,
       newTenants,
+      // ── Dữ liệu mới cho Dashboard redesign ─────────────────────
+      monthlyExpenses,
+      previousMonthRevenue,
+      previousMonthExpenses,
+      revenueBySource: {
+        rent: rentRevenue,
+        booking: bookingRevenue,
+        service: serviceRevenue,
+      },
+      chartData,
     });
   } catch (err) {
     console.error("Stats error:", err);

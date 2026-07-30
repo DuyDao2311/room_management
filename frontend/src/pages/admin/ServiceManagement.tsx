@@ -196,7 +196,7 @@ export default function ServiceManagement() {
                     )}
                   </div>
                   <div style={{ fontSize: '0.85rem', color: '#667085', marginTop: '4px' }}>
-                    ★ {s.avgRating.toFixed(1)} ({s.ratingCount} đánh giá)
+                    ★ {(s.avgRating ?? 0).toFixed(1)} ({s.ratingCount ?? 0} đánh giá)
                   </div>
                 </div>
 

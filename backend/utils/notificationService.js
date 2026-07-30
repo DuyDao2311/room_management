@@ -1146,6 +1146,16 @@ module.exports = {
   // Overdue escalation
   notifyTenantContractTerminatedDueToDebt,
   notifyStaffContractTerminatedDueToDebt,
+  // Bookings
+  notifyNewBooking,
+  notifyStaffBookingPaid,
+  notifyTenantBookingPaid,
+  notifyTenantBookingConfirmed,
+  notifyTenantBookingCheckedIn,
+  notifyTenantBookingCheckedOut,
+  notifyTenantBookingCancelled,
+  notifyStaffServiceBookingPaid,
+  notifyTenantServiceBookingPaid,
   // Socket
   sendSocketNotification,
 };

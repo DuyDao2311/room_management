@@ -18,6 +18,7 @@ import {
   FiTag          // Dịch vụ
 } from "react-icons/fi";
 import { MdOutlineLogout } from "react-icons/md";
+import { Tag } from "lucide-react";
 
 export default function AdminLayout() {
   const { user, logout } = useAuth()
@@ -53,6 +54,7 @@ export default function AdminLayout() {
     { name: 'Lịch hẹn', path: '/admin/appointments', exact: false, icon: <FiCalendar />, roles: ['admin', 'staff'], badge: unreadAppointmentCount, notifType: 'APPOINTMENT' },
     { name: 'Quản lý sự cố', path: '/admin/incidents', exact: false, icon: <FiTool />, roles: ['admin', 'staff'], badge: 0, notifType: 'INCIDENT' },
     { name: 'Đánh giá phòng', path: '/admin/feedback', exact: false, icon: <FiStar />, roles: ['admin', 'staff'], badge: unreadFeedbackCount, notifType: 'FEEDBACK' },
+    { name: 'Khuyến mãi', path: '/admin/promotions', exact: false, icon: <Tag />, roles: ['admin', 'staff'], badge: 0, notifType: undefined },
     { name: 'Người dùng', path: '/admin/users', exact: false, icon: <FiUsers />, roles: ['admin'], badge: 0, notifType: undefined },
     { name: 'Quản lý nhân viên', path: '/admin/staff', exact: false, icon: <FiUserCheck />, roles: ['admin'], badge: 0, notifType: undefined },
   ]

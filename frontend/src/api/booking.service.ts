@@ -12,7 +12,10 @@ export interface Booking {
   totalWeeks: number
   totalMonths: number
   unitPrice: number
+  roomTotal: number
+  serviceTotal: number
   totalAmount: number
+  serviceBookings?: any[]
   paymentStatus: 'pending' | 'paid' | 'refunded'
   status: 'pending' | 'confirmed' | 'checked_in' | 'checked_out' | 'cancelled'
   note?: string
@@ -24,10 +27,12 @@ export const bookingService = {
   // Tenant creates a booking
   createBooking: (data: {
     roomId: string
-    bookingType: string
+    bookingType?: string
     checkInDateTime: string
     checkOutDateTime: string
     note?: string
+    guests?: number
+    services?: { serviceId: string; quantity: number; scheduledAt?: string; note?: string }[]
   }) => api.post<Booking>('/bookings', data),
 
   // Get bookings (Admin/Staff sees all/district, Tenant sees their own)

@@ -25,6 +25,12 @@ const paymentSchema = new mongoose.Schema(
       required: false,
       index: true,
     },
+    serviceBooking: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "ServiceBooking",
+      required: false,
+      index: true,
+    },
     contract: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Contract",

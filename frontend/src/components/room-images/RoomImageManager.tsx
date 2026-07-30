@@ -51,12 +51,13 @@ function SortableImageItem({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    touchAction: 'none', // Bắt buộc cho dnd-kit trên di động và một số trình duyệt
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="rim-item" {...attributes}>
+    <div ref={setNodeRef} style={style} className="rim-item" {...attributes} {...listeners}>
       {/* Drag handle */}
-      <div className="rim-drag-handle" {...listeners} title="Kéo để đổi vị trí">
+      <div className="rim-drag-handle" title="Kéo để đổi vị trí">
         <MdDragIndicator size={20} />
       </div>
 
@@ -67,6 +68,7 @@ function SortableImageItem({
           alt="Room"
           className="rim-img"
           loading="lazy"
+          draggable={false} // Rất quan trọng: Chặn trình duyệt kéo ảnh (native drag)
           onError={(e) => {
             (e.target as HTMLImageElement).src = PLACEHOLDER_IMG
           }}
@@ -79,7 +81,8 @@ function SortableImageItem({
         <button
           type="button"
           className={`rim-action-btn ${image.isPrimary ? 'rim-primary-active' : ''}`}
-          onClick={() => onSetPrimary(image._id)}
+          onClick={(e) => { e.stopPropagation(); onSetPrimary(image._id); }}
+          onPointerDown={(e) => e.stopPropagation()}
           title={image.isPrimary ? 'Đang là ảnh đại diện' : 'Đặt làm ảnh đại diện'}
         >
           {image.isPrimary ? <MdStar size={18} color="#f59e0b" /> : <MdStarBorder size={18} />}
@@ -87,7 +90,8 @@ function SortableImageItem({
         <button
           type="button"
           className="rim-action-btn rim-delete-btn"
-          onClick={() => onDelete(image._id)}
+          onClick={(e) => { e.stopPropagation(); onDelete(image._id); }}
+          onPointerDown={(e) => e.stopPropagation()}
           title="Xóa ảnh"
         >
           <MdDeleteOutline size={18} />

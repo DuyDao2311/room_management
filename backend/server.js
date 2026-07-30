@@ -23,6 +23,7 @@ const searchRoutes = require("./routes/search");
 const cronRoutes = require("./routes/cron");
 const incidentRoutes = require("./routes/incidents");
 const bookingRoutes = require("./routes/bookings");
+const promotionRoutes = require("./routes/promotions");
 const serviceRoutes = require("./routes/services");
 const serviceBookingRoutes = require("./routes/serviceBookings");
 const { checkExpiringContracts, checkOverdueInvoices, checkDueSoonInvoices } = require("./utils/notificationService");
@@ -120,6 +121,7 @@ app.use("/api/search", searchRoutes);
 app.use("/api/cron", cronRoutes);
 app.use("/api/incidents", incidentRoutes);
 app.use("/api/bookings", bookingRoutes);
+app.use("/api/promotions", promotionRoutes);
 app.use("/api/services", serviceRoutes);
 app.use("/api/service-bookings", serviceBookingRoutes);
 
