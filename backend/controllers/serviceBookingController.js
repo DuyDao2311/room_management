@@ -2,6 +2,8 @@ const ServiceBooking = require("../models/ServiceBooking");
 const Service = require("../models/Service");
 const Contract = require("../models/Contract");
 const Booking = require("../models/Booking");
+const Room = require("../models/Room");
+const { checkUserDistrictPermission } = require("../middleware/auth");
 const {
   notifyTenantServiceBookingStatusChanged,
   notifyTenantServiceBookingCreated,
@@ -30,6 +32,14 @@ const getVnHHMM = (date) =>
     minute: "2-digit",
     hour12: false,
   }).format(date);
+
+/**
+ * Staff chỉ được đụng tới booking thuộc khu vực mình quản lý.
+ * Booking chưa có district (tạo trước khi có phân quyền khu vực) tạm thời không
+ * bị chặn — chặn luôn sẽ khiến staff mất quyền xử lý các đơn đang chạy dở.
+ */
+const canAccessBooking = (user, booking) =>
+  !booking.district || checkUserDistrictPermission(user, booking.district);
 
 const isWithinBookingWindow = (scheduledAt, service) => {
   if (!service.bookingWindowStart || !service.bookingWindowEnd) return true;
@@ -133,6 +143,9 @@ const createServiceBooking = async (req, res) => {
       return res.status(403).json({ message: "Bạn cần đang thuê phòng để đặt dịch vụ này." });
     }
 
+    const rentedRoom = await Room.findById(activeContract?.room || activeBooking?.room).select("district");
+    const district = rentedRoom?.district || "";
+
     let unitPrice, totalAmount, bookingQuantity, bookingSelectedVariant, bookingMatchQuantity;
 
     if (service.usesVariants) {
@@ -202,6 +215,7 @@ const createServiceBooking = async (req, res) => {
     const booking = await ServiceBooking.create({
       service: serviceId,
       tenant: req.user._id,
+      district,
       scheduledAt: new Date(scheduledAt),
       quantity: bookingQuantity,
       unitPrice,
@@ -229,6 +243,13 @@ const getServiceBookings = async (req, res) => {
   try {
     const filter = {};
     if (req.user.role === "tenant") filter.tenant = req.user._id;
+    if (req.user.role === "staff") {
+      // $in [null, ""] khớp cả document cũ chưa có field district.
+      filter.$or = [
+        { district: { $in: req.user.managedDistricts || [] } },
+        { district: { $in: [null, ""] } },
+      ];
+    }
     if (req.query.status) filter.status = req.query.status;
     if (req.query.paymentStatus) filter.paymentStatus = req.query.paymentStatus;
 
@@ -252,8 +273,12 @@ const getServiceBookingById = async (req, res) => {
 
     if (!booking) return res.status(404).json({ message: "Không tìm thấy booking." });
 
-    if (req.user.role === "tenant" && booking.tenant._id.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Bạn không có quyền xem booking này." });
+    if (req.user.role === "tenant") {
+      if (booking.tenant._id.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ message: "Bạn không có quyền xem booking này." });
+      }
+    } else if (!canAccessBooking(req.user, booking)) {
+      return res.status(403).json({ message: "Booking này không thuộc khu vực bạn quản lý." });
     }
 
     res.json(booking);
@@ -270,6 +295,10 @@ const confirmServiceBooking = async (req, res) => {
       { path: "tenant", select: POPULATE_TENANT },
     ]);
     if (!booking) return res.status(404).json({ message: "Không tìm thấy booking." });
+
+    if (!canAccessBooking(req.user, booking)) {
+      return res.status(403).json({ message: "Booking này không thuộc khu vực bạn quản lý." });
+    }
 
     if (booking.status !== "pending") {
       return res.status(400).json({
@@ -297,6 +326,10 @@ const completeServiceBooking = async (req, res) => {
     ]);
     if (!booking) return res.status(404).json({ message: "Không tìm thấy booking." });
 
+    if (!canAccessBooking(req.user, booking)) {
+      return res.status(403).json({ message: "Booking này không thuộc khu vực bạn quản lý." });
+    }
+
     if (booking.status !== "confirmed") {
       return res.status(400).json({
         message: `Không thể hoàn thành booking. Booking phải ở trạng thái "confirmed". Hiện tại: "${booking.status}".`,
@@ -323,8 +356,12 @@ const cancelServiceBooking = async (req, res) => {
     ]);
     if (!booking) return res.status(404).json({ message: "Không tìm thấy booking." });
 
-    if (req.user.role === "tenant" && booking.tenant._id.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Bạn không có quyền hủy booking này." });
+    if (req.user.role === "tenant") {
+      if (booking.tenant._id.toString() !== req.user._id.toString()) {
+        return res.status(403).json({ message: "Bạn không có quyền hủy booking này." });
+      }
+    } else if (!canAccessBooking(req.user, booking)) {
+      return res.status(403).json({ message: "Booking này không thuộc khu vực bạn quản lý." });
     }
 
     if (["completed", "cancelled"].includes(booking.status)) {
@@ -363,6 +400,10 @@ const payServiceBooking = async (req, res) => {
   try {
     const booking = await ServiceBooking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: "Không tìm thấy booking." });
+
+    if (!canAccessBooking(req.user, booking)) {
+      return res.status(403).json({ message: "Booking này không thuộc khu vực bạn quản lý." });
+    }
 
     if (booking.paymentStatus === "paid") {
       return res.status(400).json({ message: "Booking đã được thanh toán." });

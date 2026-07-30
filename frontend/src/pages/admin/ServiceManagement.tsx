@@ -3,6 +3,7 @@ import { serviceService, CATEGORY_LABELS, getMinVariantPrice, UNIT_PRESETS, type
 import Spinner from '../../components/ui/Spinner'
 import { Pencil, EyeOff, Eye, Trash2 } from 'lucide-react'
 import ServiceImagePicker from './ServiceImagePicker'
+import { useAuth } from '../../contexts/AuthContext.tsx'
 
 type ServiceVariantForm = { label: string; capacity: string; price: string; description: string }
 
@@ -20,6 +21,8 @@ const ICON_BUTTON_STYLE = {
 }
 
 export default function ServiceManagement() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -213,21 +216,23 @@ export default function ServiceManagement() {
                   <button onClick={() => openEdit(s)} title="Sửa" aria-label="Sửa dịch vụ" style={ICON_BUTTON_STYLE}>
                     <Pencil size={18} />
                   </button>
-                  <button
-                    onClick={() => handleDelete(s)}
-                    disabled={!!s.bookingCount || s.isActive}
-                    title={
-                      s.bookingCount
-                        ? `Không thể xóa: đã có ${s.bookingCount} lượt đặt`
-                        : s.isActive
-                        ? 'Không thể xóa: hãy tạm dừng dịch vụ trước'
-                        : 'Xóa dịch vụ'
-                    }
-                    aria-label="Xóa dịch vụ"
-                    style={{ ...ICON_BUTTON_STYLE, opacity: (s.bookingCount || s.isActive) ? 0.4 : 1, cursor: (s.bookingCount || s.isActive) ? 'not-allowed' : 'pointer' }}
-                  >
-                    <Trash2 size={18} color="#d92d20" />
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleDelete(s)}
+                      disabled={!!s.bookingCount || s.isActive}
+                      title={
+                        s.bookingCount
+                          ? `Không thể xóa: đã có ${s.bookingCount} lượt đặt`
+                          : s.isActive
+                          ? 'Không thể xóa: hãy tạm dừng dịch vụ trước'
+                          : 'Xóa dịch vụ'
+                      }
+                      aria-label="Xóa dịch vụ"
+                      style={{ ...ICON_BUTTON_STYLE, opacity: (s.bookingCount || s.isActive) ? 0.4 : 1, cursor: (s.bookingCount || s.isActive) ? 'not-allowed' : 'pointer' }}
+                    >
+                      <Trash2 size={18} color="#d92d20" />
+                    </button>
+                  )}
                   <button onClick={() => toggleActive(s)} title={s.isActive ? 'Tạm ngừng' : 'Kích hoạt lại'} aria-label={s.isActive ? 'Tạm ngừng dịch vụ' : 'Kích hoạt lại dịch vụ'} style={ICON_BUTTON_STYLE}>
                     {s.isActive ? <EyeOff size={18} color="#d92d20" /> : <Eye size={18} color="#088373" />}
                   </button>

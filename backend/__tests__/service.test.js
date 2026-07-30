@@ -568,6 +568,19 @@ describe("DELETE /api/services/:id", () => {
     expect(found).not.toBeNull();
   });
 
+  test("staff không được xóa dịch vụ → 403, dịch vụ vẫn còn", async () => {
+    const staff = await createUser("staff");
+    const service = await Service.create({ ...VALID_SERVICE, isActive: false });
+
+    const res = await request(app)
+      .delete(`/api/services/${service._id}`)
+      .set("Authorization", `Bearer ${tokenFor(staff)}`);
+
+    expect(res.status).toBe(403);
+    const found = await Service.findById(service._id);
+    expect(found).not.toBeNull();
+  });
+
   test("tenant không được xóa dịch vụ → 403", async () => {
     const tenant = await createUser("tenant");
     const service = await Service.create(VALID_SERVICE);
