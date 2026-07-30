@@ -64,6 +64,13 @@ const serviceBookingSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    selectedVariant: {
+      type: String,
+    },
+    matchQuantity: {
+      type: Number,
+      min: [1, "Số lượng tối thiểu là 1"],
+    },
   },
   { timestamps: true }
 );

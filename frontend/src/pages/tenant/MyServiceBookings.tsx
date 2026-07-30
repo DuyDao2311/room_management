@@ -195,8 +195,10 @@ export default function MyServiceBookings() {
                         </div>
                       </div>
                       <div>
-                        <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#667085', fontWeight: 500 }}>Số lượng</p>
-                        <div style={{ fontSize: '1rem', fontWeight: 600, color: '#101828' }}>{b.quantity} {b.service?.unit || ''}</div>
+                        <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#667085', fontWeight: 500 }}>{b.selectedVariant ? 'Lựa chọn' : 'Số lượng'}</p>
+                        <div style={{ fontSize: '1rem', fontWeight: 600, color: '#101828' }}>
+                          {b.selectedVariant ? `${b.selectedVariant} • SL: ${b.matchQuantity ?? b.quantity}` : `${b.quantity} ${b.service?.unit || ''}`}
+                        </div>
                       </div>
                       <div>
                         <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#667085', fontWeight: 500 }}>Thanh toán</p>

@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import Spinner from '../../components/ui/Spinner.tsx'
-import { serviceService, CATEGORY_LABELS, type Service, type ServiceCategory } from '../../api/service.service'
+import { serviceService, CATEGORY_LABELS, getMinVariantPrice, type Service, type ServiceCategory } from '../../api/service.service'
 
 const CATEGORIES: ServiceCategory[] = ['cleaning', 'food', 'laundry', 'transport', 'spa', 'maintenance']
 
@@ -70,8 +70,14 @@ export default function ServiceList() {
                     <p className="design-room-address">★ {(s.avgRating ?? 0).toFixed(1)} ({s.ratingCount ?? 0} đánh giá)</p>
                     <div className="design-room-footer">
                       <div className="design-room-price">
-                        <strong>Từ {(s.price ?? 0).toLocaleString('vi-VN')}đ</strong>
-                        <span>/{s.unit}</span>
+                        {s.usesVariants ? (
+                          <strong>Từ {getMinVariantPrice(s.variants).toLocaleString('vi-VN')}đ</strong>
+                        ) : (
+                          <>
+                            <strong>Từ {s.price.toLocaleString('vi-VN')}đ</strong>
+                            <span>/{s.unit}</span>
+                          </>
+                        )}
                       </div>
                       <span className="design-room-link">Chi tiết →</span>
                     </div>

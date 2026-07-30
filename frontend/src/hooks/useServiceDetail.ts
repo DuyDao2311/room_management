@@ -6,6 +6,28 @@ import { serviceBookingService } from '../api/serviceBooking.service'
 
 const NO_ROOM_MESSAGE = 'Bạn cần đang thuê phòng để đặt dịch vụ này.'
 const ONE_HOUR_MS = 60 * 60 * 1000
+const SLOT_MS = 30 * 60 * 1000
+
+function roundUpToSlot(date: Date): Date {
+  return new Date(Math.ceil(date.getTime() / SLOT_MS) * SLOT_MS)
+}
+
+/** Giờ hẹn hợp lệ sớm nhất — đủ trước 1 tiếng, nằm trong khung giờ nhận đặt của dịch vụ (nếu có). */
+function computeEarliestBookableTime(service: Service | null): Date {
+  const earliest = roundUpToSlot(new Date(Date.now() + ONE_HOUR_MS))
+  if (!service?.bookingWindowStart || !service?.bookingWindowEnd) return earliest
+
+  const hhmm = `${String(earliest.getHours()).padStart(2, '0')}:${String(earliest.getMinutes()).padStart(2, '0')}`
+  const [startHour, startMinute] = service.bookingWindowStart.split(':').map(Number)
+
+  if (hhmm > service.bookingWindowEnd) {
+    earliest.setDate(earliest.getDate() + 1)
+    earliest.setHours(startHour, startMinute, 0, 0)
+  } else if (hhmm < service.bookingWindowStart) {
+    earliest.setHours(startHour, startMinute, 0, 0)
+  }
+  return earliest
+}
 
 export interface UseServiceDetailResult {
   service: Service | null
@@ -22,6 +44,10 @@ export interface UseServiceDetailResult {
   setQuantity: (v: number) => void
   note: string
   setNote: (v: string) => void
+  matchQuantity: number
+  setMatchQuantity: (v: number) => void
+  selectedVariant: string
+  setSelectedVariant: (v: string) => void
   totalPreview: number
   filterBookingTime: (time: Date) => boolean
   handleBook: (e: FormEvent) => Promise<void>
@@ -47,6 +73,8 @@ export function useServiceDetail(id: string | undefined): UseServiceDetailResult
   const [scheduledAt, setScheduledAt] = useState('')
   const [quantity, setQuantity] = useState(1)
   const [note, setNote] = useState('')
+  const [matchQuantity, setMatchQuantity] = useState(1)
+  const [selectedVariant, setSelectedVariant] = useState('')
   const [bookLoading, setBookLoading] = useState(false)
   const [bookError, setBookError] = useState('')
   const [bookSent, setBookSent] = useState(false)
@@ -70,31 +98,56 @@ export function useServiceDetail(id: string | undefined): UseServiceDetailResult
       .finally(() => setReviewsLoading(false))
   }, [id])
 
+  useEffect(() => {
+    if (!service || !service.usesVariants || !service.requiresCapacityMatch) return
+    const smallestSufficient = [...service.variants]
+      .sort((a, b) => (a.capacity ?? 0) - (b.capacity ?? 0))
+      .find(v => (v.capacity ?? 0) >= matchQuantity)
+    setSelectedVariant(smallestSufficient ? smallestSufficient.label : '')
+  }, [matchQuantity, service])
+
   const openBookModal = useCallback(() => {
     if (!user) { navigate(`/login?redirect=${location.pathname}`); return }
-    setScheduledAt('')
+    setScheduledAt(computeEarliestBookableTime(service).toISOString())
     setQuantity(1)
+    setMatchQuantity(1)
     setNote('')
     setBookError('')
     setBookSent(false)
+    if (service && service.usesVariants && !service.requiresCapacityMatch) {
+      setSelectedVariant(service.variants[0]?.label ?? '')
+    }
     setShowBookModal(true)
-  }, [user, navigate, location.pathname])
+  }, [user, navigate, location.pathname, service])
 
   const closeBookModal = useCallback(() => setShowBookModal(false), [])
   const closeNoRoomModal = useCallback(() => setNoRoomModal(false), [])
 
   const filterBookingTime = useCallback((time: Date) => {
-    return time.getTime() - Date.now() >= ONE_HOUR_MS
-  }, [])
+    if (time.getTime() - Date.now() < ONE_HOUR_MS) return false
+    if (!service?.bookingWindowStart || !service?.bookingWindowEnd) return true
+    const hhmm = `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`
+    return hhmm >= service.bookingWindowStart && hhmm <= service.bookingWindowEnd
+  }, [service])
 
   const handleBook = useCallback(async (e: FormEvent) => {
     e.preventDefault()
     if (!service) return
     setBookError('')
     if (!scheduledAt) { setBookError('Vui lòng chọn thời gian hẹn.'); return }
+    if (service.usesVariants && !selectedVariant) {
+      setBookError('Vui lòng chọn 1 lựa chọn hợp lệ.')
+      return
+    }
     setBookLoading(true)
     try {
-      await serviceBookingService.createBooking({ serviceId: service._id, scheduledAt, quantity, note })
+      if (service.usesVariants && service.requiresCapacityMatch) {
+        await serviceBookingService.createBooking({ serviceId: service._id, scheduledAt, note, selectedVariant, matchQuantity })
+      } else if (service.usesVariants) {
+        await serviceBookingService.createBooking({ serviceId: service._id, scheduledAt, note, selectedVariant, quantity })
+      } else {
+        await serviceBookingService.createBooking({ serviceId: service._id, scheduledAt, quantity, note })
+      }
       setBookSent(true)
     } catch (err: any) {
       if (err.response?.status === 403 && err.response?.data?.message === NO_ROOM_MESSAGE) {
@@ -105,15 +158,22 @@ export function useServiceDetail(id: string | undefined): UseServiceDetailResult
     } finally {
       setBookLoading(false)
     }
-  }, [service, scheduledAt, quantity, note])
+  }, [service, scheduledAt, quantity, note, selectedVariant, matchQuantity])
 
-  const totalPreview = service ? service.price * quantity : 0
+  const totalPreview = (() => {
+    if (!service) return 0
+    if (!service.usesVariants) return service.price * quantity
+    const variant = service.variants.find(v => v.label === selectedVariant)
+    if (!variant) return 0
+    return service.requiresCapacityMatch ? variant.price : variant.price * quantity
+  })()
 
   return {
     service, loading, error,
     reviews, reviewsLoading,
     showBookModal, openBookModal, closeBookModal,
     scheduledAt, setScheduledAt, quantity, setQuantity, note, setNote,
+    matchQuantity, setMatchQuantity, selectedVariant, setSelectedVariant,
     totalPreview,
     filterBookingTime,
     handleBook, bookLoading, bookSent, bookError,

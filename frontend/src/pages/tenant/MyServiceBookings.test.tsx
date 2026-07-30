@@ -95,4 +95,17 @@ describe('MyServiceBookings', () => {
       'b1', expect.objectContaining({ tags: ['Sạch sẽ', 'Đúng giờ'] })
     ))
   })
+
+  test('booking dùng variant hiện "Lựa chọn" + SL thay vì Số lượng', async () => {
+    vi.mocked(serviceBookingService.getBookings).mockResolvedValue({
+      data: [baseBooking({
+        status: 'pending', scheduledAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString(),
+        service: { _id: 's2', name: 'Đưa đón sân bay', category: 'transport', unit: '', images: [], price: 0 },
+        selectedVariant: '4 chỗ', matchQuantity: 3,
+      })],
+    } as any)
+    render(<MemoryRouter><MyServiceBookings /></MemoryRouter>)
+    expect(await screen.findByText('Lựa chọn')).toBeInTheDocument()
+    expect(await screen.findByText('4 chỗ • SL: 3')).toBeInTheDocument()
+  })
 })

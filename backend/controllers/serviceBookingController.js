@@ -4,6 +4,9 @@ const Contract = require("../models/Contract");
 const Booking = require("../models/Booking");
 const {
   notifyTenantServiceBookingStatusChanged,
+  notifyTenantServiceBookingCreated,
+  notifyStaffNewServiceBooking,
+  notifyTenantServiceBookingPaid,
   sendSocketNotification,
 } = require("../utils/notificationService");
 
@@ -20,6 +23,20 @@ const CATEGORY_TAGS = {
   maintenance: ["Xử lý nhanh", "Chuyên nghiệp", "Đúng giờ", "Giải quyết triệt để"],
 };
 
+const getVnHHMM = (date) =>
+  new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+
+const isWithinBookingWindow = (scheduledAt, service) => {
+  if (!service.bookingWindowStart || !service.bookingWindowEnd) return true;
+  const hhmm = getVnHHMM(scheduledAt);
+  return hhmm >= service.bookingWindowStart && hhmm <= service.bookingWindowEnd;
+};
+
 /** Gửi notification cho tenant khi trạng thái booking đổi, rồi emit qua socket. Lỗi bị nuốt (không chặn response). */
 const notifyAndEmitStatusChange = async (req, booking, status) => {
   try {
@@ -30,6 +47,35 @@ const notifyAndEmitStatusChange = async (req, booking, status) => {
     }
   } catch (notifErr) {
     console.error(`Notify service booking ${status} error:`, notifErr);
+  }
+};
+
+/** Gửi notification (tenant xác nhận đã đặt + staff có đơn mới) khi tạo booking, rồi emit qua socket. Lỗi bị nuốt (không chặn response). */
+const notifyAndEmitBookingCreated = async (req, booking) => {
+  try {
+    const [tenantNotifs, staffNotifs] = await Promise.all([
+      notifyTenantServiceBookingCreated(booking),
+      notifyStaffNewServiceBooking(booking),
+    ]);
+    const io = req.app.get("io");
+    if (io) {
+      [...tenantNotifs, ...staffNotifs].forEach((n) => sendSocketNotification(io, "new_notification", n));
+    }
+  } catch (notifErr) {
+    console.error("Notify service booking created error:", notifErr);
+  }
+};
+
+/** Gửi email biên lai cho tenant khi booking được đánh dấu đã thanh toán, rồi emit qua socket. Lỗi bị nuốt (không chặn response). */
+const notifyAndEmitBookingPaid = async (req, booking) => {
+  try {
+    const notifs = await notifyTenantServiceBookingPaid(booking);
+    const io = req.app.get("io");
+    if (io && notifs && notifs.length > 0) {
+      notifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
+    }
+  } catch (notifErr) {
+    console.error("Notify service booking paid error:", notifErr);
   }
 };
 
@@ -57,23 +103,26 @@ const recomputeServiceRating = async (serviceId) => {
 
 const createServiceBooking = async (req, res) => {
   try {
-    const { serviceId, scheduledAt, quantity, note } = req.body;
+    const { serviceId, scheduledAt, quantity, note, selectedVariant, matchQuantity } = req.body;
 
-    if (!serviceId || !scheduledAt || !quantity) {
+    if (!serviceId || !scheduledAt) {
       return res.status(400).json({
-        message: "Vui lòng cung cấp đầy đủ: dịch vụ, thời gian hẹn, số lượng.",
+        message: "Vui lòng cung cấp đầy đủ: dịch vụ, thời gian hẹn.",
       });
     }
     if (new Date(scheduledAt).getTime() - Date.now() < ONE_HOUR_MS) {
       return res.status(400).json({ message: "Thời gian hẹn phải cách hiện tại ít nhất 1 giờ." });
     }
-    if (quantity < 1) {
-      return res.status(400).json({ message: "Số lượng tối thiểu là 1." });
-    }
 
     const service = await Service.findById(serviceId);
     if (!service || !service.isActive) {
       return res.status(404).json({ message: "Không tìm thấy dịch vụ." });
+    }
+
+    if (!isWithinBookingWindow(new Date(scheduledAt), service)) {
+      return res.status(400).json({
+        message: `Dịch vụ này chỉ nhận đặt từ ${service.bookingWindowStart} đến ${service.bookingWindowEnd}.`,
+      });
     }
 
     const [activeContract, activeBooking] = await Promise.all([
@@ -84,16 +133,81 @@ const createServiceBooking = async (req, res) => {
       return res.status(403).json({ message: "Bạn cần đang thuê phòng để đặt dịch vụ này." });
     }
 
-    const unitPrice = service.price;
-    const totalAmount = unitPrice * quantity;
+    let unitPrice, totalAmount, bookingQuantity, bookingSelectedVariant, bookingMatchQuantity;
+
+    if (service.usesVariants) {
+      if (!selectedVariant) {
+        return res.status(400).json({ message: "Vui lòng chọn 1 lựa chọn." });
+      }
+
+      const variant = service.variants.find((v) => v.label === selectedVariant);
+      if (!variant) {
+        return res.status(400).json({ message: "Lựa chọn không hợp lệ." });
+      }
+
+      if (service.requiresCapacityMatch) {
+        if (!matchQuantity) {
+          return res.status(400).json({
+            message: `Vui lòng nhập ${service.capacityFieldLabel || "số lượng"}.`,
+          });
+        }
+        if (matchQuantity < 1) {
+          return res.status(400).json({ message: "Số lượng tối thiểu là 1." });
+        }
+        if (matchQuantity > variant.capacity) {
+          return res.status(400).json({
+            message: `"${selectedVariant}" chỉ đáp ứng tối đa ${variant.capacity}.`,
+          });
+        }
+
+        // Backend tự tính lại lựa chọn nhỏ nhất đủ đáp ứng — không tin client, kể cả khi
+        // UI đã khóa lựa chọn (chặn gọi thẳng API để né khóa UI).
+        const smallestSufficient = [...service.variants]
+          .sort((a, b) => a.capacity - b.capacity)
+          .find((v) => v.capacity >= matchQuantity);
+        if (!smallestSufficient || smallestSufficient.label !== variant.label) {
+          return res.status(400).json({
+            message: `Với số lượng này, vui lòng chọn "${smallestSufficient?.label}".`,
+          });
+        }
+
+        unitPrice = variant.price;
+        totalAmount = variant.price;
+        bookingQuantity = 1;
+        bookingMatchQuantity = matchQuantity;
+      } else {
+        if (!quantity) {
+          return res.status(400).json({ message: "Vui lòng cung cấp số lượng." });
+        }
+        if (quantity < 1) {
+          return res.status(400).json({ message: "Số lượng tối thiểu là 1." });
+        }
+        unitPrice = variant.price;
+        totalAmount = variant.price * quantity;
+        bookingQuantity = quantity;
+      }
+      bookingSelectedVariant = selectedVariant;
+    } else {
+      if (!quantity) {
+        return res.status(400).json({ message: "Vui lòng cung cấp số lượng." });
+      }
+      if (quantity < 1) {
+        return res.status(400).json({ message: "Số lượng tối thiểu là 1." });
+      }
+      unitPrice = service.price;
+      totalAmount = unitPrice * quantity;
+      bookingQuantity = quantity;
+    }
 
     const booking = await ServiceBooking.create({
       service: serviceId,
       tenant: req.user._id,
       scheduledAt: new Date(scheduledAt),
-      quantity,
+      quantity: bookingQuantity,
       unitPrice,
       totalAmount,
+      selectedVariant: bookingSelectedVariant,
+      matchQuantity: bookingMatchQuantity,
       note: note || "",
     });
 
@@ -101,6 +215,9 @@ const createServiceBooking = async (req, res) => {
       { path: "service", select: POPULATE_SERVICE },
       { path: "tenant", select: POPULATE_TENANT },
     ]);
+
+    notifyAndEmitBookingCreated(req, booking);
+
     res.status(201).json(booking);
   } catch (err) {
     console.error("Create service booking error:", err);
@@ -262,28 +379,7 @@ const payServiceBooking = async (req, res) => {
       { path: "tenant", select: POPULATE_TENANT },
     ]);
 
-    // Tạo bản ghi lịch sử Payment (tiền mặt)
-    const Payment = require("../models/Payment");
-    await Payment.create({
-      serviceBooking: booking._id,
-      tenant: booking.tenant._id,
-      paymentMethod: "cash",
-      amount: booking.totalAmount,
-      status: "success",
-      paidAt: new Date(),
-      cash: {
-        receivedBy: req.user._id,
-        note: req.body?.note || "Admin/Staff thu tiền mặt",
-      },
-    });
-
-    // Thông báo cho Tenant
-    const { notifyTenantServiceBookingPaid, sendSocketNotification } = require("../utils/notificationService");
-    const tenantNotifs = await notifyTenantServiceBookingPaid(booking, "Tiền mặt");
-    const io = req.app ? req.app.get("io") : null;
-    if (io && tenantNotifs && tenantNotifs.length > 0) {
-      tenantNotifs.forEach((n) => sendSocketNotification(io, "new_notification", n));
-    }
+    notifyAndEmitBookingPaid(req, booking);
 
     res.json(booking);
   } catch (err) {

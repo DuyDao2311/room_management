@@ -24,13 +24,21 @@ export interface ServiceBooking {
   rating?: number
   review?: string
   note?: string
+  selectedVariant?: string
+  matchQuantity?: number
   createdAt: string
   updatedAt: string
 }
 
 export const serviceBookingService = {
-  createBooking: (data: { serviceId: string; scheduledAt: string; quantity: number; note?: string }) =>
-    api.post<ServiceBooking>('/service-bookings', data),
+  createBooking: (data: {
+    serviceId: string
+    scheduledAt: string
+    note?: string
+    quantity?: number
+    selectedVariant?: string
+    matchQuantity?: number
+  }) => api.post<ServiceBooking>('/service-bookings', data),
 
   getBookings: (params?: { status?: string; paymentStatus?: string }) =>
     api.get<ServiceBooking[]>('/service-bookings', { params }),

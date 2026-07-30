@@ -56,7 +56,21 @@ const uploadMultiple = upload.fields([
   { name: "afterImages", maxCount: 5 }, // Cho phép upload ảnh sau khi sửa
 ]);
 
+const serviceImageStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "room_management/services",
+    allowed_formats: ["jpg", "jpeg", "png", "webp"],
+  },
+});
+
+const uploadServiceImages = multer({
+  storage: serviceImageStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB/ảnh
+}).array("images", 5);
+
 module.exports = {
   cloudinary,
-  uploadMultiple
+  uploadMultiple,
+  uploadServiceImages,
 };

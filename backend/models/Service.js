@@ -19,13 +19,45 @@ const serviceSchema = new mongoose.Schema(
     },
     price: {
       type: Number,
-      required: [true, "Giá dịch vụ không được để trống"],
+      required: function () { return !this.usesVariants; },
       min: [0, "Giá dịch vụ không được âm"],
     },
     unit: {
       type: String,
-      enum: ["lần", "buổi", "khách"],
-      required: [true, "Đơn vị tính không được để trống"],
+      required: function () { return !this.usesVariants; },
+      trim: true,
+    },
+    usesVariants: {
+      type: Boolean,
+      default: false,
+    },
+    variants: {
+      type: [{
+        label: { type: String, required: true, trim: true },
+        price: { type: Number, required: true, min: 0 },
+        capacity: { type: Number, min: 1 },
+        description: { type: String, trim: true, default: "" },
+      }],
+      default: [],
+    },
+    requiresCapacityMatch: {
+      type: Boolean,
+      default: false,
+    },
+    capacityFieldLabel: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    bookingWindowStart: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    bookingWindowEnd: {
+      type: String,
+      trim: true,
+      default: "",
     },
     images: {
       type: [String],
@@ -44,7 +76,7 @@ const serviceSchema = new mongoose.Schema(
     },
     isActive: {
       type: Boolean,
-      default: true,
+      default: false,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

@@ -4,24 +4,73 @@ const { notifyTenantServiceDeactivated, sendSocketNotification } = require("../u
 
 const isStaffOrAdmin = (user) => !!user && ["admin", "staff"].includes(user.role);
 
+const isValidVariants = (variants, requiresCapacityMatch) =>
+  Array.isArray(variants) &&
+  variants.length > 0 &&
+  variants.every((v) =>
+    v && v.label && Number(v.price) >= 0 &&
+    (!requiresCapacityMatch || Number(v.capacity) >= 1)
+  );
+
+const validateBookingWindow = (start, end) => {
+  const hasStart = !!start;
+  const hasEnd = !!end;
+  if (hasStart !== hasEnd) {
+    return "Phải nhập đủ cả giờ bắt đầu và giờ kết thúc nhận đặt, hoặc để trống cả hai.";
+  }
+  if (hasStart && hasEnd && start >= end) {
+    return "Giờ bắt đầu nhận đặt phải trước giờ kết thúc.";
+  }
+  return null;
+};
+
 const createService = async (req, res) => {
   try {
-    const { name, category, description, price, unit, images } = req.body;
+    const { name, category, description, price, unit, images, usesVariants, variants, requiresCapacityMatch, capacityFieldLabel, bookingWindowStart, bookingWindowEnd } = req.body;
 
-    if (!name || !category || price == null || !unit) {
+    if (!name || !category) {
+      return res.status(400).json({
+        message: "Vui lòng cung cấp đầy đủ: tên, loại dịch vụ.",
+      });
+    }
+
+    if (usesVariants) {
+      if (!isValidVariants(variants, requiresCapacityMatch)) {
+        return res.status(400).json({
+          message: "Vui lòng cung cấp ít nhất 1 lựa chọn hợp lệ (tên, giá" + (requiresCapacityMatch ? ", sức chứa" : "") + ").",
+        });
+      }
+      if (requiresCapacityMatch && !capacityFieldLabel) {
+        return res.status(400).json({
+          message: "Vui lòng đặt tên nhãn cho trường số lượng (vd: Số hành khách).",
+        });
+      }
+    } else if (price == null || !unit) {
       return res.status(400).json({
         message: "Vui lòng cung cấp đầy đủ: tên, loại dịch vụ, giá, đơn vị tính.",
       });
+    }
+
+    const windowError = validateBookingWindow(bookingWindowStart, bookingWindowEnd);
+    if (windowError) {
+      return res.status(400).json({ message: windowError });
     }
 
     const service = await Service.create({
       name,
       category,
       description: description || "",
-      price,
-      unit,
+      price: usesVariants ? undefined : price,
+      unit: usesVariants ? undefined : unit,
+      usesVariants: !!usesVariants,
+      variants: usesVariants ? variants : [],
+      requiresCapacityMatch: usesVariants ? !!requiresCapacityMatch : false,
+      capacityFieldLabel: usesVariants && requiresCapacityMatch ? capacityFieldLabel : "",
       images: images || [],
+      bookingWindowStart: bookingWindowStart || "",
+      bookingWindowEnd: bookingWindowEnd || "",
       createdBy: req.user._id,
+      isActive: false,
     });
 
     res.status(201).json(service);
@@ -35,9 +84,28 @@ const getServices = async (req, res) => {
   try {
     const filter = {};
     if (req.query.category) filter.category = req.query.category;
-    if (!isStaffOrAdmin(req.user)) filter.isActive = true;
 
-    const services = await Service.find(filter).sort({ createdAt: -1 });
+    if (!isStaffOrAdmin(req.user)) {
+      filter.isActive = true;
+      const services = await Service.find(filter).sort({ createdAt: -1 });
+      return res.json(services);
+    }
+
+    // Admin/staff cần bookingCount để biết dịch vụ nào còn xóa được (xem deleteService).
+    const services = await Service.aggregate([
+      { $match: filter },
+      {
+        $lookup: {
+          from: "servicebookings",
+          localField: "_id",
+          foreignField: "service",
+          as: "bookings",
+        },
+      },
+      { $addFields: { bookingCount: { $size: "$bookings" } } },
+      { $project: { bookings: 0 } },
+      { $sort: { createdAt: -1 } },
+    ]);
     res.json(services);
   } catch (err) {
     console.error("Get services error:", err);
@@ -77,12 +145,19 @@ const getServiceReviews = async (req, res) => {
 
 const updateService = async (req, res) => {
   try {
-    const { name, category, description, price, unit, images, isActive } = req.body;
+    const { name, category, description, price, unit, images, isActive, usesVariants, variants, requiresCapacityMatch, capacityFieldLabel, bookingWindowStart, bookingWindowEnd } = req.body;
 
     const service = await Service.findById(req.params.id);
     if (!service) return res.status(404).json({ message: "Không tìm thấy dịch vụ." });
 
     const wasActive = service.isActive;
+
+    const nextBookingWindowStart = bookingWindowStart !== undefined ? bookingWindowStart : service.bookingWindowStart;
+    const nextBookingWindowEnd = bookingWindowEnd !== undefined ? bookingWindowEnd : service.bookingWindowEnd;
+    const windowError = validateBookingWindow(nextBookingWindowStart, nextBookingWindowEnd);
+    if (windowError) {
+      return res.status(400).json({ message: windowError });
+    }
 
     if (name !== undefined) service.name = name;
     if (category !== undefined) service.category = category;
@@ -91,6 +166,34 @@ const updateService = async (req, res) => {
     if (unit !== undefined) service.unit = unit;
     if (images !== undefined) service.images = images;
     if (isActive !== undefined) service.isActive = isActive;
+    if (usesVariants !== undefined) service.usesVariants = usesVariants;
+    if (variants !== undefined) service.variants = variants;
+    if (requiresCapacityMatch !== undefined) service.requiresCapacityMatch = requiresCapacityMatch;
+    if (capacityFieldLabel !== undefined) service.capacityFieldLabel = capacityFieldLabel;
+
+    if (service.usesVariants) {
+      // Bật variants → price/unit cũ không còn ý nghĩa, null để tránh dữ liệu thừa.
+      service.price = undefined;
+      service.unit = undefined;
+    } else {
+      // Tắt variants → dọn sạch toàn bộ cấu hình variants cũ.
+      service.variants = [];
+      service.requiresCapacityMatch = false;
+      service.capacityFieldLabel = "";
+    }
+
+    if (service.usesVariants && !isValidVariants(service.variants, service.requiresCapacityMatch)) {
+      return res.status(400).json({
+        message: "Vui lòng cung cấp ít nhất 1 lựa chọn hợp lệ (tên, giá" + (service.requiresCapacityMatch ? ", sức chứa" : "") + ").",
+      });
+    }
+    if (service.usesVariants && service.requiresCapacityMatch && !service.capacityFieldLabel) {
+      return res.status(400).json({
+        message: "Vui lòng đặt tên nhãn cho trường số lượng (vd: Số hành khách).",
+      });
+    }
+    if (bookingWindowStart !== undefined) service.bookingWindowStart = bookingWindowStart;
+    if (bookingWindowEnd !== undefined) service.bookingWindowEnd = bookingWindowEnd;
 
     await service.save();
 
@@ -127,10 +230,39 @@ const updateService = async (req, res) => {
   }
 };
 
+const deleteService = async (req, res) => {
+  try {
+    const service = await Service.findById(req.params.id);
+    if (!service) return res.status(404).json({ message: "Không tìm thấy dịch vụ." });
+
+    const bookingCount = await ServiceBooking.countDocuments({ service: service._id });
+    if (bookingCount > 0) {
+      return res.status(409).json({
+        message: `Không thể xóa: dịch vụ đã có ${bookingCount} lượt đặt.`,
+      });
+    }
+
+    // Chỉ xóa khi đang tạm dừng — lúc đó serviceBookingController chặn mọi đặt mới
+    // (isActive:false), nên không còn race giữa đếm booking và xóa.
+    if (service.isActive) {
+      return res.status(409).json({
+        message: "Không thể xóa: hãy tạm dừng dịch vụ trước khi xóa.",
+      });
+    }
+
+    await Service.findByIdAndDelete(service._id);
+    res.status(200).json({ message: "Đã xóa dịch vụ." });
+  } catch (err) {
+    console.error("Delete service error:", err);
+    res.status(500).json({ message: "Lỗi server." });
+  }
+};
+
 module.exports = {
   createService,
   getServices,
   getServiceById,
   getServiceReviews,
   updateService,
+  deleteService,
 };

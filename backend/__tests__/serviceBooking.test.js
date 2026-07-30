@@ -10,6 +10,7 @@ const Service = require("../models/Service");
 const ServiceBooking = require("../models/ServiceBooking");
 const Contract = require("../models/Contract");
 const Booking = require("../models/Booking");
+const Notification = require("../models/Notification");
 const serviceBookingRoutes = require("../routes/serviceBookings");
 const { createUser, tokenFor } = require("./testHelpers");
 
@@ -36,6 +37,7 @@ beforeEach(async () => {
   await ServiceBooking.deleteMany({});
   await Contract.deleteMany({});
   await Booking.deleteMany({});
+  await Notification.deleteMany({});
   await require("../models/Room").deleteMany({});
 });
 
@@ -199,6 +201,66 @@ describe("POST /api/service-bookings", () => {
 
     expect(res.status).toBe(201);
   });
+
+  test("đặt trong khung giờ nhận đặt của dịch vụ → 201", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createActiveService({ bookingWindowStart: "08:00", bookingWindowEnd: "22:00" });
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: "2030-01-01T10:00:00+07:00", quantity: 1 });
+
+    expect(res.status).toBe(201);
+  });
+
+  test("đặt ngoài khung giờ nhận đặt của dịch vụ → 400 đúng message", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createActiveService({ bookingWindowStart: "08:00", bookingWindowEnd: "22:00" });
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: "2030-01-01T23:00:00+07:00", quantity: 1 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Dịch vụ này chỉ nhận đặt từ 08:00 đến 22:00.");
+  });
+
+  test("dịch vụ không set khung giờ → đặt giờ nào cũng được", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createActiveService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: "2030-01-01T23:00:00+07:00", quantity: 1 });
+
+    expect(res.status).toBe(201);
+  });
+
+  test("tạo booking → tạo Notification type SERVICE cho tenant và staff", async () => {
+    const tenant = await createUser("tenant");
+    const staff = await createUser("staff");
+    await createActiveContract(tenant);
+    const service = await createActiveService({ price: 100000 });
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), quantity: 1 });
+
+    expect(res.status).toBe(201);
+
+    const tenantNotif = await Notification.findOne({ userId: tenant._id, type: "SERVICE" });
+    expect(tenantNotif).toBeTruthy();
+
+    const staffNotif = await Notification.findOne({ userId: staff._id, type: "SERVICE" });
+    expect(staffNotif).toBeTruthy();
+  });
 });
 
 describe("GET /api/service-bookings", () => {
@@ -250,8 +312,6 @@ describe("GET /api/service-bookings/:id", () => {
     expect(res.status).toBe(403);
   });
 });
-
-const Notification = require("../models/Notification");
 
 describe("PUT /api/service-bookings/:id/confirm", () => {
   test("admin confirm booking pending → 200 + tạo Notification", async () => {
@@ -431,6 +491,22 @@ describe("PUT /api/service-bookings/:id/pay", () => {
 
     expect(res.status).toBe(400);
   });
+
+  test("admin đánh dấu paid → tạo Notification type SERVICE cho tenant", async () => {
+    const admin = await createUser("admin");
+    const tenant = await createUser("tenant");
+    const service = await createActiveService();
+    const booking = await createBooking({ service: service._id, tenant: tenant._id });
+
+    const res = await request(app)
+      .put(`/api/service-bookings/${booking._id}/pay`)
+      .set("Authorization", `Bearer ${tokenFor(admin)}`);
+
+    expect(res.status).toBe(200);
+
+    const notif = await Notification.findOne({ userId: tenant._id, type: "SERVICE" });
+    expect(notif).toBeTruthy();
+  });
 });
 
 describe("PUT /api/service-bookings/:id/rate", () => {
@@ -567,5 +643,231 @@ describe("DELETE /api/service-bookings/:id", () => {
     const updatedService = await Service.findById(service._id);
     expect(updatedService.avgRating).toBe(5);
     expect(updatedService.ratingCount).toBe(1);
+  });
+});
+
+describe("ServiceBooking model — selectedVariant/matchQuantity", () => {
+  test("lưu selectedVariant + matchQuantity cho booking dùng variants", async () => {
+    const tenant = await createUser("tenant");
+    const service = await createActiveService({
+      category: "transport",
+      usesVariants: true,
+      requiresCapacityMatch: true,
+      capacityFieldLabel: "Số hành khách",
+      variants: [{ label: "4 chỗ", capacity: 4, price: 200000 }],
+    });
+
+    const booking = await ServiceBooking.create({
+      service: service._id,
+      tenant: tenant._id,
+      scheduledAt: futureDate(48),
+      quantity: 1,
+      unitPrice: 200000,
+      totalAmount: 200000,
+      selectedVariant: "4 chỗ",
+      matchQuantity: 3,
+    });
+
+    expect(booking.selectedVariant).toBe("4 chỗ");
+    expect(booking.matchQuantity).toBe(3);
+  });
+
+  test("matchQuantity < 1 → lỗi validation", async () => {
+    const tenant = await createUser("tenant");
+    const service = await createActiveService();
+
+    await expect(
+      ServiceBooking.create({
+        service: service._id,
+        tenant: tenant._id,
+        scheduledAt: futureDate(48),
+        quantity: 1,
+        unitPrice: 100000,
+        totalAmount: 100000,
+        matchQuantity: 0,
+      })
+    ).rejects.toThrow();
+  });
+});
+
+describe("POST /api/service-bookings — dịch vụ usesVariants, requiresCapacityMatch=true (vd xe)", () => {
+  const VARIANTS = [
+    { label: "4 chỗ", capacity: 4, price: 200000 },
+    { label: "7 chỗ", capacity: 7, price: 300000 },
+  ];
+
+  async function createCapacityMatchService(overrides = {}) {
+    return createActiveService({
+      category: "transport", usesVariants: true, requiresCapacityMatch: true,
+      capacityFieldLabel: "Số hành khách", variants: VARIANTS, ...overrides,
+    });
+  }
+
+  test("chọn đúng variant nhỏ nhất đủ đáp ứng → 201, totalAmount đúng giá, quantity=1", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createCapacityMatchService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), selectedVariant: "4 chỗ", matchQuantity: 3 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.selectedVariant).toBe("4 chỗ");
+    expect(res.body.matchQuantity).toBe(3);
+    expect(res.body.unitPrice).toBe(200000);
+    expect(res.body.totalAmount).toBe(200000);
+    expect(res.body.quantity).toBe(1);
+  });
+
+  test("matchQuantity vượt capacity của variant đã chọn → 400", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createCapacityMatchService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), selectedVariant: "4 chỗ", matchQuantity: 6 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/tối đa 4/);
+  });
+
+  test("chọn variant to hơn mức cần (né UI, gọi thẳng API) → 400 kèm gợi ý đúng", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createCapacityMatchService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), selectedVariant: "7 chỗ", matchQuantity: 3 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/"4 chỗ"/);
+  });
+
+  test("matchQuantity vượt capacity lớn nhất trong variants → 400", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createCapacityMatchService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), selectedVariant: "7 chỗ", matchQuantity: 10 });
+
+    expect(res.status).toBe(400);
+  });
+
+  test("thiếu selectedVariant hoặc matchQuantity → 400", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createCapacityMatchService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), matchQuantity: 3 });
+
+    expect(res.status).toBe(400);
+  });
+
+  test("lựa chọn không tồn tại trong variants → 400", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createCapacityMatchService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), selectedVariant: "16 chỗ", matchQuantity: 3 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Lựa chọn không hợp lệ.");
+  });
+});
+
+describe("POST /api/service-bookings — dịch vụ usesVariants, requiresCapacityMatch=false (vd spa gói giờ)", () => {
+  async function createFreeChoiceVariantService(overrides = {}) {
+    return createActiveService({
+      category: "spa", usesVariants: true, requiresCapacityMatch: false,
+      variants: [{ label: "60 phút", price: 300000 }, { label: "90 phút", price: 450000 }],
+      ...overrides,
+    });
+  }
+
+  test("chọn tự do 1 variant, quantity mặc định → 201, totalAmount = giá variant", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createFreeChoiceVariantService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), selectedVariant: "90 phút", quantity: 1 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.selectedVariant).toBe("90 phút");
+    expect(res.body.matchQuantity).toBeUndefined();
+    expect(res.body.unitPrice).toBe(450000);
+    expect(res.body.totalAmount).toBe(450000);
+  });
+
+  test("quantity=2 → totalAmount nhân đôi giá variant", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createFreeChoiceVariantService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), selectedVariant: "60 phút", quantity: 2 });
+
+    expect(res.status).toBe(201);
+    expect(res.body.totalAmount).toBe(600000);
+  });
+
+  test("thiếu selectedVariant → 400", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createFreeChoiceVariantService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), quantity: 1 });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /api/service-bookings — regression dịch vụ không phải transport", () => {
+  test("thiếu quantity → 400", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createActiveService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48) });
+
+    expect(res.status).toBe(400);
+  });
+
+  test("quantity < 1 → 400", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant);
+    const service = await createActiveService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), quantity: 0 });
+
+    expect(res.status).toBe(400);
   });
 });

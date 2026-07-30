@@ -1,7 +1,16 @@
 import api from './axios'
 
 export type ServiceCategory = 'cleaning' | 'food' | 'laundry' | 'transport' | 'spa' | 'maintenance'
-export type ServiceUnit = 'lần' | 'buổi' | 'khách'
+export type ServiceUnit = string
+
+export const UNIT_PRESETS: ServiceUnit[] = ['lần', 'buổi', 'khách', 'chuyến']
+
+export interface ServiceVariant {
+  label: string
+  price: number
+  capacity?: number
+  description?: string
+}
 
 export interface Service {
   _id: string
@@ -10,12 +19,23 @@ export interface Service {
   description: string
   price: number
   unit: ServiceUnit
+  usesVariants: boolean
+  variants: ServiceVariant[]
+  requiresCapacityMatch: boolean
+  capacityFieldLabel: string
   images: string[]
   avgRating: number
   ratingCount: number
   isActive: boolean
+  bookingCount?: number
+  bookingWindowStart?: string
+  bookingWindowEnd?: string
   createdAt: string
   updatedAt: string
+}
+
+export function getMinVariantPrice(variants: ServiceVariant[]): number {
+  return variants.length > 0 ? Math.min(...variants.map(v => v.price)) : 0
 }
 
 export const CATEGORY_LABELS: Record<ServiceCategory, string> = {
@@ -57,9 +77,15 @@ export const serviceService = {
     name: string
     category: ServiceCategory
     description?: string
-    price: number
-    unit: ServiceUnit
+    price?: number
+    unit?: ServiceUnit
     images?: string[]
+    usesVariants?: boolean
+    variants?: ServiceVariant[]
+    requiresCapacityMatch?: boolean
+    capacityFieldLabel?: string
+    bookingWindowStart?: string
+    bookingWindowEnd?: string
   }) => api.post<Service>('/services', data),
 
   updateService: (
@@ -72,6 +98,22 @@ export const serviceService = {
       unit: ServiceUnit
       images: string[]
       isActive: boolean
+      usesVariants: boolean
+      variants: ServiceVariant[]
+      requiresCapacityMatch: boolean
+      capacityFieldLabel: string
+      bookingWindowStart: string
+      bookingWindowEnd: string
     }>
   ) => api.put<Service>(`/services/${id}`, data),
+
+  deleteService: (id: string) => api.delete<{ message: string }>(`/services/${id}`),
+
+  uploadServiceImages: (files: File[]) => {
+    const formData = new FormData()
+    files.forEach(f => formData.append('images', f))
+    return api.post<{ urls: string[] }>('/services/images/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }

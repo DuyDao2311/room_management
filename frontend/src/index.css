@@ -3832,6 +3832,21 @@ body:has(.admin-main-content--no-padding) {
   box-shadow: 0 40px 120px rgba(0, 0, 0, 0.3);
   max-height: 90vh;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #e5e7eb transparent;
+}
+
+.modal::-webkit-scrollbar {
+  width: 4px;
+}
+
+.modal::-webkit-scrollbar-thumb {
+  background: #e5e7eb;
+  border-radius: 4px;
+}
+
+.modal::-webkit-scrollbar-button {
+  display: none;
 }
 
 .modal-header {
@@ -3878,6 +3893,60 @@ body:has(.admin-main-content--no-padding) {
   padding-top: 8px;
   border-top: 1px solid var(--border);
   margin-top: 8px;
+}
+
+.image-picker-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.image-picker-upload-row .form-input {
+  flex: 1;
+}
+
+.image-picker-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 12px;
+}
+
+.image-picker-preview-item {
+  position: relative;
+  aspect-ratio: 1;
+}
+
+.image-picker-preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-xs);
+  display: block;
+}
+
+.image-picker-preview-item button {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.image-picker-preview-item button:hover {
+  background: var(--red-soft);
+  border-color: rgba(220, 38, 38, 0.2);
+  color: var(--red);
 }
 
 /* =========================================

@@ -1040,173 +1040,65 @@ const notifyTenantServiceDeactivated = async (booking, service) => {
   });
 };
 
-// ─── Short-term Bookings ────────────────────────────────────────────────────────
-const notifyNewBooking = async (booking) => {
-  const room = booking.room;
-  const tenant = booking.tenant;
-  
-  const district = room?.district || "";
-  const title = "🛎️ Đặt phòng mới cần xử lý";
-  const message = `Khách hàng ${tenant?.name || "Khách vãng lai"} (${tenant?.phone || tenant?.email || ""}) vừa đặt phòng ${room?.name || ""} từ ${fmtDate(booking.checkInDateTime)} đến ${fmtDate(booking.checkOutDateTime)}. Tổng tiền: ${fmt(booking.totalAmount)}đ.`;
-
-  return await notifyStaffByDistrict(district, {
-    type: "BOOKING",
-    title,
-    message,
-    roomId: room?._id,
-    actionUrl: buildFrontendUrl(`/admin/bookings`),
-  });
-};
-
-const notifyStaffBookingPaid = async (booking) => {
-  const room = booking.room;
-  const tenant = booking.tenant;
-  const district = room?.district || "";
-  
-  const title = "💰 Đặt phòng đã thanh toán";
-  const message = `Khách hàng ${tenant?.name || ""} đã thanh toán ${fmt(booking.totalAmount)}đ cho phòng ${room?.name || ""} qua ${booking.paymentMethod}.`;
-
-  return await notifyStaffByDistrict(district, {
-    type: "BOOKING",
-    title,
-    message,
-    roomId: room?._id,
-    actionUrl: buildFrontendUrl(`/admin/bookings`),
-  });
-};
-
-const notifyTenantBookingPaid = async (booking) => {
-  const room = booking.room;
-  const tenant = booking.tenant;
-  if (!tenant || !tenant.email) return [];
-
-  const title = "✅ Xác nhận thanh toán đặt phòng thành công";
-  const message = `Kính gửi Quý khách,\n\nBooking phòng ${room?.name || ""} của Quý khách (từ ${fmtDate(booking.checkInDateTime)} đến ${fmtDate(booking.checkOutDateTime)}) đã được xác nhận thanh toán thành công số tiền ${fmt(booking.totalAmount)}đ qua ${booking.paymentMethod || "tiền mặt"}.\n\nCảm ơn Quý khách!\n\nTrân trọng,\nCăn Hộ F4`;
+/**
+ * Gửi thông báo (in-app + email) cho tenant khi vừa tạo ServiceBooking mới (status='pending').
+ * `booking.service` và `booking.tenant` phải đã populate.
+ */
+const notifyTenantServiceBookingCreated = async (booking) => {
+  const serviceName = booking.service?.name || "Dịch vụ";
+  const title = "📝 Booking dịch vụ đã được ghi nhận";
+  const message = `Kính gửi Quý khách,\n\nBooking dịch vụ "${serviceName}" (số lượng ${booking.quantity}, hẹn lúc ${fmtDate(booking.scheduledAt)}, tổng ${fmt(booking.totalAmount)}đ) của Quý khách đã được ghi nhận và đang chờ xác nhận từ chúng tôi.\n\nTrân trọng,\nCăn Hộ F4`;
 
   return dispatch({
-    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
+    recipients: [{ _id: booking.tenant._id, email: booking.tenant.email, name: booking.tenant.name }],
     data: {
-      type: "BOOKING",
+      type: "SERVICE",
       title,
       message,
-      roomId: room?._id,
+      serviceBookingId: booking._id,
     },
     channels: ["inapp", "email"],
-    actionUrl: buildFrontendUrl("/my-bookings"),
+    actionUrl: buildFrontendUrl("/my-service-bookings"),
   });
 };
 
-const notifyTenantBookingConfirmed = async (booking) => {
-  const room = booking.room;
-  const tenant = booking.tenant;
-  if (!tenant || !tenant.email) return [];
-
-  const title = "✅ Booking phòng đã được xác nhận";
-  const message = `Kính gửi Quý khách,\n\nBooking phòng ${room?.name || ""} của Quý khách (từ ${fmtDate(booking.checkInDateTime)} đến ${fmtDate(booking.checkOutDateTime)}) đã được chúng tôi XÁC NHẬN.\n\nVui lòng có mặt đúng giờ để làm thủ tục nhận phòng.\n\nTrân trọng,\nCăn Hộ F4`;
-
-  return dispatch({
-    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
-    data: {
-      type: "BOOKING",
-      title,
-      message,
-      roomId: room?._id,
-    },
-    channels: ["inapp", "email"],
-    actionUrl: buildFrontendUrl("/my-bookings"),
-  });
-};
-
-const notifyTenantBookingCheckedIn = async (booking) => {
-  const room = booking.room;
-  const tenant = booking.tenant;
-  if (!tenant || !tenant.email) return [];
-
-  const title = "🔑 Chào mừng bạn đến với phòng của chúng tôi";
-  const message = `Kính gửi Quý khách,\n\nQuý khách đã làm thủ tục nhận phòng (Check-in) thành công tại phòng ${room?.name || ""}.\n\nChúc Quý khách có một kỳ lưu trú tuyệt vời! Nếu cần bất kỳ hỗ trợ nào, đừng ngần ngại liên hệ với ban quản lý.\n\nTrân trọng,\nCăn Hộ F4`;
-
-  return dispatch({
-    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
-    data: {
-      type: "BOOKING",
-      title,
-      message,
-      roomId: room?._id,
-    },
-    channels: ["inapp", "email"],
-    actionUrl: buildFrontendUrl("/my-bookings"),
-  });
-};
-
-const notifyTenantBookingCheckedOut = async (booking) => {
-  const room = booking.room;
-  const tenant = booking.tenant;
-  if (!tenant || !tenant.email) return [];
-
-  const title = "👋 Cảm ơn Quý khách đã lưu trú";
-  const message = `Kính gửi Quý khách,\n\nQuý khách đã làm thủ tục trả phòng (Check-out) thành công tại phòng ${room?.name || ""}.\n\nCảm ơn Quý khách đã tin tưởng và sử dụng dịch vụ của Căn Hộ F4. Hy vọng sẽ được đón tiếp Quý khách trong những dịp tới!\n\nTrân trọng,\nCăn Hộ F4`;
-
-  return dispatch({
-    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
-    data: {
-      type: "BOOKING",
-      title,
-      message,
-      roomId: room?._id,
-    },
-    channels: ["inapp", "email"],
-    actionUrl: buildFrontendUrl("/my-bookings"),
-  });
-};
-
-const notifyTenantBookingCancelled = async (booking) => {
-  const room = booking.room;
-  const tenant = booking.tenant;
-  if (!tenant || !tenant.email) return [];
-
-  const title = "❌ Booking phòng đã bị huỷ";
-  const message = `Kính gửi Quý khách,\n\nChúng tôi rất tiếc phải thông báo Booking phòng ${room?.name || ""} của Quý khách (từ ${fmtDate(booking.checkInDateTime)} đến ${fmtDate(booking.checkOutDateTime)}) đã BỊ HUỶ. Vui lòng liên hệ với ban quản lý để biết thêm chi tiết hoặc để đặt một phòng khác.\n\nTrân trọng,\nCăn Hộ F4`;
-
-  return dispatch({
-    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
-    data: {
-      type: "BOOKING",
-      title,
-      message,
-      roomId: room?._id,
-    },
-    channels: ["inapp", "email"],
-    actionUrl: buildFrontendUrl("/my-bookings"),
-  });
-};
-
-const notifyStaffServiceBookingPaid = async (serviceBooking, paymentMethodStr, req) => {
-  const serviceName = serviceBooking?.service?.name || "dịch vụ";
-  const tenant = serviceBooking?.tenant;
-  const tenantName = tenant?.name || "Một khách hàng";
-  const tenantPhone = tenant?.phoneNumber ? ` (${tenant.phoneNumber})` : "";
-  const title = "💰 Đã nhận thanh toán Dịch vụ";
-  const message = `Khách hàng ${tenantName}${tenantPhone} vừa thanh toán ${fmt(serviceBooking.totalAmount)}đ qua ${paymentMethodStr} cho ${serviceName}.`;
+/**
+ * Gửi thông báo (in-app + email) cho toàn bộ staff/admin khi có ServiceBooking mới cần xử lý.
+ * `booking.service` và `booking.tenant` phải đã populate.
+ */
+const notifyStaffNewServiceBooking = async (booking) => {
+  const tenantName = booking.tenant?.name || "";
+  const tenantPhone = booking.tenant?.phone || "";
+  const serviceName = booking.service?.name || "Dịch vụ";
+  const title = "🛎️ Booking dịch vụ mới cần xác nhận";
+  const message = `${tenantName} (${tenantPhone}) đặt dịch vụ "${serviceName}" (SL: ${booking.quantity}), hẹn lúc ${fmtDate(booking.scheduledAt)}.`;
 
   return notifyStaff({
+    type: "SERVICE",
     title,
     message,
-    type: "SERVICE",
-    serviceBookingId: serviceBooking?._id,
+    serviceBookingId: booking._id,
+    actionUrl: buildFrontendUrl("/admin/service-bookings"),
   });
 };
 
-const notifyTenantServiceBookingPaid = async (serviceBooking, paymentMethodStr) => {
-  const serviceName = serviceBooking?.service?.name || "dịch vụ";
-  const tenant = serviceBooking?.tenant;
-  if (!tenant || !tenant.email) return [];
-
-  const title = "✅ Thanh toán dịch vụ thành công";
-  const message = `Kính gửi ${tenant.name || "Quý khách"},\n\nHệ thống đã xác nhận khoản thanh toán ${fmt(serviceBooking.totalAmount)}đ qua ${paymentMethodStr} cho đơn đặt "${serviceName}".\n\nCảm ơn bạn đã sử dụng dịch vụ!\nCăn Hộ F4`;
+/**
+ * Gửi email biên lai cho tenant khi ServiceBooking được xác nhận đã thanh toán (paymentStatus='paid').
+ * `booking.service` và `booking.tenant` phải đã populate.
+ */
+const notifyTenantServiceBookingPaid = async (booking) => {
+  const serviceName = booking.service?.name || "Dịch vụ";
+  const title = `✅ Xác nhận thanh toán dịch vụ thành công — ${serviceName}`;
+  const message = `Kính gửi Quý khách,\n\nBooking dịch vụ "${serviceName}" (tổng ${fmt(booking.totalAmount)}đ) của Quý khách đã được xác nhận thanh toán thành công. Cảm ơn Quý khách.\n\nTrân trọng,\nCăn Hộ F4`;
 
   return dispatch({
-    recipients: [{ _id: tenant._id, email: tenant.email, name: tenant.name }],
-    data: { type: "SERVICE", title, message, serviceBookingId: serviceBooking?._id },
+    recipients: [{ _id: booking.tenant._id, email: booking.tenant.email, name: booking.tenant.name }],
+    data: {
+      type: "SERVICE",
+      title,
+      message,
+      serviceBookingId: booking._id,
+    },
     channels: ["inapp", "email"],
     actionUrl: buildFrontendUrl("/my-service-bookings"),
   });
@@ -1226,6 +1118,7 @@ module.exports = {
   notifyStaffCashPaymentRequest,
   notifyInvoiceOverdue,
   notifyContractExpiring,
+  notifyStaffNewServiceBooking,
   // Tenant
   notifyTenantInvoiceDue,
   notifyTenantInvoiceOverdue,
@@ -1237,8 +1130,10 @@ module.exports = {
   notifyTenantAppointmentConfirmed,
   notifyTenantAppointmentCancelled,
   notifyTenantIncidentStatus,
+  notifyTenantServiceBookingCreated,
   notifyTenantServiceBookingStatusChanged,
   notifyTenantServiceDeactivated,
+  notifyTenantServiceBookingPaid,
   // Extension
   notifyTenantExtensionRequest,
   notifyAdminTenantAgreedExtension,
