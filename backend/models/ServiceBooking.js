@@ -18,6 +18,14 @@ const serviceBookingSchema = new mongoose.Schema(
       ref: "Booking",
       default: null,
     },
+    // Khu vực của phòng tenant đang thuê tại thời điểm đặt — snapshot để staff
+    // lọc được bằng find() thay vì join ngược qua contract/booking mỗi lần query.
+    // Rỗng = booking tạo trước khi có phân quyền theo khu vực (chưa backfill).
+    district: {
+      type: String,
+      default: "",
+      index: true,
+    },
     scheduledAt: {
       type: Date,
       required: [true, "Thời gian hẹn không được để trống"],

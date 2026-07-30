@@ -3,6 +3,11 @@ import userEvent from '@testing-library/user-event'
 import { vi, describe, test, expect, beforeEach } from 'vitest'
 import ServiceManagement from './ServiceManagement'
 import { serviceService } from '../../api/service.service'
+import { useAuth } from '../../contexts/AuthContext.tsx'
+
+vi.mock('../../contexts/AuthContext.tsx', () => ({
+  useAuth: vi.fn(),
+}))
 
 vi.mock('../../api/service.service', async () => {
   const actual = await vi.importActual<typeof import('../../api/service.service')>('../../api/service.service')
@@ -26,6 +31,7 @@ const SERVICE_A = {
 
 describe('ServiceManagement', () => {
   beforeEach(() => {
+    vi.mocked(useAuth).mockReturnValue({ user: { role: 'admin' } } as any)
     vi.mocked(serviceService.getServices).mockClear().mockResolvedValue({ data: [SERVICE_A] } as any)
     vi.mocked(serviceService.createService).mockClear()
     vi.mocked(serviceService.updateService).mockClear()
@@ -198,6 +204,15 @@ describe('ServiceManagement', () => {
     render(<ServiceManagement />)
     await screen.findByText('Dọn phòng')
     expect(screen.getByRole('button', { name: 'Xóa dịch vụ' })).toBeDisabled()
+  })
+
+  test('staff không thấy nút xóa dịch vụ', async () => {
+    vi.mocked(useAuth).mockReturnValue({ user: { role: 'staff' } } as any)
+    const SERVICE_NO_BOOKING = { ...SERVICE_A, bookingCount: 0, isActive: false }
+    vi.mocked(serviceService.getServices).mockResolvedValue({ data: [SERVICE_NO_BOOKING] } as any)
+    render(<ServiceManagement />)
+    await screen.findByText('Dọn phòng')
+    expect(screen.queryByRole('button', { name: 'Xóa dịch vụ' })).not.toBeInTheDocument()
   })
 
   test('xóa dịch vụ chưa có booking gọi deleteService rồi tải lại danh sách', async () => {

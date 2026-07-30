@@ -1073,13 +1073,18 @@ const notifyStaffNewServiceBooking = async (booking) => {
   const title = "🛎️ Booking dịch vụ mới cần xác nhận";
   const message = `${tenantName} (${tenantPhone}) đặt dịch vụ "${serviceName}" (SL: ${booking.quantity}), hẹn lúc ${fmtDate(booking.scheduledAt)}.`;
 
-  return notifyStaff({
+  const data = {
     type: "SERVICE",
     title,
     message,
     serviceBookingId: booking._id,
     actionUrl: buildFrontendUrl("/admin/service-bookings"),
-  });
+  };
+
+  // Booking cũ chưa có district thì vẫn báo cho toàn bộ staff — thà thừa còn hơn
+  // không ai nhận được đơn mới.
+  if (!booking.district) return notifyStaff(data);
+  return notifyStaffByDistrict(booking.district, data);
 };
 
 /**
@@ -1252,12 +1257,15 @@ const notifyStaffServiceBookingPaid = async (serviceBooking, paymentMethodStr, r
   const title = "💰 Đã nhận thanh toán Dịch vụ";
   const message = `Khách hàng ${tenantName}${tenantPhone} vừa thanh toán ${fmt(serviceBooking.totalAmount)}đ qua ${paymentMethodStr} cho ${serviceName}.`;
 
-  return notifyStaff({
+  const data = {
     title,
     message,
     type: "SERVICE",
     serviceBookingId: serviceBooking?._id,
-  });
+  };
+
+  if (!serviceBooking?.district) return notifyStaff(data);
+  return notifyStaffByDistrict(serviceBooking.district, data);
 };
 
 

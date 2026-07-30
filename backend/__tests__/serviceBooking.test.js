@@ -52,9 +52,16 @@ async function createActiveService(overrides = {}) {
   });
 }
 
-async function createActiveContract(tenant) {
+async function createStaffFor(...districts) {
+  const staff = await createUser("staff");
+  staff.managedDistricts = districts;
+  await staff.save();
+  return staff;
+}
+
+async function createActiveContract(tenant, district = "") {
   const room = await require("../models/Room").create({
-    name: "Phòng test", address: "123 Test", price: 3000000, area: 20,
+    name: "Phòng test", address: "123 Test", price: 3000000, area: 20, district,
   });
   return Contract.create({
     room: room._id, tenant: tenant._id,
@@ -869,5 +876,118 @@ describe("POST /api/service-bookings — regression dịch vụ không phải tr
       .send({ serviceId: service._id, scheduledAt: futureDate(48), quantity: 0 });
 
     expect(res.status).toBe(400);
+  });
+});
+
+describe("Phân quyền theo khu vực (district)", () => {
+  test("tạo booking lưu district của phòng tenant đang thuê", async () => {
+    const tenant = await createUser("tenant");
+    await createActiveContract(tenant, "Hải Châu");
+    const service = await createActiveService();
+
+    const res = await request(app)
+      .post("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(tenant)}`)
+      .send({ serviceId: service._id, scheduledAt: futureDate(48), quantity: 1 });
+
+    expect(res.status).toBe(201);
+    const saved = await ServiceBooking.findById(res.body._id);
+    expect(saved.district).toBe("Hải Châu");
+  });
+
+  test("staff chỉ thấy booking thuộc khu vực mình quản lý", async () => {
+    const tenant = await createUser("tenant");
+    const service = await createActiveService();
+    await createBooking({ service: service._id, tenant: tenant._id, district: "Hải Châu" });
+    await createBooking({ service: service._id, tenant: tenant._id, district: "Sơn Trà" });
+    const staff = await createStaffFor("Hải Châu");
+
+    const res = await request(app)
+      .get("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(staff)}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].district).toBe("Hải Châu");
+  });
+
+  test("admin vẫn thấy booking của mọi khu vực", async () => {
+    const tenant = await createUser("tenant");
+    const service = await createActiveService();
+    await createBooking({ service: service._id, tenant: tenant._id, district: "Hải Châu" });
+    await createBooking({ service: service._id, tenant: tenant._id, district: "Sơn Trà" });
+    const admin = await createUser("admin");
+
+    const res = await request(app)
+      .get("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(admin)}`);
+
+    expect(res.body).toHaveLength(2);
+  });
+
+  test("staff xác nhận booking khu vực khác → 403, trạng thái không đổi", async () => {
+    const tenant = await createUser("tenant");
+    const service = await createActiveService();
+    const booking = await createBooking({
+      service: service._id, tenant: tenant._id, district: "Sơn Trà", status: "pending",
+    });
+    const staff = await createStaffFor("Hải Châu");
+
+    const res = await request(app)
+      .put(`/api/service-bookings/${booking._id}/confirm`)
+      .set("Authorization", `Bearer ${tokenFor(staff)}`);
+
+    expect(res.status).toBe(403);
+    const after = await ServiceBooking.findById(booking._id);
+    expect(after.status).toBe("pending");
+  });
+
+  test("staff xem chi tiết booking khu vực khác → 403", async () => {
+    const tenant = await createUser("tenant");
+    const service = await createActiveService();
+    const booking = await createBooking({
+      service: service._id, tenant: tenant._id, district: "Sơn Trà",
+    });
+    const staff = await createStaffFor("Hải Châu");
+
+    const res = await request(app)
+      .get(`/api/service-bookings/${booking._id}`)
+      .set("Authorization", `Bearer ${tokenFor(staff)}`);
+
+    expect(res.status).toBe(403);
+  });
+
+  test("staff đúng khu vực vẫn xác nhận được", async () => {
+    const tenant = await createUser("tenant");
+    const service = await createActiveService();
+    const booking = await createBooking({
+      service: service._id, tenant: tenant._id, district: "Hải Châu", status: "pending",
+    });
+    const staff = await createStaffFor("Hải Châu");
+
+    const res = await request(app)
+      .put(`/api/service-bookings/${booking._id}/confirm`)
+      .set("Authorization", `Bearer ${tokenFor(staff)}`);
+
+    expect(res.status).toBe(200);
+  });
+
+  test("booking cũ chưa có district vẫn hiện và thao tác được với mọi staff", async () => {
+    const tenant = await createUser("tenant");
+    const service = await createActiveService();
+    const booking = await createBooking({
+      service: service._id, tenant: tenant._id, status: "pending",
+    });
+    const staff = await createStaffFor("Hải Châu");
+
+    const list = await request(app)
+      .get("/api/service-bookings")
+      .set("Authorization", `Bearer ${tokenFor(staff)}`);
+    expect(list.body).toHaveLength(1);
+
+    const res = await request(app)
+      .put(`/api/service-bookings/${booking._id}/confirm`)
+      .set("Authorization", `Bearer ${tokenFor(staff)}`);
+    expect(res.status).toBe(200);
   });
 });

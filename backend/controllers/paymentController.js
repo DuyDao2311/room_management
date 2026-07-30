@@ -2,7 +2,6 @@ const invoiceModel = require('../models/Invoice');
 const contractModel = require('../models/Contract');
 const userModel = require('../models/User');
 const paymentModel = require('../models/Payment');
-const { checkUserDistrictPermission } = require('../middleware/auth');
 const { notifyInvoicePaid, notifyTenantInvoicePaid, sendSocketNotification, notifyStaffBookingPaid, notifyTenantBookingPaid } = require('../utils/notificationService');
 
 const { NotFoundError, BadRequestError, ForbiddenError } = require('../core/error.response');
@@ -728,99 +727,6 @@ class PaymentController {
         }
     }
 
-    /**
-     * Xác nhận thanh toán bằng tiền mặt (Staff/Admin)
-     */
-    async payInvoiceWithCash(req, res, next) {
-        try {
-            const { invoiceId } = req.params;
-            const { note } = req.body;
-            const user = req.user; // từ JWT middleware
-
-            // Lấy thông tin hóa đơn cùng với contract và room để kiểm tra district
-            const invoice = await invoiceModel.findById(invoiceId).populate({
-                path: 'contract',
-                populate: {
-                    path: 'room',
-                    select: 'district'
-                }
-            });
-
-            if (!invoice) {
-                return next(new NotFoundError('Hóa đơn không tồn tại'));
-            }
-
-            if (invoice.status === 'paid') {
-                return next(new BadRequestError('Hóa đơn này đã được thanh toán'));
-            }
-
-            // Lấy district từ room
-            const room = invoice.contract?.room;
-            const district = room?.district;
-
-            if (!district) {
-                return next(new BadRequestError('Không xác định được khu vực của hóa đơn này'));
-            }
-
-            // Phân quyền (Row-Level Security)
-            if (!checkUserDistrictPermission(user, district)) {
-                return res.status(403).json({
-                    message: "Khu vực của hóa đơn này không thuộc thẩm quyền quản lý của bạn"
-                });
-            }
-
-            // 1. Cập nhật hóa đơn
-            invoice.status = 'paid';
-            invoice.paidAt = new Date();
-            invoice.paymentMethod = 'Cash'; // Đồng bộ với enum Invoice: MoMo, VNPay, Cash
-            await invoice.save();
-
-            // 2. Tạo bản ghi Payment lưu vết
-            const newPayment = await paymentModel.create({
-                invoice: invoice._id,
-                contract: invoice.contract._id,
-                tenant: invoice.tenantId,
-                paymentMethod: 'cash',
-                amount: invoice.totalAmount,
-                status: 'success',
-                paidAt: new Date(),
-                cash: {
-                    receivedBy: user._id,
-                    note: note || ''
-                }
-            });
-
-            // 3. Gửi thông báo đến staff/admin
-            const notifs = await notifyInvoicePaid(invoice);
-            // Gửi email + in-app xác nhận thanh toán cho tenant
-            await notifyTenantInvoicePaid(invoice);
-            const io = req.app.get('io');
-            if (io && notifs.length > 0) {
-              notifs.forEach((n) => sendSocketNotification(io, 'new_notification', n));
-            }
-
-            // 4. Emit Socket.io event cho tenant
-            if (io && invoice.tenantId) {
-                io.to(`tenant_${invoice.tenantId.toString()}`).emit('invoice_paid', {
-                    invoiceId: invoice._id,
-                    status: 'paid',
-                    paymentMethod: 'cash',
-                    paidAt: invoice.paidAt,
-                    message: 'Hóa đơn của bạn đã được xác nhận thanh toán tiền mặt'
-                });
-            }
-
-            return new OK({
-                message: 'Xác nhận thu tiền mặt thành công',
-                metadata: {
-                    invoice,
-                    payment: newPayment
-                }
-            }).send(res);
-        } catch (error) {
-            return next(error);
-        }
-    }
 }
 
 module.exports = new PaymentController();

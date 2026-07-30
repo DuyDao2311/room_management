@@ -238,7 +238,8 @@ const createBooking = async (req, res) => {
     if (serviceBookingsToCreate.length > 0) {
       const serviceBookingsWithRoom = serviceBookingsToCreate.map(sb => ({
         ...sb,
-        roomBooking: booking._id
+        roomBooking: booking._id,
+        district: room.district || "",
       }));
       await ServiceBooking.insertMany(serviceBookingsWithRoom);
     }
