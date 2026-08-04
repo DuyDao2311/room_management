@@ -176,6 +176,8 @@ export default function InvoiceManagement() {
   const [formError, setFormError] = useState("");
 
   // ─── Filter & Pagination States ─────────────────────────────────────────────
+  const [statsMonth, setStatsMonth] = useState(new Date().getMonth() + 1);
+  const [statsYear, setStatsYear] = useState(new Date().getFullYear());
   const [currentPage, setCurrentPage] = useState(
     Number(searchParams.get("page")) || 1,
   );
@@ -245,12 +247,14 @@ export default function InvoiceManagement() {
   // ─── Fetch ──────────────────────────────────────────────────────────────────
   const fetchStats = useCallback(async () => {
     try {
-      const { data } = await api.get("/invoices/stats");
+      const { data } = await api.get("/invoices/stats", {
+        params: { month: statsMonth, year: statsYear }
+      });
       setStats(data);
     } catch (err) {
       console.error("Fetch stats failed:", err);
     }
-  }, []);
+  }, [statsMonth, statsYear]);
 
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
@@ -566,7 +570,7 @@ export default function InvoiceManagement() {
             style={{
               display: "flex",
               justifyContent: "space-between",
-              alignItems: "center",
+              alignItems: "flex-start",
               marginBottom: "24px",
             }}
           >
@@ -583,17 +587,75 @@ export default function InvoiceManagement() {
             >
               Quản lý hóa đơn
             </h1>
-            <button
-              onClick={() => {
-                setForm(getDefaultForm());
-                setFormError("");
-                setView("create");
-              }}
-              className="button button-primary"
-              style={{ display: "flex", alignItems: "center", gap: "8px" }}
-            >
-              <FiPlus /> Tạo hóa đơn mới
-            </button>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "12px", marginLeft: "24px" }}>
+              <button
+                onClick={() => {
+                  setForm(getDefaultForm());
+                  setFormError("");
+                  setView("create");
+                }}
+                className="button button-primary"
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <FiPlus /> Tạo hóa đơn mới
+              </button>
+              
+              <div style={{ display: "flex", gap: "8px" }}>
+                <select
+                  value={statsMonth}
+                  onChange={(e) => setStatsMonth(Number(e.target.value))}
+                  style={{
+                    padding: "8px 32px 8px 16px",
+                    borderRadius: "8px",
+                    border: "1px solid #eaecf0",
+                    background: "#fff",
+                    fontSize: "0.9rem",
+                    color: "#003e68",
+                    fontWeight: 600,
+                    outline: "none",
+                    cursor: "pointer",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    MozAppearance: "none",
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%231e293b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 12px center",
+                    backgroundSize: "16px",
+                  }}
+                >
+                  {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                    <option key={m} value={m}>Tháng {m}</option>
+                  ))}
+                </select>
+                
+                <select
+                  value={statsYear}
+                  onChange={(e) => setStatsYear(Number(e.target.value))}
+                  style={{
+                    padding: "8px 32px 8px 16px",
+                    borderRadius: "8px",
+                    border: "1px solid #eaecf0",
+                    background: "#fff",
+                    fontSize: "0.9rem",
+                    color: "#003e68",
+                    fontWeight: 600,
+                    outline: "none",
+                    cursor: "pointer",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    MozAppearance: "none",
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%231e293b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 12px center",
+                    backgroundSize: "16px",
+                  }}
+                >
+                  {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((y) => (
+                    <option key={y} value={y}>Năm {y}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
           {/* ─── Dashboard Stats ─── */}
@@ -671,8 +733,7 @@ export default function InvoiceManagement() {
                   {stats.totalInvoices}
                 </div>
                 <div style={{ fontSize: "0.75rem", color: "#6b7280" }}>
-                  Trong tháng {new Date().getMonth() + 1}/
-                  {new Date().getFullYear()}
+                  Trong tháng {statsMonth}/{statsYear}
                 </div>
               </div>
 
@@ -924,7 +985,7 @@ export default function InvoiceManagement() {
                       fontWeight: 600,
                     }}
                   >
-                    Doanh thu dự kiến
+                    Doanh thu theo tháng
                   </div>
                   <div
                     style={{

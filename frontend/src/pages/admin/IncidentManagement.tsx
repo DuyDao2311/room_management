@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import { 
-  getAllIncidents, 
+import {
+  getAllIncidents,
   getDistrictIncidents,
   getIncidentById,
   getIncidentStats
@@ -18,7 +18,7 @@ export default function IncidentManagement() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  
+
   // Pagination
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -26,7 +26,7 @@ export default function IncidentManagement() {
   // Filters
   const [filters, setFilters] = useState({
     search: "",
-    category: "",
+    costPayer: "",
     priority: "",
     status: "",
   });
@@ -35,11 +35,13 @@ export default function IncidentManagement() {
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const [statsMonth, setStatsMonth] = useState<number>(new Date().getMonth() + 1);
+  const [statsYear, setStatsYear] = useState<number>(new Date().getFullYear());
   const [stats, setStats] = useState<IncidentStats | null>(null);
 
   const fetchStats = async () => {
     try {
-      const data = await getIncidentStats();
+      const data = await getIncidentStats({ month: statsMonth, year: statsYear });
       setStats(data);
     } catch (err) {
       console.error("Lỗi khi tải thống kê sự cố", err);
@@ -50,7 +52,7 @@ export default function IncidentManagement() {
     try {
       setLoading(true);
       setError("");
-      
+
       const queryParams = {
         page,
         limit: 9,
@@ -63,7 +65,7 @@ export default function IncidentManagement() {
       } else {
         res = await getDistrictIncidents(queryParams);
       }
-      
+
       setIncidents(res.incidents);
       setTotalPages(res.totalPages);
     } catch (err: any) {
@@ -75,7 +77,7 @@ export default function IncidentManagement() {
 
   useEffect(() => {
     fetchStats();
-  }, [user]); // fetch once
+  }, [statsMonth, statsYear, user]);
 
   useEffect(() => {
     fetchIncidents();
@@ -122,9 +124,55 @@ export default function IncidentManagement() {
   return (
     <div className="page-shell">
       <div className="admin-page">
-        <h1 className="admin-page-title">
-          Quản lý sự cố
-        </h1>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
+          <h1
+            style={{
+              color: "#003e68",
+              fontSize: "2rem",
+              fontWeight: 700,
+              margin: "0",
+              paddingBottom: "16px",
+              borderBottom: "1px solid #eaecf0",
+              flex: 1
+            }}
+          >
+            Quản lý sự cố
+          </h1>
+          <div style={{ display: "flex", gap: "8px", marginLeft: "24px" }}>
+            <select
+              value={statsMonth}
+              onChange={(e) => setStatsMonth(Number(e.target.value))}
+              style={{
+                padding: "8px 12px",
+                borderRadius: "8px",
+                border: "1px solid #eaecf0",
+                outline: "none",
+                fontWeight: 600,
+                color: "#1c4c6b",
+              }}
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                <option key={m} value={m}>Tháng {m}</option>
+              ))}
+            </select>
+            <select
+              value={statsYear}
+              onChange={(e) => setStatsYear(Number(e.target.value))}
+              style={{
+                padding: "8px 12px",
+                borderRadius: "8px",
+                border: "1px solid #eaecf0",
+                outline: "none",
+                fontWeight: 600,
+                color: "#1c4c6b",
+              }}
+            >
+              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((y) => (
+                <option key={y} value={y}>Năm {y}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
         {stats && (
           <div className="incident-stats-grid">
@@ -166,7 +214,7 @@ export default function IncidentManagement() {
             <div className="incident-stat-card">
               <div className="incident-stat-stripe stripe-cost" />
               <div className="incident-stat-header">
-                <MdPayments size={16} color="#0284c7" /> Tổng chi phí
+                <MdPayments size={16} color="#0284c7" /> Tổng doanh thu (tháng)
               </div>
               <div className="incident-stat-content">
                 <span className="incident-stat-value cost">{stats.totalCost.toLocaleString('vi-VN')}</span>
@@ -176,61 +224,61 @@ export default function IncidentManagement() {
           </div>
         )}
 
-      {error && <div className="error-message" style={{ color: 'red', marginBottom: '1rem' }}>{error}</div>}
+        {error && <div className="error-message" style={{ color: 'red', marginBottom: '1rem' }}>{error}</div>}
 
-      <div className="admin-table-wrap" style={{ background: '#fff' }}>
-        <IncidentFilters 
-          filters={filters} 
-          onFilterChange={handleFilterChange} 
-        />
+        <div className="admin-table-wrap" style={{ background: '#fff' }}>
+          <IncidentFilters
+            filters={filters}
+            onFilterChange={handleFilterChange}
+          />
 
-        {loading ? (
-          <div style={{ padding: "20px", textAlign: "center", color: "#667085" }}>Đang tải...</div>
-        ) : incidents.length === 0 ? (
-          <div style={{ padding: "40px", textAlign: "center", color: "#667085" }}>
-            Không có báo cáo sự cố nào phù hợp.
-          </div>
-        ) : (
-          <>
-            <IncidentTable 
-              incidents={incidents} 
-              onViewDetail={handleViewDetail} 
-            />
-            
-            {/* Phân trang */}
-            {totalPages > 1 && (
-              <div className="pagination" style={{ display: 'flex', justifyContent: 'center', gap: '8px', padding: '16px' }}>
-                <button 
-                  disabled={page === 1}
-                  onClick={() => handlePageChange(page - 1)}
-                  style={{ padding: '8px 12px', border: '1px solid #d0d5dd', borderRadius: '4px', background: '#fff', cursor: page === 1 ? 'not-allowed' : 'pointer' }}
-                >
-                  Trước
-                </button>
-                <span style={{ padding: '8px 12px' }}>
-                  Trang {page} / {totalPages}
-                </span>
-                <button 
-                  disabled={page === totalPages}
-                  onClick={() => handlePageChange(page + 1)}
-                  style={{ padding: '8px 12px', border: '1px solid #d0d5dd', borderRadius: '4px', background: '#fff', cursor: page === totalPages ? 'not-allowed' : 'pointer' }}
-                >
-                  Sau
-                </button>
-              </div>
-            )}
-          </>
+          {loading ? (
+            <div style={{ padding: "20px", textAlign: "center", color: "#667085" }}>Đang tải...</div>
+          ) : incidents.length === 0 ? (
+            <div style={{ padding: "40px", textAlign: "center", color: "#667085" }}>
+              Không có báo cáo sự cố nào phù hợp.
+            </div>
+          ) : (
+            <>
+              <IncidentTable
+                incidents={incidents}
+                onViewDetail={handleViewDetail}
+              />
+
+              {/* Phân trang */}
+              {totalPages > 1 && (
+                <div className="pagination" style={{ display: 'flex', justifyContent: 'center', gap: '8px', padding: '16px' }}>
+                  <button
+                    disabled={page === 1}
+                    onClick={() => handlePageChange(page - 1)}
+                    style={{ padding: '8px 12px', border: '1px solid #d0d5dd', borderRadius: '4px', background: '#fff', cursor: page === 1 ? 'not-allowed' : 'pointer' }}
+                  >
+                    Trước
+                  </button>
+                  <span style={{ padding: '8px 12px' }}>
+                    Trang {page} / {totalPages}
+                  </span>
+                  <button
+                    disabled={page === totalPages}
+                    onClick={() => handlePageChange(page + 1)}
+                    style={{ padding: '8px 12px', border: '1px solid #d0d5dd', borderRadius: '4px', background: '#fff', cursor: page === totalPages ? 'not-allowed' : 'pointer' }}
+                  >
+                    Sau
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {selectedIncident && (
+          <IncidentDetail
+            incident={selectedIncident}
+            onClose={handleCloseDetail}
+            userRole={user?.role || ""}
+          />
         )}
       </div>
-
-      {selectedIncident && (
-        <IncidentDetail 
-          incident={selectedIncident} 
-          onClose={handleCloseDetail} 
-          userRole={user?.role || ""}
-        />
-      )}
-    </div>
     </div>
   );
 }

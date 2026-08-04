@@ -178,7 +178,7 @@ export const rateIncident = async (id: string, payload: { rating: number; commen
   return res.data.data;
 };
 
-export const getIncidentStats = async (): Promise<IncidentStats> => {
-  const res = await api.get("/incidents/stats");
+export const getIncidentStats = async (params?: { month?: number, year?: number }): Promise<IncidentStats> => {
+  const res = await api.get("/incidents/stats", { params });
   return res.data.data;
 };

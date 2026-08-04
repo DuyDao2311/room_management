@@ -657,12 +657,24 @@ const getRoomCalendar = async (req, res) => {
  */
 const getBookingStats = async (req, res) => {
   try {
+    const { month, year } = req.query;
     const now = new Date();
+    
+    let startOfMonth, endOfMonth;
+    if (month && year) {
+      const m = parseInt(month);
+      const y = parseInt(year);
+      startOfMonth = new Date(y, m - 1, 1);
+      endOfMonth = new Date(y, m, 1);
+    } else {
+      startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    }
+
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
     const startOfWeek = new Date(startOfDay);
     startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + 1); // Monday
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     // Staff: filter by district rooms
     let roomFilter = {};
@@ -694,7 +706,7 @@ const getBookingStats = async (req, res) => {
       }),
       Booking.countDocuments({
         ...roomFilter,
-        createdAt: { $gte: startOfMonth },
+        createdAt: { $gte: startOfMonth, $lt: endOfMonth },
       }),
       // Revenue from paid bookings this month
       Booking.aggregate([
@@ -702,7 +714,7 @@ const getBookingStats = async (req, res) => {
           $match: {
             ...roomFilter,
             paymentStatus: "paid",
-            createdAt: { $gte: startOfMonth },
+            createdAt: { $gte: startOfMonth, $lt: endOfMonth },
           },
         },
         { $group: { _id: null, total: { $sum: "$totalAmount" } } },

@@ -161,8 +161,9 @@ const getIncidentStats = async (req, res) => {
   try {
     const userRole = req.user.role;
     const userDistricts = req.user.managedDistricts || [];
+    const { month, year } = req.query;
     
-    const stats = await incidentService.getIncidentStats(userRole, userDistricts);
+    const stats = await incidentService.getIncidentStats(userRole, userDistricts, { month, year });
     
     return res.status(200).json({
       success: true,
