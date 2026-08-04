@@ -484,6 +484,57 @@ const deleteServiceBooking = async (req, res) => {
   }
 };
 
+const getServiceBookingStats = async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    const now = new Date();
+    
+    let startOfMonth, endOfMonth;
+    if (month && year) {
+      const m = parseInt(month);
+      const y = parseInt(year);
+      startOfMonth = new Date(y, m - 1, 1);
+      endOfMonth = new Date(y, m, 1);
+    } else {
+      startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    }
+
+    let filter = { createdAt: { $gte: startOfMonth, $lt: endOfMonth } };
+    if (req.user.role === "staff") {
+      filter.$or = [
+        { district: { $in: req.user.managedDistricts || [] } },
+        { district: { $in: [null, ""] } },
+      ];
+    }
+
+    const [
+      totalBookings,
+      pendingBookings,
+      cancelledBookings,
+      revenueResult
+    ] = await Promise.all([
+      ServiceBooking.countDocuments(filter),
+      ServiceBooking.countDocuments({ ...filter, status: { $in: ["pending", "confirmed"] } }),
+      ServiceBooking.countDocuments({ ...filter, status: "cancelled" }),
+      ServiceBooking.aggregate([
+        { $match: { ...filter, paymentStatus: "paid" } },
+        { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+      ])
+    ]);
+
+    res.json({
+      totalBookings,
+      pendingBookings,
+      cancelledBookings,
+      revenue: revenueResult[0]?.total ?? 0,
+    });
+  } catch (err) {
+    console.error("Get service booking stats error:", err);
+    res.status(500).json({ message: "Lỗi server." });
+  }
+};
+
 module.exports = {
   createServiceBooking,
   getServiceBookings,
@@ -494,4 +545,5 @@ module.exports = {
   payServiceBooking,
   rateServiceBooking,
   deleteServiceBooking,
+  getServiceBookingStats,
 };

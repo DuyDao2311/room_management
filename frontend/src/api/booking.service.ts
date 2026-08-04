@@ -63,5 +63,5 @@ export const bookingService = {
   payBooking: (id: string) => api.put<Booking>(`/bookings/${id}/pay`),
 
   // Stats
-  getStats: () => api.get('/bookings/stats'),
+  getStats: (params?: { month?: number; year?: number }) => api.get('/bookings/stats', { params }),
 }

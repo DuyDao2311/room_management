@@ -51,4 +51,6 @@ export const serviceBookingService = {
   payBooking: (id: string) => api.put<ServiceBooking>(`/service-bookings/${id}/pay`),
   rateBooking: (id: string, data: { rating: number; review?: string; tags?: string[] }) =>
     api.put<ServiceBooking>(`/service-bookings/${id}/rate`, data),
+  getStats: (params?: { month?: number; year?: number }) =>
+    api.get<{ totalBookings: number; pendingBookings: number; cancelledBookings: number; revenue: number }>('/service-bookings/stats', { params }),
 }

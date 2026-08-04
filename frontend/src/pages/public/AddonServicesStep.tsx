@@ -77,7 +77,7 @@ export default function AddonServicesStep({
     setLoading(true)
     serviceService
       .getServices()
-      .then(res => setServices(res.data.filter((s: Service) => s.isActive)))
+      .then(res => setServices(res.data.filter((s: Service) => s.isActive && !s.usesVariants)))
       .catch(() => setServices([]))
       .finally(() => setLoading(false))
   }, [])

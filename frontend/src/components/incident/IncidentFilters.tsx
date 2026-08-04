@@ -4,7 +4,7 @@ import { FiSearch, FiFilter } from 'react-icons/fi';
 interface IncidentFiltersProps {
   filters: {
     search: string;
-    category: string;
+    costPayer: string;
     priority: string;
     status: string;
   };
@@ -17,12 +17,12 @@ export default function IncidentFilters({ filters, onFilterChange }: IncidentFil
     onFilterChange({ [name]: value });
   };
 
-  const hasActiveFilter = !!(filters.search || filters.category || filters.priority || filters.status);
+  const hasActiveFilter = !!(filters.search || filters.costPayer || filters.priority || filters.status);
 
   const handleResetFilter = () => {
     onFilterChange({
       search: '',
-      category: '',
+      costPayer: '',
       priority: '',
       status: ''
     });
@@ -45,16 +45,14 @@ export default function IncidentFilters({ filters, onFilterChange }: IncidentFil
       <div className="incident-filter-select-wrapper">
         <FiFilter size={16} className="incident-filter-icon" />
         <select
-          name="category"
-          value={filters.category}
+          name="costPayer"
+          value={filters.costPayer}
           onChange={handleChange}
           className="incident-filter-select with-icon"
         >
-          <option value="">Tất cả loại sự cố</option>
-          <option value="Điện">Sự cố về Điện</option>
-          <option value="Nước">Sự cố về Nước</option>
-          <option value="Nội thất">Hư hỏng Nội thất</option>
-          <option value="Khác">Khác</option>
+          <option value="">Tất cả người thanh toán</option>
+          <option value="tenant">Tenant thanh toán</option>
+          <option value="landlord">F4 thanh toán</option>
         </select>
       </div>
 

@@ -33,6 +33,7 @@ interface Stats {
     rent: number
     booking: number
     service: number
+    incident: number
   }
   chartData: { month: string; revenue: number; expenses: number }[]
 }
@@ -170,14 +171,16 @@ export default function Dashboard() {
   const expenseChange = stats ? calcChange(stats.monthlyExpenses, stats.previousMonthExpenses) : { value: '0%', positive: true }
 
   // ── Donut chart data ───────────────────────────────────────────────────────
-  const DONUT_COLORS = ['#003e68', '#088373', '#f79009']
-  const totalRevAll = (stats?.revenueBySource?.rent ?? 0) + (stats?.revenueBySource?.booking ?? 0) + (stats?.revenueBySource?.service ?? 0)
+  const DONUT_COLORS = ['#003e68', '#088373', '#f79009', '#eab308']
+  const totalRevAll = (stats?.revenueBySource?.rent ?? 0) + (stats?.revenueBySource?.booking ?? 0) + (stats?.revenueBySource?.service ?? 0) + (stats?.revenueBySource?.incident ?? 0)
   const donutData = [
-    { name: 'Tiền thuê phòng', value: stats?.revenueBySource?.rent ?? 0 },
-    { name: 'Tiền booking', value: stats?.revenueBySource?.booking ?? 0 },
-    { name: 'Tiền dịch vụ', value: stats?.revenueBySource?.service ?? 0 },
+    { name: 'Tiền thuê phòng', value: Math.max(0, stats?.revenueBySource?.rent ?? 0) },
+    { name: 'Tiền booking', value: Math.max(0, stats?.revenueBySource?.booking ?? 0) },
+    { name: 'Tiền dịch vụ', value: Math.max(0, stats?.revenueBySource?.service ?? 0) },
+    { name: 'Tiền sự cố', value: Math.max(0, stats?.revenueBySource?.incident ?? 0) },
   ]
-  const donutPercents = donutData.map(d => totalRevAll > 0 ? Math.round((d.value / totalRevAll) * 100) : 0)
+  const sumDonutValue = donutData.reduce((acc, curr) => acc + curr.value, 0)
+  const donutPercents = donutData.map(d => sumDonutValue > 0 ? Math.round((d.value / sumDonutValue) * 100) : 0)
 
   // ── Line chart Y axis formatter ────────────────────────────────────────────
   const formatYAxis = (value: number) => {

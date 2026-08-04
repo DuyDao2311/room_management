@@ -76,22 +76,14 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
       Room.countDocuments({ ...roomFilter, status: "maintenance" }),
       Contract.countDocuments({ ...contractFilter, status: "active" }),
       // Tenant dài hạn
-      isStaff
-        ? Contract.distinct("tenant", { ...contractFilter, status: "active" }).then((ids) => ids.length)
-        : User.countDocuments({ role: "tenant" }),
+      Contract.distinct("tenant", { ...contractFilter, status: "active" }).then((ids) => ids.length),
       Contract.countDocuments({ ...contractFilter, status: "active", endDate: { $lte: sevenDaysFromNow } }),
       isStaff
         ? 0
         : User.countDocuments({ role: "tenant", createdAt: { $gte: startOfMonth } }),
     ]);
 
-    // Tổng khách booking ngắn hạn (đang active: confirmed hoặc checked_in)
-    const bookingGuestsResult = await Booking.aggregate([
-      { $match: { ...bookingFilter, status: { $in: ["confirmed", "checked_in"] } } },
-      { $group: { _id: null, totalGuests: { $sum: "$guests" } } },
-    ]);
-    const bookingGuests = bookingGuestsResult[0]?.totalGuests ?? 0;
-    const totalTenants = longTermTenants + bookingGuests;
+    const totalTenants = longTermTenants;
 
     // ── Doanh thu tháng được chọn (Invoice đã thu) ───────────────────────────
     const revenueMatchFilter = {
@@ -118,19 +110,25 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
     const momoRevenue = revenueByMethodResult.find(r => r._id === "MoMo")?.total ?? 0;
     const vnpayRevenue = revenueByMethodResult.find(r => r._id === "VNPay")?.total ?? 0;
 
-    // ── Chi phí tháng hiện tại (Incident costPayer=landlord, theo createdAt) ─
-    const incidentExpenseFilter = {
-      costPayer: "landlord",
+    // ── Chi phí và Doanh thu sự cố tháng hiện tại (Incident theo createdAt) ─
+    const incidentFilter = {
       createdAt: { $gte: startOfMonth, $lte: endOfMonth },
     };
     if (isStaff) {
-      incidentExpenseFilter.room = { $in: roomIds };
+      incidentFilter.room = { $in: roomIds };
     }
-    const expenseResult = await Incident.aggregate([
-      { $match: incidentExpenseFilter },
-      { $group: { _id: null, total: { $sum: "$repairCost" } } },
+    const incidentResult = await Incident.aggregate([
+      { $match: incidentFilter },
+      { $group: {
+          _id: null,
+          tenantCost: { $sum: { $cond: [{ $eq: ["$costPayer", "tenant"] }, "$repairCost", 0] } },
+          landlordCost: { $sum: { $cond: [{ $eq: ["$costPayer", "landlord"] }, "$repairCost", 0] } }
+        }
+      },
     ]);
-    const monthlyExpenses = expenseResult[0]?.total ?? 0;
+    const incidentTenantCost = incidentResult[0]?.tenantCost ?? 0;
+    const monthlyExpenses = incidentResult[0]?.landlordCost ?? 0;
+    const incidentRevenue = incidentTenantCost - monthlyExpenses;
 
     // ── Doanh thu & chi phí tháng trước (để tính % tăng/giảm) ───────────────
     const prevRevenueFilter = {
@@ -159,20 +157,26 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
     ]);
     const prevServiceRev = prevServiceRevResult[0]?.total ?? 0;
     
-    const previousMonthRevenue = prevInvoiceRev + prevBookingRev + prevServiceRev;
-
-    const prevExpenseFilter = {
-      costPayer: "landlord",
+    const prevIncidentFilter = {
       createdAt: { $gte: startOfPrevMonth, $lte: endOfPrevMonth },
     };
     if (isStaff) {
-      prevExpenseFilter.room = { $in: roomIds };
+      prevIncidentFilter.room = { $in: roomIds };
     }
-    const prevExpenseResult = await Incident.aggregate([
-      { $match: prevExpenseFilter },
-      { $group: { _id: null, total: { $sum: "$repairCost" } } },
+    const prevIncidentResult = await Incident.aggregate([
+      { $match: prevIncidentFilter },
+      { $group: {
+          _id: null,
+          tenantCost: { $sum: { $cond: [{ $eq: ["$costPayer", "tenant"] }, "$repairCost", 0] } },
+          landlordCost: { $sum: { $cond: [{ $eq: ["$costPayer", "landlord"] }, "$repairCost", 0] } }
+        }
+      },
     ]);
-    const previousMonthExpenses = prevExpenseResult[0]?.total ?? 0;
+    const prevIncidentTenant = prevIncidentResult[0]?.tenantCost ?? 0;
+    const previousMonthExpenses = prevIncidentResult[0]?.landlordCost ?? 0;
+    const prevIncidentRev = prevIncidentTenant - previousMonthExpenses;
+
+    const previousMonthRevenue = prevInvoiceRev + prevBookingRev + prevServiceRev + prevIncidentRev;
 
     // ── Doanh thu theo nguồn (tháng được chọn) ───────────────────────────────
     // 1. Tiền thuê phòng = toàn bộ Invoice.totalAmount (bao gồm tiền thuê + điện nước + phí phụ)
@@ -192,8 +196,8 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
     ]);
     const serviceRevenue = serviceRevenueResult[0]?.total ?? 0;
 
-    // ── Tổng doanh thu = Invoice + Booking + ServiceBooking ─────────────────
-    const monthlyRevenue = invoiceRevenue + bookingRevenue + serviceRevenue;
+    // ── Tổng doanh thu = Invoice + Booking + ServiceBooking + Incident ─────────────────
+    const monthlyRevenue = invoiceRevenue + bookingRevenue + serviceRevenue + incidentRevenue;
 
     // ── Dữ liệu biểu đồ 6 tháng kết thúc tại tháng được chọn ──────────────
     const chartData = [];
@@ -209,15 +213,13 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
       const chartRevFilter = { month: m, year: y, status: "paid" };
       if (isStaff) chartRevFilter.contract = revenueMatchFilter.contract;
 
-      const chartExpFilter = {
-        costPayer: "landlord",
+      const chartIncidentFilter = {
         createdAt: { $gte: mStart, $lte: mEnd },
       };
-      if (isStaff) chartExpFilter.room = { $in: roomIds };
+      if (isStaff) chartIncidentFilter.room = { $in: roomIds };
 
-      const [rev, exp, bookingRevResult, serviceRevResult] = await Promise.all([
+      const [rev, bookingRevResult, serviceRevResult, incidentResult] = await Promise.all([
         Invoice.aggregate([{ $match: chartRevFilter }, { $group: { _id: null, total: { $sum: "$totalAmount" } } }]),
-        Incident.aggregate([{ $match: chartExpFilter }, { $group: { _id: null, total: { $sum: "$repairCost" } } }]),
         Booking.aggregate([
           { $match: { ...bookingFilter, paymentStatus: "paid", createdAt: { $gte: mStart, $lte: mEnd } } },
           { $group: { _id: null, total: { $sum: "$totalAmount" } } }
@@ -226,16 +228,28 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
           { $match: { paymentStatus: "paid", createdAt: { $gte: mStart, $lte: mEnd } } },
           { $group: { _id: null, total: { $sum: "$totalAmount" } } }
         ]),
+        Incident.aggregate([
+          { $match: chartIncidentFilter },
+          { $group: { 
+              _id: null, 
+              tenantCost: { $sum: { $cond: [{ $eq: ["$costPayer", "tenant"] }, "$repairCost", 0] } },
+              landlordCost: { $sum: { $cond: [{ $eq: ["$costPayer", "landlord"] }, "$repairCost", 0] } }
+            } 
+          }
+        ]),
       ]);
 
       const invoiceRev = rev[0]?.total ?? 0;
       const bookingRev = bookingRevResult[0]?.total ?? 0;
       const serviceRev = serviceRevResult[0]?.total ?? 0;
+      const incidentTenant = incidentResult[0]?.tenantCost ?? 0;
+      const incidentLandlord = incidentResult[0]?.landlordCost ?? 0;
+      const incidentRev = incidentTenant - incidentLandlord;
 
       chartData.push({
         month: `T${m}`,
-        revenue: invoiceRev + bookingRev + serviceRev,
-        expenses: exp[0]?.total ?? 0,
+        revenue: invoiceRev + bookingRev + serviceRev + incidentRev,
+        expenses: incidentLandlord,
       });
     }
 
@@ -298,6 +312,7 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
         rent: rentRevenue,
         booking: bookingRevenue,
         service: serviceRevenue,
+        incident: incidentRevenue,
       },
       chartData,
     });

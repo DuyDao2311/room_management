@@ -11,8 +11,10 @@ const {
   payServiceBooking,
   rateServiceBooking,
   deleteServiceBooking,
+  getServiceBookingStats,
 } = require("../controllers/serviceBookingController");
 
+router.get("/stats", protect, getServiceBookingStats);
 router.get("/", protect, getServiceBookings);
 router.post("/", protect, verifyRole("tenant"), createServiceBooking);
 router.get("/:id", protect, getServiceBookingById);

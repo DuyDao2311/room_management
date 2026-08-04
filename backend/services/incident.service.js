@@ -165,12 +165,12 @@ const getIncidentById = async (incidentId, userId, userRole) => {
 };
 
 const getAllIncidents = async (query = {}) => {
-  const { page = 1, limit = 9, search, category, priority, status } = query;
+  const { page = 1, limit = 9, search, costPayer, priority, status } = query;
   const skip = (page - 1) * limit;
 
   let filter = {};
 
-  if (category) filter.category = category;
+  if (costPayer) filter.costPayer = costPayer;
   if (priority) filter.priority = priority;
   if (status) filter.status = status;
 
@@ -215,12 +215,12 @@ const getAllIncidents = async (query = {}) => {
 };
 
 const getDistrictIncidents = async (districts, query = {}) => {
-  const { page = 1, limit = 9, search, category, priority, status } = query;
+  const { page = 1, limit = 9, search, costPayer, priority, status } = query;
   const skip = (page - 1) * limit;
 
   let filter = { district: { $in: districts } };
 
-  if (category) filter.category = category;
+  if (costPayer) filter.costPayer = costPayer;
   if (priority) filter.priority = priority;
   if (status) filter.status = status;
 
@@ -416,10 +416,20 @@ const rateIncident = async (incidentId, tenantId, rating, comment) => {
   return incident;
 };
 
-const getIncidentStats = async (userRole, userDistricts = []) => {
+const getIncidentStats = async (userRole, userDistricts = [], query = {}) => {
   let filter = {};
   if (userRole === "staff") {
     filter.district = { $in: userDistricts };
+  }
+
+  const { month, year } = query;
+  if (month && year) {
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+    filter.createdAt = {
+      $gte: startDate,
+      $lte: endDate
+    };
   }
 
   const stats = await Incident.aggregate([
@@ -438,7 +448,12 @@ const getIncidentStats = async (userRole, userDistricts = []) => {
             $cond: [{ $in: ["$status", ["resolved", "closed"]] }, 1, 0]
           }
         },
-        totalCost: {
+        tenantCost: {
+          $sum: {
+            $cond: [{ $eq: ["$costPayer", "tenant"] }, "$repairCost", 0]
+          }
+        },
+        landlordCost: {
           $sum: {
             $cond: [{ $eq: ["$costPayer", "landlord"] }, "$repairCost", 0]
           }
@@ -451,11 +466,14 @@ const getIncidentStats = async (userRole, userDistricts = []) => {
     return { total: 0, inProgress: 0, completed: 0, totalCost: 0 };
   }
 
+  const tenantCost = stats[0].tenantCost || 0;
+  const landlordCost = stats[0].landlordCost || 0;
+
   return {
     total: stats[0].total,
     inProgress: stats[0].inProgress,
     completed: stats[0].completed,
-    totalCost: stats[0].totalCost || 0
+    totalCost: tenantCost - landlordCost
   };
 };
 

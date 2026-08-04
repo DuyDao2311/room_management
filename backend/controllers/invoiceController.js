@@ -409,6 +409,22 @@ const getInvoiceStats = async (req, res) => {
   try {
     const filter = {};
 
+    const { month, year } = req.query;
+    if (month && year) {
+      const m = parseInt(month);
+      const y = parseInt(year);
+      filter.$or = [
+        { month: m, year: y },
+        {
+          month: { $exists: false },
+          createdAt: {
+            $gte: new Date(y, m - 1, 1),
+            $lt: new Date(y, m, 1)
+          }
+        }
+      ];
+    }
+
     // Staff: chỉ tính invoices thuộc contracts trong district
     if (req.user.role === "staff") {
       const rooms = await Room.find({
