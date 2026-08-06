@@ -7,11 +7,11 @@ export default function Login() {
   const navigate = useNavigate()
   const location = useLocation()
   const successMessage = (location.state as { message?: string } | null)?.message
-  
+
   // Đọc redirect path từ query param (do RequireAuth set khi redirect)
   const queryParams = new URLSearchParams(location.search)
   const redirectPath = queryParams.get('redirect') || undefined
-  
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -43,7 +43,7 @@ export default function Login() {
     <div className="auth-page">
       <div className="auth-card design-auth-card">
         <div className="auth-header design-auth-header">
-          <Link to="/" className="brand auth-brand serif-title">Phòng Trọ DTT</Link>
+          <Link to="/" className="brand auth-brand serif-title">Căn hộ F4</Link>
           <h1>Đăng nhập hệ thống</h1>
           <p>Mừng bạn trở lại với hệ sinh thái quản lý phòng trọ hiện đại.</p>
         </div>

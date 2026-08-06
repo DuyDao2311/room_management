@@ -35,7 +35,7 @@ export default function Register() {
     <div className="auth-page">
       <div className="auth-card design-auth-card">
         <div className="auth-header design-auth-header">
-          <Link to="/" className="brand auth-brand serif-title">Phòng Trọ DTT</Link>
+          <Link to="/" className="brand auth-brand serif-title">Căn hộ F4</Link>
           <h1>Đăng ký tài khoản</h1>
           <p>Gia nhập hệ sinh thái quản lý tài sản kiến trúc hiện đại ngay hôm nay.</p>
         </div>

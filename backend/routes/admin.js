@@ -87,9 +87,15 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
 
     // ── Doanh thu tháng được chọn (Invoice đã thu) ───────────────────────────
     const revenueMatchFilter = {
-      month: targetMonth,
-      year: targetYear,
       status: "paid",
+      type: { $ne: "repair" },
+      $or: [
+        { month: targetMonth, year: targetYear },
+        {
+          month: { $exists: false },
+          createdAt: { $gte: startOfMonth, $lte: endOfMonth },
+        },
+      ],
     };
     if (isStaff) {
       revenueMatchFilter.contract = { $in: roomIds.length > 0 ? await Contract.find({ room: { $in: roomIds } }).distinct("_id") : [] };
@@ -119,7 +125,8 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
     }
     const incidentResult = await Incident.aggregate([
       { $match: incidentFilter },
-      { $group: {
+      {
+        $group: {
           _id: null,
           tenantCost: { $sum: { $cond: [{ $eq: ["$costPayer", "tenant"] }, "$repairCost", 0] } },
           landlordCost: { $sum: { $cond: [{ $eq: ["$costPayer", "landlord"] }, "$repairCost", 0] } }
@@ -132,9 +139,15 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
 
     // ── Doanh thu & chi phí tháng trước (để tính % tăng/giảm) ───────────────
     const prevRevenueFilter = {
-      month: prevMonth,
-      year: prevYear,
       status: "paid",
+      type: { $ne: "repair" },
+      $or: [
+        { month: prevMonth, year: prevYear },
+        {
+          month: { $exists: false },
+          createdAt: { $gte: startOfPrevMonth, $lte: endOfPrevMonth },
+        },
+      ],
     };
     if (isStaff) {
       prevRevenueFilter.contract = revenueMatchFilter.contract;
@@ -144,19 +157,19 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
       { $group: { _id: null, total: { $sum: "$totalAmount" } } },
     ]);
     const prevInvoiceRev = prevRevenueResult[0]?.total ?? 0;
-    
+
     const prevBookingRevResult = await Booking.aggregate([
       { $match: { ...bookingFilter, paymentStatus: "paid", createdAt: { $gte: startOfPrevMonth, $lte: endOfPrevMonth } } },
       { $group: { _id: null, total: { $sum: "$totalAmount" } } },
     ]);
     const prevBookingRev = prevBookingRevResult[0]?.total ?? 0;
-    
+
     const prevServiceRevResult = await ServiceBooking.aggregate([
       { $match: { paymentStatus: "paid", createdAt: { $gte: startOfPrevMonth, $lte: endOfPrevMonth } } },
       { $group: { _id: null, total: { $sum: "$totalAmount" } } },
     ]);
     const prevServiceRev = prevServiceRevResult[0]?.total ?? 0;
-    
+
     const prevIncidentFilter = {
       createdAt: { $gte: startOfPrevMonth, $lte: endOfPrevMonth },
     };
@@ -165,7 +178,8 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
     }
     const prevIncidentResult = await Incident.aggregate([
       { $match: prevIncidentFilter },
-      { $group: {
+      {
+        $group: {
           _id: null,
           tenantCost: { $sum: { $cond: [{ $eq: ["$costPayer", "tenant"] }, "$repairCost", 0] } },
           landlordCost: { $sum: { $cond: [{ $eq: ["$costPayer", "landlord"] }, "$repairCost", 0] } }
@@ -210,7 +224,17 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
       const mStart = new Date(y, m - 1, 1);
       const mEnd = new Date(y, m, 0, 23, 59, 59, 999);
 
-      const chartRevFilter = { month: m, year: y, status: "paid" };
+      const chartRevFilter = { 
+        status: "paid",
+        type: { $ne: "repair" },
+        $or: [
+          { month: m, year: y },
+          {
+            month: { $exists: false },
+            createdAt: { $gte: mStart, $lte: mEnd },
+          },
+        ],
+      };
       if (isStaff) chartRevFilter.contract = revenueMatchFilter.contract;
 
       const chartIncidentFilter = {
@@ -230,11 +254,12 @@ router.get("/stats", protect, verifyRole("admin", "staff"), injectDistrictFilter
         ]),
         Incident.aggregate([
           { $match: chartIncidentFilter },
-          { $group: { 
-              _id: null, 
+          {
+            $group: {
+              _id: null,
               tenantCost: { $sum: { $cond: [{ $eq: ["$costPayer", "tenant"] }, "$repairCost", 0] } },
               landlordCost: { $sum: { $cond: [{ $eq: ["$costPayer", "landlord"] }, "$repairCost", 0] } }
-            } 
+            }
           }
         ]),
       ]);
