@@ -1,7 +1,7 @@
-const Invoice      = require("../models/Invoice");
-const Contract     = require("../models/Contract");
-const Room         = require("../models/Room");
-const Payment      = require("../models/Payment");
+const Invoice = require("../models/Invoice");
+const Contract = require("../models/Contract");
+const Room = require("../models/Room");
+const Payment = require("../models/Payment");
 const { checkUserDistrictPermission } = require("../middleware/auth");
 const { notifyTenantInvoiceSent, notifyTenantInvoicePaid, notifyInvoicePaid, notifyStaffCashPaymentRequest, sendSocketNotification } = require("../utils/notificationService");
 
@@ -74,19 +74,19 @@ const createDepositInvoice = async (req, res) => {
     }
 
     const invoice = await Invoice.create({
-      contract:            contractId,
-      type:                "deposit",
+      contract: contractId,
+      type: "deposit",
 
       // --- Snapshot ---
-      representativeName:  contract.representativeName,
+      representativeName: contract.representativeName,
       representativePhone: contract.representativePhone,
-      roomName:            contract.room.name,
-      rentAmount:          contract.monthlyRent,
+      roomName: contract.room.name,
+      rentAmount: contract.monthlyRent,
 
-      depositAmount:       contract.depositAmount || contract.monthlyRent, // mặc định 1 tháng
-      dueDate:             dueDate || contract.startDate,
-      notes:               notes || "",
-      createdBy:           req.user._id,
+      depositAmount: contract.depositAmount || contract.monthlyRent, // mặc định 1 tháng
+      dueDate: dueDate || contract.startDate,
+      notes: notes || "",
+      createdBy: req.user._id,
     });
 
     res.status(201).json(invoice);
@@ -140,7 +140,7 @@ const getInvoices = async (req, res) => {
     await getContractOrFail(contractId, req.user);
 
     const filter = { contract: contractId };
-    if (type)   filter.type   = type;
+    if (type) filter.type = type;
     if (status) filter.status = status;
 
     const invoices = await Invoice.find(filter)
@@ -193,21 +193,21 @@ const getInvoiceById = async (req, res) => {
  */
 const getMyInvoices = async (req, res) => {
   try {
-    const invoices = await Invoice.find({ 
-      tenantId: req.user._id, 
-      sentAt: { $ne: null } 
+    const invoices = await Invoice.find({
+      tenantId: req.user._id,
+      sentAt: { $ne: null }
     })
-    .populate({
-      path: 'contract',
-      populate: { path: 'room', select: 'name address' }
-    })
-    .populate({
-      path: "incidentId",
-      populate: { path: "assignedStaff", select: "name role" }
-    })
-    .populate("confirmedBy", "name role")
-    .sort({ createdAt: -1 })
-    .lean();
+      .populate({
+        path: 'contract',
+        populate: { path: 'room', select: 'name address' }
+      })
+      .populate({
+        path: "incidentId",
+        populate: { path: "assignedStaff", select: "name role" }
+      })
+      .populate("confirmedBy", "name role")
+      .sort({ createdAt: -1 })
+      .lean();
 
     res.json(invoices);
   } catch (err) {
@@ -498,7 +498,7 @@ const sendInvoice = async (req, res) => {
     const tenantId = contract.tenant;
 
     // 5. Cập nhật invoice: đánh dấu đã gửi + lưu tenantId snapshot
-    invoice.sentAt   = new Date();
+    invoice.sentAt = new Date();
     invoice.tenantId = tenantId;
     await invoice.save();
 
@@ -516,8 +516,8 @@ const sendInvoice = async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("sendInvoice error:", err);
-    res.status(err.status || 500).json({ 
-      message: err.message || "Lỗi server." 
+    res.status(err.status || 500).json({
+      message: err.message || "Lỗi server."
     });
   }
 };
