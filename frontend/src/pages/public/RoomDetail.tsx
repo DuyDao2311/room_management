@@ -437,6 +437,17 @@ export default function RoomDetail() {
   //   return val;
   // };
 
+  // Disable body scroll when modal is open
+  useEffect(() => {
+    if (showRentModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showRentModal]);
 
   if (loading) return <div className="page-shell"><Spinner /></div>
   if (error || !room) return (

@@ -6145,7 +6145,14 @@ body:has(.admin-main-content--no-padding) {
   padding: 40px 20px 60px;
   overflow-y: auto;
   animation: fade-in 0.18s ease;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
 }
+
+.rent-modal-overlay::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+}
+
 
 .rent-modal {
   background: #fff;
